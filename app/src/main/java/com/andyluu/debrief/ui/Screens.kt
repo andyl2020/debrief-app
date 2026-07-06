@@ -39,7 +39,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -424,6 +423,7 @@ private fun SecretField(label: String, value: String, onChange: (String) -> Unit
 @Composable
 fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val reloadVersion by viewModel.reloadVersion.collectAsStateWithLifecycle()
     val recording = state.recording
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -463,8 +463,10 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
         }
     }
     val activeIndex = state.segments.indexOfLast { position >= it.startMs }.coerceAtLeast(0)
-    LaunchedEffect(activeIndex, follow) {
-        if (follow && state.segments.isNotEmpty()) listState.animateScrollToItem(activeIndex)
+    LaunchedEffect(activeIndex, follow, state.segments.size, reloadVersion) {
+        if (follow && state.segments.isNotEmpty()) {
+            listState.scrollToItem(activeIndex.coerceIn(state.segments.indices))
+        }
     }
     LaunchedEffect(query) {
         delay(250)
@@ -513,7 +515,9 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                     value = query, onValueChange = { query = it }, modifier = Modifier.weight(1f),
                     placeholder = { Text("Search this recording") }, leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true,
                 )
-                IconButton(onClick = { follow = true }) { Icon(Icons.Default.Sync, "Sync transcript") }
+                IconButton(onClick = { follow = true; viewModel.reloadTranscript() }) {
+                    Icon(Icons.Default.Refresh, "Reload transcript")
+                }
                 IconButton(onClick = { addComment = true }) { Icon(Icons.Default.AddComment, "Add comment") }
             }
             if (query.isNotBlank()) {

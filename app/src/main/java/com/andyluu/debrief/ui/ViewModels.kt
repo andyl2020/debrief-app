@@ -27,6 +27,8 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -142,6 +144,8 @@ class ReviewViewModel(
     private val app = application as DebriefApplication
     private val services = app.services
     private val dao = services.database.dao()
+    private val _reloadVersion = MutableStateFlow(0)
+    val reloadVersion = _reloadVersion.asStateFlow()
 
     val state: StateFlow<ReviewState> = combine(
         dao.observeRecording(recordingId),
@@ -154,6 +158,18 @@ class ReviewViewModel(
 
     fun savePlaybackPosition(positionMs: Long) = viewModelScope.launch {
         dao.updatePlaybackPosition(recordingId, positionMs)
+    }
+
+    fun reloadTranscript() = viewModelScope.launch {
+        val recording = dao.getRecording(recordingId)
+        if (recording != null && dao.getSegments(recordingId).isEmpty()) {
+            services.settings.settings.first().folderUri?.let { folderUri ->
+                DocumentFile.fromTreeUri(app, Uri.parse(folderUri))?.let { root ->
+                    services.sidecars.restoreIfPresent(root, recording)
+                }
+            }
+        }
+        _reloadVersion.update { it + 1 }
     }
 
     fun addComment(timestampMs: Long, text: String) = viewModelScope.launch {

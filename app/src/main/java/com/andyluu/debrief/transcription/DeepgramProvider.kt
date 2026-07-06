@@ -102,21 +102,11 @@ class DeepgramProvider(
             )
         }
         if (segments.isEmpty() && words.isEmpty()) throw TranscriptionException("No speech was detected")
-        return TranscriptionResult(segments.ifEmpty { wordsToSegments(recordingId, words) }, words)
+        // The channel-level word stream is Deepgram's complete recognized timeline. In some
+        // responses the convenience utterance list omits words, so deriving display segments
+        // from all words prevents recognized sections from disappearing between utterances.
+        return TranscriptionResult(segmentsFromWords(recordingId, words).ifEmpty { segments }, words)
     }
-
-    private fun wordsToSegments(recordingId: String, words: List<TranscriptWordEntity>): List<TranscriptSegmentEntity> =
-        words.groupBy { it.speakerId }.flatMap { (_, speakerWords) ->
-            speakerWords.chunked(40).map { group ->
-                TranscriptSegmentEntity(
-                    recordingId = recordingId,
-                    speakerId = group.first().speakerId,
-                    startMs = group.first().startMs,
-                    endMs = group.last().endMs,
-                    text = group.joinToString(" ") { it.text },
-                )
-            }
-        }.sortedBy { it.startMs }
 
     private fun speakerLabel(index: Int) = "Speaker ${('A'.code + index).toChar()}"
     private fun JsonObject.string(name: String) = get(name)?.jsonPrimitive?.content

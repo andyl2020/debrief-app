@@ -59,4 +59,29 @@ class SecurityAndSearchTest {
         assertEquals(1234, search.search("launch", recording.id).single().timestampMs)
         assertTrue(search.search("Jordan", recording.id).single().isComment)
     }
+
+    @Test
+    fun recordingRescanUpsertPreservesTranscriptAndComments() = runBlocking {
+        val dao = DebriefDatabase.get(context).dao()
+        val recording = RecordingEntity(
+            id = "rescan-preserves-children",
+            documentUri = "content://test/preserved-recording",
+            displayName = "Original name.mp3",
+            mimeType = "audio/mpeg",
+            sizeBytes = 200,
+            lastModified = 1,
+        )
+        dao.upsertRecording(recording)
+        dao.replaceTranscript(
+            recording.id,
+            listOf(TranscriptSegmentEntity(recordingId = recording.id, speakerId = "Speaker A", startMs = 100, endMs = 500, text = "Keep this transcript")),
+            listOf(TranscriptWordEntity(recordingId = recording.id, speakerId = "Speaker A", startMs = 100, endMs = 500, text = "Keep")),
+        )
+        dao.upsertComment(CommentEntity("preserved-comment", recording.id, 200, "Keep this comment"))
+
+        dao.upsertRecording(recording.copy(displayName = "Renamed recording.mp3", lastModified = 2))
+
+        assertEquals("Keep this transcript", dao.getSegments(recording.id).single().text)
+        assertEquals("Keep this comment", dao.getComment("preserved-comment")?.text)
+    }
 }

@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -22,7 +23,7 @@ interface DebriefDao {
     @Query("SELECT * FROM recordings WHERE documentUri = :uri LIMIT 1")
     suspend fun getRecordingByUri(uri: String): RecordingEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertRecording(recording: RecordingEntity)
 
     @Update

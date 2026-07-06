@@ -37,4 +37,29 @@ class DeepgramProviderTest {
         val result = runCatching { DeepgramProvider().parse("recording", "{\"results\":{\"utterances\":[],\"channels\":[]}}") }
         assertTrue(result.exceptionOrNull() is TranscriptionException)
     }
+
+    @Test
+    fun channelWordsFillSectionsMissingFromUtteranceList() {
+        val payload = """
+            {
+              "results": {
+                "channels": [{"alternatives": [{"words": [
+                  {"word":"start","punctuated_word":"Start.","start":1.0,"end":1.4,"speaker":0},
+                  {"word":"missing","punctuated_word":"Missing","start":300.0,"end":300.4,"speaker":1},
+                  {"word":"middle","punctuated_word":"middle.","start":300.5,"end":301.0,"speaker":1},
+                  {"word":"end","punctuated_word":"End.","start":600.0,"end":600.4,"speaker":0}
+                ]}]}],
+                "utterances": [
+                  {"start":1.0,"end":1.4,"speaker":0,"transcript":"Start."},
+                  {"start":600.0,"end":600.4,"speaker":0,"transcript":"End."}
+                ]
+              }
+            }
+        """.trimIndent()
+
+        val result = DeepgramProvider().parse("recording", payload)
+
+        assertEquals(listOf("Start.", "Missing middle.", "End."), result.segments.map { it.text })
+        assertEquals(300_000, result.segments[1].startMs)
+    }
 }

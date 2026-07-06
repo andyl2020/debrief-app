@@ -110,7 +110,7 @@ class AssemblyAiProvider(
                 text = text,
             )
         }
-        if (segments.isEmpty()) throw TranscriptionException("AssemblyAI returned no speech")
-        return TranscriptionResult(segments, words)
+        if (segments.isEmpty() && words.isEmpty()) throw TranscriptionException("AssemblyAI returned no speech")
+        return TranscriptionResult(segmentsFromWords(recordingId, words).ifEmpty { segments }, words)
     }
 }
