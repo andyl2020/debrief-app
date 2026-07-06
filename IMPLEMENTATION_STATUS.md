@@ -21,7 +21,9 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - Provider request/response tests cover Gemini structured JSON and Flash-Lite fallback.
 - Signed v1.1.1 → v1.2.0 upgrade and Room migration passed on Android 11 and Android 15 PS16K with no crash.
 - Six instrumentation tests passed on each emulator; unit tests and lint pass.
-- Next: rebuild the final signed APK after the provider-test seam, rerun final regression/alignment checks, push, and publish v1.2.0.
+- Final signed v1.2.0 APK passed release lint, R8, signature verification, ARM64/x86-64 16 KB ELF checks, clean installs, and launches on 4 KB and 16 KB emulators.
+- Final APK SHA-256: `BBE5D549BD562BA5F28DD46863F8A0E0E8A95D99ED159ECF4183C3B8CF92B4BF`.
+- Next: publish the already-built APK as GitHub Release v1.2.0 and verify the public download.
 
 ## Resume protocol
 
@@ -38,7 +40,8 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - [x] Set detection and provider clients with structured output.
 - [x] Settings, automatic/re-run/skip controls, and AI result UI.
 - [x] Physical rename with undo and sidecar preservation.
-- [ ] Full regression testing, signed build, v1.2.0 release.
+- [x] Full regression testing and signed build.
+- [ ] Publish and verify GitHub Release v1.2.0.
 
 ## Last verified commands
 
