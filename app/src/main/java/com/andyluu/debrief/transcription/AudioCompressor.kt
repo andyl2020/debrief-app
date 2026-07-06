@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.audio.ChannelMixingAudioProcessor
 import androidx.media3.common.audio.ChannelMixingMatrix
 import androidx.media3.transformer.Composition
@@ -21,6 +22,7 @@ import java.io.File
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 object AudioCompressor {
     suspend fun compress(context: Context, source: Uri, recordingId: String): File {
         val output = File(context.cacheDir, "debrief_${recordingId.take(16)}.m4a")

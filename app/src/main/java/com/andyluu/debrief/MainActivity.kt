@@ -59,12 +59,12 @@ class MainActivity : ComponentActivity() {
                             onOpenRecording = { id -> nav.navigate("review/$id?at=0") },
                             onOpenSearch = { nav.navigate("search") },
                             onOpenSettings = { nav.navigate("settings") },
-                            onRequestTranscription = { id ->
+                            onRequestTranscription = { ids ->
                                 if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
                                         context, Manifest.permission.POST_NOTIFICATIONS
                                     ) != PackageManager.PERMISSION_GRANTED
                                 ) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                appViewModel.transcribe(id)
+                                appViewModel.transcribe(ids)
                             },
                         )
                     }

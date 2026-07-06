@@ -17,6 +17,7 @@ import com.andyluu.debrief.data.SearchHit
 import com.andyluu.debrief.data.SpeakerAliasEntity
 import com.andyluu.debrief.data.TranscriptSegmentEntity
 import com.andyluu.debrief.transcription.TranscriptionWorker
+import com.andyluu.debrief.transcription.ApiUsageSnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +25,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -36,6 +39,12 @@ data class ReviewState(
     val aliases: Map<String, String> = emptyMap(),
 )
 
+data class UsageUiState(
+    val loading: Boolean = false,
+    val snapshot: ApiUsageSnapshot? = null,
+    val error: String? = null,
+)
+
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as DebriefApplication
     private val services = app.services
@@ -45,6 +54,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val settings: StateFlow<AppSettings> = services.settings.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
+    private val _usage = MutableStateFlow(UsageUiState())
+    val usage = _usage.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -74,28 +85,54 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun transcribe(recordingId: String) {
+    fun transcribe(recordingIds: Collection<String>) {
+        val eligible = recordings.value
+            .filter { it.id in recordingIds && (it.status == RecordingStatus.NEW || it.status == RecordingStatus.FAILED) }
         viewModelScope.launch {
-            dao.updateStatus(recordingId, RecordingStatus.QUEUED)
-            TranscriptionWorker.enqueue(app, recordingId, settings.value.allowMobileData)
+            eligible.forEach { recording ->
+                dao.updateStatus(recording.id, RecordingStatus.QUEUED)
+                TranscriptionWorker.enqueue(app, recording.id, settings.value.allowMobileData)
+            }
         }
-    }
-
-    fun transcribeAll() {
-        recordings.value.filter { it.status == RecordingStatus.NEW || it.status == RecordingStatus.FAILED }
-            .forEach { transcribe(it.id) }
     }
 
     suspend fun search(query: String, recordingId: String? = null): List<SearchHit> =
         withContext(Dispatchers.IO) { services.search.search(query, recordingId) }
 
-    fun saveDeepgramKey(value: String) = services.secrets.put("deepgram", value.trim())
-    fun saveAssemblyAiKey(value: String) = services.secrets.put("assemblyai", value.trim())
+    fun saveDeepgramKey(value: String) {
+        services.secrets.put("deepgram", value.trim())
+        if (settings.value.provider == "deepgram") refreshUsage("deepgram")
+    }
+    fun saveAssemblyAiKey(value: String) {
+        services.secrets.put("assemblyai", value.trim())
+        if (settings.value.provider == "assemblyai") refreshUsage("assemblyai")
+    }
     fun hasDeepgramKey() = services.secrets.has("deepgram")
     fun hasAssemblyAiKey() = services.secrets.has("assemblyai")
     fun setMobileData(value: Boolean) = viewModelScope.launch { services.settings.setAllowMobileData(value) }
     fun setKeyterms(value: String) = viewModelScope.launch { services.settings.setKeyterms(value) }
-    fun setProvider(value: String) = viewModelScope.launch { services.settings.setProvider(value) }
+    fun setProvider(value: String) = viewModelScope.launch {
+        services.settings.setProvider(value)
+        refreshUsage(value)
+    }
+
+    fun refreshUsage(provider: String = settings.value.provider) {
+        val key = services.secrets.get(provider)
+        if (key == null) {
+            _usage.value = UsageUiState(error = "Save a ${providerName(provider)} API key to view usage.")
+            return
+        }
+        viewModelScope.launch {
+            _usage.value = UsageUiState(loading = true, snapshot = _usage.value.snapshot)
+            _usage.value = runCatching { services.usageRepository.load(provider, key) }
+                .fold(
+                    onSuccess = { UsageUiState(snapshot = it) },
+                    onFailure = { UsageUiState(error = "Usage refresh failed. Check your connection and try again.") },
+                )
+        }
+    }
+
+    private fun providerName(provider: String) = if (provider == "assemblyai") "AssemblyAI" else "Deepgram"
 }
 
 class ReviewViewModel(

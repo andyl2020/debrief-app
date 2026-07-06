@@ -55,6 +55,7 @@ class TranscriptionWorker(
                 keyterms = settings.keyterms.lines().flatMap { it.split(',') }.map(String::trim).filter(String::isNotBlank),
             )
             dao.replaceTranscript(recordingId, result.segments, result.words)
+            services.usage.recordSuccess(providerName, key, recording.durationMs)
             dao.updateStatus(recordingId, RecordingStatus.READY)
             services.search.rebuild(recordingId)
             settings.folderUri?.let { uri ->

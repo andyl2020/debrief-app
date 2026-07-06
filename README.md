@@ -7,9 +7,11 @@ Debrief is a local-first Android app for reviewing long field recordings. It lin
 - Persistent Android Storage Access Framework folder permission with automatic rescans
 - MP3, M4A, WAV, and AAC library with new/queued/transcribing/ready/failed states
 - WorkManager transcription queue with unmetered Wi-Fi by default and automatic retry
+- Long-press multi-select with explicit checkbox-based batch transcription
 - On-device mono AAC upload preparation at 64 kbps
 - Deepgram Nova-3 batch transcription with diarization, utterances, punctuation, keyterms, and word timestamps
 - Pluggable AssemblyAI fallback using upload, submit, and polling APIs
+- Per-key local usage tracking plus Deepgram provider usage, spend, and balance when the key has read scopes
 - Media3 playback, saved position, transcript follow/highlight, tap-to-seek, and Sync
 - SQLCipher-encrypted Room database and bundled FTS5 search across transcripts and comments
 - Timestamped comment create/edit/delete and recording-wide speaker aliases
@@ -55,3 +57,5 @@ If Android reports a package conflict, uninstall an older Debrief build and retr
 ## Scope
 
 Android 10 or newer. Recording, video, live transcription, cloud sync, collaboration, and iOS are intentionally out of scope for v1.
+
+The universal APK includes ARM64 libraries for devices such as the OnePlus 13. CI verifies that every ARM64 and x86-64 native load segment is aligned for Android devices using 16 KB memory pages.

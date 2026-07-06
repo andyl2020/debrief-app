@@ -5,7 +5,9 @@ package com.andyluu.debrief.ui
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,12 +28,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddComment
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -42,6 +46,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -74,6 +79,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -98,16 +105,25 @@ fun LibraryScreen(
     onOpenRecording: (String) -> Unit,
     onOpenSearch: () -> Unit,
     onOpenSettings: () -> Unit,
-    onRequestTranscription: (String) -> Unit,
+    onRequestTranscription: (Collection<String>) -> Unit,
 ) {
     val recordings by viewModel.recordings.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val selectableIds = recordings.filter { it.isTranscribable() }.mapTo(mutableSetOf()) { it.id }
+    LaunchedEffect(selectableIds) { selectedIds = selectedIds.intersect(selectableIds) }
+    val selectionMode = selectedIds.isNotEmpty()
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Debrief", fontWeight = FontWeight.Bold) },
-                navigationIcon = { IconButton(onClick = onOpenSearch) { Icon(Icons.Default.Search, "Search all") } },
-                actions = { IconButton(onClick = onOpenSettings) { Icon(Icons.Default.Settings, "Settings") } },
+                title = { Text(if (selectionMode) "${selectedIds.size} selected" else "Debrief", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    if (selectionMode) IconButton(onClick = { selectedIds = emptySet() }) { Icon(Icons.Default.Close, "Clear selection") }
+                    else IconButton(onClick = onOpenSearch) { Icon(Icons.Default.Search, "Search all") }
+                },
+                actions = {
+                    if (!selectionMode) IconButton(onClick = onOpenSettings) { Icon(Icons.Default.Settings, "Settings") }
+                },
             )
         },
     ) { padding ->
@@ -133,9 +149,21 @@ fun LibraryScreen(
                 ) {
                     OutlinedButton(onClick = onPickFolder) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(6.dp)); Text("Change") }
                     Button(
-                        onClick = viewModel::transcribeAll,
-                        enabled = recordings.any { it.status == RecordingStatus.NEW || it.status == RecordingStatus.FAILED },
-                    ) { Text("Transcribe all") }
+                        onClick = {
+                            val selected = selectedIds
+                            selectedIds = emptySet()
+                            onRequestTranscription(selected)
+                        },
+                        enabled = selectedIds.isNotEmpty(),
+                    ) { Text(if (selectedIds.isEmpty()) "Transcribe selected" else "Transcribe (${selectedIds.size})") }
+                }
+                if (!selectionMode && selectableIds.isNotEmpty()) {
+                    Text(
+                        "Press and hold a recording to select several.",
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 if (!viewModel.hasDeepgramKey() && settings.provider == "deepgram") {
                     Card(
@@ -150,7 +178,17 @@ fun LibraryScreen(
                 } else {
                     LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(recordings, key = { it.id }) { recording ->
-                            RecordingCard(recording, { onOpenRecording(recording.id) }, { onRequestTranscription(recording.id) })
+                            RecordingCard(
+                                recording = recording,
+                                selectionMode = selectionMode,
+                                selected = recording.id in selectedIds,
+                                onOpen = { onOpenRecording(recording.id) },
+                                onToggleSelection = {
+                                    if (recording.isTranscribable()) {
+                                        selectedIds = if (recording.id in selectedIds) selectedIds - recording.id else selectedIds + recording.id
+                                    }
+                                },
+                            )
                         }
                         item { Spacer(Modifier.height(20.dp)) }
                     }
@@ -160,11 +198,33 @@ fun LibraryScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun RecordingCard(recording: RecordingEntity, onOpen: () -> Unit, onTranscribe: () -> Unit) {
-    ElevatedCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onOpen)) {
+internal fun RecordingCard(
+    recording: RecordingEntity,
+    selectionMode: Boolean,
+    selected: Boolean,
+    onOpen: () -> Unit,
+    onToggleSelection: () -> Unit,
+) {
+    val selectable = recording.isTranscribable()
+    ElevatedCard(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp).combinedClickable(
+            onClick = { if (selectionMode) { if (selectable) onToggleSelection() } else onOpen() },
+            onLongClick = { if (selectable) onToggleSelection() },
+        )
+    ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (selectionMode) {
+                    Checkbox(
+                        checked = selected,
+                        onCheckedChange = { if (selectable) onToggleSelection() },
+                        enabled = selectable,
+                        modifier = Modifier.semantics { contentDescription = "Select ${recording.displayName}" },
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
                 Column(Modifier.weight(1f)) {
                     Text(recording.displayName, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(
@@ -179,12 +239,11 @@ private fun RecordingCard(recording: RecordingEntity, onOpen: () -> Unit, onTran
                 LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 12.dp))
             }
             recording.errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-            if (recording.status == RecordingStatus.NEW || recording.status == RecordingStatus.FAILED) {
-                TextButton(onClick = onTranscribe, modifier = Modifier.align(Alignment.End)) { Text("Transcribe") }
-            }
         }
     }
 }
+
+private fun RecordingEntity.isTranscribable() = status == RecordingStatus.NEW || status == RecordingStatus.FAILED
 
 @Composable
 private fun StatusChip(status: RecordingStatus) {
@@ -233,11 +292,13 @@ private fun SearchHitCard(hit: SearchHit, onClick: () -> Unit) {
 @Composable
 fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val usage by viewModel.usage.collectAsStateWithLifecycle()
     var deepgram by remember { mutableStateOf("") }
     var assembly by remember { mutableStateOf("") }
     var keyterms by remember(settings.keyterms) { mutableStateOf(settings.keyterms) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    LaunchedEffect(settings.provider) { viewModel.refreshUsage(settings.provider) }
     Scaffold(
         topBar = { CenterAlignedTopAppBar(title = { Text("Settings") }, navigationIcon = { BackButton(onBack) }) },
         snackbarHost = { SnackbarHost(snackbar) },
@@ -271,6 +332,9 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 )
             }
             item { HorizontalDivider() }
+            item { Text("API key usage", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+            item { UsageCard(settings.provider, usage, viewModel::refreshUsage) }
+            item { HorizontalDivider() }
             item {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -294,6 +358,54 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
+}
+
+@Composable
+private fun UsageCard(provider: String, state: UsageUiState, onRefresh: () -> Unit) {
+    val context = LocalContext.current
+    val providerLabel = if (provider == "assemblyai") "AssemblyAI" else "Deepgram"
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(providerLabel, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                IconButton(onClick = onRefresh, enabled = !state.loading) {
+                    if (state.loading) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    else Icon(Icons.Default.Refresh, "Refresh API usage")
+                }
+            }
+            state.snapshot?.let { usage ->
+                Text("Key ID ${usage.keyId}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Tracked on this device: ${usage.localRequests} successful ${if (usage.localRequests == 1L) "recording" else "recordings"} · ${formatUsageDuration(usage.localAudioMs)} audio",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (usage.providerRequests != null || usage.providerAudioHours != null) {
+                    Text(
+                        "Provider this month: ${usage.providerRequests ?: 0} requests · ${"%.2f".format(usage.providerAudioHours ?: 0.0)} audio hours",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                usage.providerSpendUsd?.let { Text("Spend this month: \$${"%.2f".format(it)}") }
+                usage.balanceUsd?.let { Text("Available balance: \$${"%.2f".format(it)}") }
+                usage.providerMessage?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            if (provider == "assemblyai") {
+                TextButton(onClick = {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.assemblyai.com/dashboard/account/billing")))
+                }) { Text("Open AssemblyAI usage dashboard") }
+            }
+        }
+    }
+}
+
+private fun formatUsageDuration(milliseconds: Long): String {
+    val minutes = milliseconds.coerceAtLeast(0) / 60_000
+    val hours = minutes / 60
+    val remainingMinutes = minutes % 60
+    return if (hours > 0) "${hours}h ${remainingMinutes}m" else "${minutes}m"
 }
 
 @Composable
