@@ -21,7 +21,7 @@ class AppServices(application: Application) {
     val search = SearchRepository(database)
     val sidecars = SidecarStore(application, database, search)
     val renamer = RecordingRenamer(application, database.dao())
-    val aiPass = AiPassProcessor(application, database, settings, secrets, search, sidecars, renamer)
+    val aiPass = AiPassProcessor(application, database, settings, secrets, search, sidecars, renamer, usage)
     val folders = FolderRepository(application, database.dao(), sidecars)
 }
 

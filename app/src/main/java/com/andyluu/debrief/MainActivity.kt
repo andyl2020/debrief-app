@@ -56,7 +56,7 @@ class MainActivity : ComponentActivity() {
                         LibraryScreen(
                             viewModel = appViewModel,
                             onPickFolder = { folderPicker.launch(null) },
-                            onOpenRecording = { id -> nav.navigate("review/$id?at=0") },
+                            onOpenRecording = { id, timestamp -> nav.navigate("review/$id?at=$timestamp") },
                             onOpenSearch = { nav.navigate("search") },
                             onOpenSettings = { nav.navigate("settings") },
                             onRequestTranscription = { ids ->

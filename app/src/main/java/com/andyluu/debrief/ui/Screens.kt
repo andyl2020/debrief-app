@@ -90,6 +90,9 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.andyluu.debrief.data.CommentEntity
+import com.andyluu.debrief.data.AiPassStatus
+import com.andyluu.debrief.data.AiRecordingEntity
+import com.andyluu.debrief.data.ConversationSetEntity
 import com.andyluu.debrief.data.RecordingEntity
 import com.andyluu.debrief.data.RecordingStatus
 import com.andyluu.debrief.data.SearchHit
@@ -101,13 +104,17 @@ import kotlinx.coroutines.launch
 fun LibraryScreen(
     viewModel: AppViewModel,
     onPickFolder: () -> Unit,
-    onOpenRecording: (String) -> Unit,
+    onOpenRecording: (String, Long) -> Unit,
     onOpenSearch: () -> Unit,
     onOpenSettings: () -> Unit,
     onRequestTranscription: (Collection<String>) -> Unit,
 ) {
     val recordings by viewModel.recordings.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val aiRecordings by viewModel.aiRecordings.collectAsStateWithLifecycle()
+    val conversationSets by viewModel.conversationSets.collectAsStateWithLifecycle()
+    val aiByRecording = aiRecordings.associateBy { it.recordingId }
+    val setsByRecording = conversationSets.groupBy { it.recordingId }
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     val selectableIds = recordings.filter { it.isTranscribable() }.mapTo(mutableSetOf()) { it.id }
     LaunchedEffect(selectableIds) { selectedIds = selectedIds.intersect(selectableIds) }
@@ -179,9 +186,12 @@ fun LibraryScreen(
                         items(recordings, key = { it.id }) { recording ->
                             RecordingCard(
                                 recording = recording,
+                                ai = aiByRecording[recording.id],
+                                sets = setsByRecording[recording.id].orEmpty(),
                                 selectionMode = selectionMode,
                                 selected = recording.id in selectedIds,
-                                onOpen = { onOpenRecording(recording.id) },
+                                onOpen = { onOpenRecording(recording.id, 0) },
+                                onOpenAt = { onOpenRecording(recording.id, it) },
                                 onToggleSelection = {
                                     if (recording.isTranscribable()) {
                                         selectedIds = if (recording.id in selectedIds) selectedIds - recording.id else selectedIds + recording.id
@@ -201,12 +211,16 @@ fun LibraryScreen(
 @Composable
 internal fun RecordingCard(
     recording: RecordingEntity,
+    ai: AiRecordingEntity? = null,
+    sets: List<ConversationSetEntity> = emptyList(),
     selectionMode: Boolean,
     selected: Boolean,
     onOpen: () -> Unit,
+    onOpenAt: (Long) -> Unit = { onOpen() },
     onToggleSelection: () -> Unit,
 ) {
     val selectable = recording.isTranscribable()
+    var expanded by remember(recording.id) { mutableStateOf(false) }
     ElevatedCard(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp).combinedClickable(
             onClick = { if (selectionMode) { if (selectable) onToggleSelection() } else onOpen() },
@@ -238,6 +252,29 @@ internal fun RecordingCard(
                 LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 12.dp))
             }
             recording.errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            ai?.summary?.takeIf(String::isNotBlank)?.let {
+                Text(it, Modifier.padding(top = 10.dp), style = MaterialTheme.typography.bodyMedium)
+            }
+            if (sets.isNotEmpty() && !selectionMode) {
+                TextButton(onClick = { expanded = !expanded }) {
+                    Text(if (expanded) "Hide ${sets.size} sets" else "Show ${sets.size} sets")
+                }
+                if (expanded) {
+                    sets.forEach { set ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { onOpenAt(set.startMs) }.padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(formatTimestamp(set.startMs), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(set.title, fontWeight = FontWeight.SemiBold)
+                                if (set.summary.isNotBlank()) Text(set.summary, style = MaterialTheme.typography.bodySmall, maxLines = 2)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -292,8 +329,15 @@ private fun SearchHitCard(hit: SearchHit, onClick: () -> Unit) {
 fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val usage by viewModel.usage.collectAsStateWithLifecycle()
+    val aiLocalUsage = viewModel.aiUsage(settings.aiProvider)
     var deepgram by remember { mutableStateOf("") }
     var assembly by remember { mutableStateOf("") }
+    var gemini by remember { mutableStateOf("") }
+    var openAiKey by remember { mutableStateOf("") }
+    var anthropicKey by remember { mutableStateOf("") }
+    var openAiBaseUrl by remember(settings.openAiBaseUrl) { mutableStateOf(settings.openAiBaseUrl) }
+    var openAiModel by remember(settings.openAiModel) { mutableStateOf(settings.openAiModel) }
+    var anthropicModel by remember(settings.anthropicModel) { mutableStateOf(settings.anthropicModel) }
     var keyterms by remember(settings.keyterms) { mutableStateOf(settings.keyterms) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -328,6 +372,128 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     onSave = {
                         if (assembly.isNotBlank()) { viewModel.saveAssemblyAiKey(assembly); assembly = ""; scope.launch { snackbar.showSnackbar("AssemblyAI key encrypted and saved") } }
                     },
+                )
+            }
+            item { HorizontalDivider() }
+            item { Text("AI pass", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+            item {
+                Text(
+                    "Runs after transcription to detect conversation sets, identify speakers, summarize, and rename. Only transcript text is sent; audio is never sent to the AI provider.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = settings.aiProvider == "gemini", onClick = { viewModel.setAiProvider("gemini") }, label = { Text("Gemini") })
+                    FilterChip(selected = settings.aiProvider == "openai", onClick = { viewModel.setAiProvider("openai") }, label = { Text("Compatible") })
+                    FilterChip(selected = settings.aiProvider == "anthropic", onClick = { viewModel.setAiProvider("anthropic") }, label = { Text("Claude") })
+                }
+            }
+            item {
+                SecretField(
+                    label = if (viewModel.hasGeminiKey()) "Gemini key saved securely" else "Gemini API key",
+                    value = gemini,
+                    onChange = { gemini = it },
+                    onSave = {
+                        if (gemini.isNotBlank()) { viewModel.saveGeminiKey(gemini); gemini = ""; scope.launch { snackbar.showSnackbar("Gemini key encrypted and saved") } }
+                    },
+                )
+            }
+            item {
+                SecretField(
+                    label = if (viewModel.hasOpenAiKey()) "Compatible key saved securely" else "OpenAI-compatible API key",
+                    value = openAiKey,
+                    onChange = { openAiKey = it },
+                    onSave = {
+                        if (openAiKey.isNotBlank()) { viewModel.saveOpenAiKey(openAiKey); openAiKey = ""; scope.launch { snackbar.showSnackbar("Compatible provider key encrypted and saved") } }
+                    },
+                )
+            }
+            item {
+                SecretField(
+                    label = if (viewModel.hasAnthropicKey()) "Anthropic key saved securely" else "Anthropic API key",
+                    value = anthropicKey,
+                    onChange = { anthropicKey = it },
+                    onSave = {
+                        if (anthropicKey.isNotBlank()) { viewModel.saveAnthropicKey(anthropicKey); anthropicKey = ""; scope.launch { snackbar.showSnackbar("Anthropic key encrypted and saved") } }
+                    },
+                )
+            }
+            if (settings.aiProvider == "openai") {
+                item {
+                    OutlinedTextField(
+                        value = openAiBaseUrl,
+                        onValueChange = { openAiBaseUrl = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("HTTPS base URL") },
+                        placeholder = { Text("https://provider.example/v1") },
+                        singleLine = true,
+                    )
+                }
+                item {
+                    OutlinedTextField(
+                        value = openAiModel,
+                        onValueChange = { openAiModel = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Model name") },
+                        singleLine = true,
+                    )
+                }
+            }
+            if (settings.aiProvider == "anthropic") {
+                item {
+                    OutlinedTextField(
+                        value = anthropicModel,
+                        onValueChange = { anthropicModel = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Claude model") },
+                        singleLine = true,
+                    )
+                }
+            }
+            item {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Run automatically", fontWeight = FontWeight.SemiBold)
+                        Text("Run the AI pass after each successful transcription.", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(settings.aiAutoRun, onCheckedChange = viewModel::setAiAutoRun)
+                }
+            }
+            item {
+                Column {
+                    Text("Silence gap: ${settings.aiGapMinutes} minutes", fontWeight = FontWeight.SemiBold)
+                    Slider(
+                        value = settings.aiGapMinutes.toFloat(),
+                        onValueChange = { viewModel.setAiGapMinutes(it.toInt()) },
+                        valueRange = 1f..10f,
+                        steps = 8,
+                    )
+                }
+            }
+            item {
+                Button(onClick = {
+                    viewModel.saveAiEndpoint(openAiBaseUrl, openAiModel, anthropicModel)
+                    scope.launch { snackbar.showSnackbar("AI provider settings saved") }
+                }) { Text("Save AI settings") }
+            }
+            aiLocalUsage?.let { local ->
+                item {
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("AI key usage on this device", fontWeight = FontWeight.SemiBold)
+                            Text("Key ID ${local.keyId}", style = MaterialTheme.typography.labelSmall)
+                            Text("${local.successfulRequests} successful AI passes · ${formatUsageDuration(local.audioDurationMs)} of transcripts")
+                            Text("Provider account totals are not exposed consistently; this counter follows the saved key locally.", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+            item {
+                Text(
+                    "Gemini's free tier may use inputs and outputs to improve Google's models. Use Skip AI Pass on a recording or select another provider for sensitive transcripts.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             item { HorizontalDivider() }
@@ -530,6 +696,23 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                 }
             } else {
                 LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    item {
+                        AiPassPanel(
+                            recording = recording,
+                            ai = state.ai,
+                            sets = state.sets,
+                            suggestions = state.suggestions,
+                            aliases = state.aliases,
+                            positionMs = position,
+                            onRun = viewModel::runAiPass,
+                            onSkip = viewModel::setSkipAiPass,
+                            onUndoRename = viewModel::undoRename,
+                            onConfirmSuggestion = viewModel::confirmSuggestion,
+                            onSeek = { timestamp -> player?.seekTo(timestamp); position = timestamp; follow = true },
+                            onMerge = viewModel::mergeWithNext,
+                            onSplit = viewModel::splitSet,
+                        )
+                    }
                     items(state.segments.size) { index ->
                         val segment = state.segments[index]
                         val comments = state.comments.filter { it.timestampMs in segment.startMs..segment.endMs }
@@ -562,6 +745,87 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
     renamingSpeaker?.let { id ->
         TextEntryDialog("Rename $id", "Apply", initial = state.aliases[id].orEmpty(), onDismiss = { renamingSpeaker = null }) {
             viewModel.renameSpeaker(id, it); renamingSpeaker = null
+        }
+    }
+}
+
+@Composable
+private fun AiPassPanel(
+    recording: RecordingEntity?,
+    ai: AiRecordingEntity?,
+    sets: List<ConversationSetEntity>,
+    suggestions: List<com.andyluu.debrief.data.SpeakerSuggestionEntity>,
+    aliases: Map<String, String>,
+    positionMs: Long,
+    onRun: () -> Unit,
+    onSkip: (Boolean) -> Unit,
+    onUndoRename: () -> Unit,
+    onConfirmSuggestion: (com.andyluu.debrief.data.SpeakerSuggestionEntity) -> Unit,
+    onSeek: (Long) -> Unit,
+    onMerge: (String) -> Unit,
+    onSplit: (String, Long) -> Unit,
+) {
+    val running = ai?.status == AiPassStatus.RUNNING
+    val skipped = ai?.skipAiPass == true
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("AI pass", fontWeight = FontWeight.Bold)
+                    Text(
+                        when (ai?.status) {
+                            AiPassStatus.RUNNING -> "Analyzing transcript…"
+                            AiPassStatus.READY -> "Analysis ready"
+                            AiPassStatus.FAILED -> "Needs attention"
+                            AiPassStatus.SKIPPED -> "Skipped for this recording"
+                            else -> "Not run"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = skipped, onCheckedChange = onSkip, modifier = Modifier.semantics { contentDescription = "Skip AI pass" })
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onRun, enabled = !running && !skipped) {
+                    Text(if (ai?.lastRunAt == null) "Run AI pass" else "Re-run AI pass")
+                }
+                if (ai?.originalDisplayName != null && recording?.displayName != ai.originalDisplayName) {
+                    OutlinedButton(onClick = onUndoRename) { Text("Undo rename") }
+                }
+            }
+            ai?.errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            ai?.summary?.takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+            suggestions.forEach { suggestion ->
+                AssistChip(
+                    onClick = { onConfirmSuggestion(suggestion) },
+                    label = { Text("Confirm ${aliases[suggestion.speakerId] ?: suggestion.speakerId} as ${suggestion.suggestedName}") },
+                )
+                if (suggestion.evidence.isNotBlank()) {
+                    Text(suggestion.evidence, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            if (sets.isNotEmpty()) {
+                HorizontalDivider()
+                Text("Conversation sets", fontWeight = FontWeight.SemiBold)
+                sets.forEachIndexed { index, set ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { onSeek(set.startMs) }.padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("${formatTimestamp(set.startMs)}  ${set.title}", fontWeight = FontWeight.SemiBold)
+                            if (set.summary.isNotBlank()) Text(set.summary, style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (index < sets.lastIndex) TextButton(onClick = { onMerge(set.id) }) { Text("Merge next") }
+                    }
+                }
+                val activeSet = sets.lastOrNull { positionMs >= it.startMs && positionMs <= it.endMs }
+                OutlinedButton(
+                    onClick = { activeSet?.let { onSplit(it.id, positionMs) } },
+                    enabled = activeSet != null && positionMs > activeSet.startMs + 1_000 && positionMs < activeSet.endMs - 1_000,
+                ) { Text("Split current set here") }
+            }
         }
     }
 }

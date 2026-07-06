@@ -17,8 +17,11 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 
 - The Claude artifact is saved as `debrief-ai-features-prd-addendum.md`.
 - AI persistence/migration, deterministic set detection, Gemini/OpenAI-compatible/Claude structured-output clients, retry worker, summary search indexing, sidecar v2, and SAF rename support are implemented.
-- `testDebugUnitTest lintDebug` passes after this slice.
-- Next: wire Settings and review/library controls, manual merge/split and speaker confirmation, undo rename, then run migration/device/release verification.
+- Settings and review/library controls, local AI-key usage, manual merge/split, speaker confirmation, privacy skip, physical rename, and undo are implemented.
+- Provider request/response tests cover Gemini structured JSON and Flash-Lite fallback.
+- Signed v1.1.1 → v1.2.0 upgrade and Room migration passed on Android 11 and Android 15 PS16K with no crash.
+- Six instrumentation tests passed on each emulator; unit tests and lint pass.
+- Next: rebuild the final signed APK after the provider-test seam, rerun final regression/alignment checks, push, and publish v1.2.0.
 
 ## Resume protocol
 
@@ -33,8 +36,8 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - [x] Save the source artifact as a Markdown addendum.
 - [x] AI-pass persistence model and migration.
 - [x] Set detection and provider clients with structured output.
-- [ ] Settings, automatic/re-run/skip controls, and AI result UI.
-- [ ] Physical rename with undo and sidecar preservation.
+- [x] Settings, automatic/re-run/skip controls, and AI result UI.
+- [x] Physical rename with undo and sidecar preservation.
 - [ ] Full regression testing, signed build, v1.2.0 release.
 
 ## Last verified commands

@@ -110,6 +110,9 @@ interface DebriefDao {
     @Query("DELETE FROM speaker_suggestions WHERE recordingId = :recordingId")
     suspend fun deleteSpeakerSuggestions(recordingId: String)
 
+    @Query("DELETE FROM speaker_suggestions WHERE recordingId = :recordingId AND speakerId = :speakerId")
+    suspend fun deleteSpeakerSuggestion(recordingId: String, speakerId: String)
+
     @Insert
     suspend fun insertSpeakerSuggestions(suggestions: List<SpeakerSuggestionEntity>)
 

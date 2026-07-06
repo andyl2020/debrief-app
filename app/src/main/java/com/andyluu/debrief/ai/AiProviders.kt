@@ -29,6 +29,8 @@ private val aiHttpClient = OkHttpClient.Builder()
 class GeminiAiProvider(
     private val model: String = "gemini-2.5-flash",
     private val fallbackModel: String = "gemini-2.5-flash-lite",
+    private val client: OkHttpClient = aiHttpClient,
+    private val baseUrl: String = "https://generativelanguage.googleapis.com/v1beta/models",
 ) : AiPassProvider {
     override suspend fun analyze(request: AiPassRequest, apiKey: String): AiPassResponse = withContext(Dispatchers.IO) {
         val first = call(model, request, apiKey)
@@ -59,8 +61,9 @@ class GeminiAiProvider(
             })
         }
         return execute(
+            client,
             Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/" + modelName + ":generateContent")
+                .url(baseUrl.trimEnd('/') + "/" + modelName + ":generateContent")
                 .header("x-goog-api-key", apiKey)
                 .post(aiJson.encodeToString(JsonObject.serializer(), body).toRequestBody(jsonMediaType))
                 .build()
@@ -71,6 +74,7 @@ class GeminiAiProvider(
 class OpenAiCompatibleProvider(
     private val baseUrl: String,
     private val model: String,
+    private val client: OkHttpClient = aiHttpClient,
 ) : AiPassProvider {
     override suspend fun analyze(request: AiPassRequest, apiKey: String): AiPassResponse = withContext(Dispatchers.IO) {
         require(baseUrl.startsWith("https://")) { "The OpenAI-compatible base URL must use HTTPS" }
@@ -95,6 +99,7 @@ class OpenAiCompatibleProvider(
             put("response_format", responseFormat)
         }
         val payload = execute(
+            client,
             Request.Builder().url(endpoint)
                 .header("Authorization", "Bearer " + apiKey)
                 .post(aiJson.encodeToString(JsonObject.serializer(), body).toRequestBody(jsonMediaType))
@@ -110,6 +115,8 @@ class OpenAiCompatibleProvider(
 
 class AnthropicAiProvider(
     private val model: String = "claude-haiku-4-5",
+    private val client: OkHttpClient = aiHttpClient,
+    private val endpoint: String = "https://api.anthropic.com/v1/messages",
 ) : AiPassProvider {
     override suspend fun analyze(request: AiPassRequest, apiKey: String): AiPassResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
@@ -129,7 +136,8 @@ class AnthropicAiProvider(
             })
         }
         val payload = execute(
-            Request.Builder().url("https://api.anthropic.com/v1/messages")
+            client,
+            Request.Builder().url(endpoint)
                 .header("x-api-key", apiKey)
                 .header("anthropic-version", "2023-06-01")
                 .post(aiJson.encodeToString(JsonObject.serializer(), body).toRequestBody(jsonMediaType))
@@ -159,7 +167,6 @@ private data class HttpResult(val code: Int, val body: String) {
     }
 }
 
-private fun execute(request: Request): HttpResult = aiHttpClient.newCall(request).execute().use { response ->
+private fun execute(client: OkHttpClient, request: Request): HttpResult = client.newCall(request).execute().use { response ->
     HttpResult(response.code, response.body?.string().orEmpty())
 }
-

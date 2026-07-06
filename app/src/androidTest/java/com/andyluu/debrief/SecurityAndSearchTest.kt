@@ -3,6 +3,9 @@ package com.andyluu.debrief
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.andyluu.debrief.data.CommentEntity
+import com.andyluu.debrief.data.AiPassStatus
+import com.andyluu.debrief.data.AiRecordingEntity
+import com.andyluu.debrief.data.ConversationSetEntity
 import com.andyluu.debrief.data.DebriefDatabase
 import com.andyluu.debrief.data.RecordingEntity
 import com.andyluu.debrief.data.SearchRepository
@@ -83,5 +86,45 @@ class SecurityAndSearchTest {
 
         assertEquals("Keep this transcript", dao.getSegments(recording.id).single().text)
         assertEquals("Keep this comment", dao.getComment("preserved-comment")?.text)
+    }
+
+    @Test
+    fun aiSummariesAreSearchableAndSurviveRecordingUpsert() = runBlocking {
+        val db = DebriefDatabase.get(context)
+        val dao = db.dao()
+        val recording = RecordingEntity(
+            id = "ai-search-test",
+            documentUri = "content://test/ai-search",
+            displayName = "Conversation.m4a",
+            mimeType = "audio/mp4",
+            sizeBytes = 300,
+            lastModified = 1,
+        )
+        dao.upsertRecording(recording)
+        dao.replaceAiAnalysis(
+            AiRecordingEntity(recording.id, summary = "Discussed the rooftop launch plan", status = AiPassStatus.READY),
+            listOf(
+                ConversationSetEntity(
+                    id = "ai-search-set",
+                    recordingId = recording.id,
+                    orderIndex = 0,
+                    startMs = 5_000,
+                    endMs = 60_000,
+                    title = "Rooftop planning",
+                    summary = "Jordan confirms the venue.",
+                    speakerIds = "Speaker A|Speaker B",
+                )
+            ),
+            emptyList(),
+        )
+        val search = SearchRepository(db)
+        search.rebuild(recording.id)
+
+        assertEquals(0, search.search("launch", recording.id).single().timestampMs)
+        assertEquals(5_000, search.search("Jordan", recording.id).single().timestampMs)
+
+        dao.upsertRecording(recording.copy(displayName = "Renamed.m4a", lastModified = 2))
+        assertEquals("Discussed the rooftop launch plan", dao.getAiRecording(recording.id)?.summary)
+        assertEquals("Rooftop planning", dao.getConversationSets(recording.id).single().title)
     }
 }

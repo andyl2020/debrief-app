@@ -10,14 +10,20 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.andyluu.debrief.DebriefApplication
 import com.andyluu.debrief.data.AppSettings
+import com.andyluu.debrief.data.AiRecordingEntity
+import com.andyluu.debrief.data.AiPassStatus
 import com.andyluu.debrief.data.CommentEntity
+import com.andyluu.debrief.data.ConversationSetEntity
 import com.andyluu.debrief.data.RecordingEntity
 import com.andyluu.debrief.data.RecordingStatus
 import com.andyluu.debrief.data.SearchHit
 import com.andyluu.debrief.data.SpeakerAliasEntity
+import com.andyluu.debrief.data.SpeakerSuggestionEntity
+import com.andyluu.debrief.data.LocalApiUsage
 import com.andyluu.debrief.data.TranscriptSegmentEntity
 import com.andyluu.debrief.transcription.TranscriptionWorker
 import com.andyluu.debrief.transcription.ApiUsageSnapshot
+import com.andyluu.debrief.ai.AiPassWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -39,6 +45,9 @@ data class ReviewState(
     val segments: List<TranscriptSegmentEntity> = emptyList(),
     val comments: List<CommentEntity> = emptyList(),
     val aliases: Map<String, String> = emptyMap(),
+    val ai: AiRecordingEntity? = null,
+    val sets: List<ConversationSetEntity> = emptyList(),
+    val suggestions: List<SpeakerSuggestionEntity> = emptyList(),
 )
 
 data class UsageUiState(
@@ -56,6 +65,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val settings: StateFlow<AppSettings> = services.settings.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
+    val aiRecordings: StateFlow<List<AiRecordingEntity>> = dao.observeAllAiRecordings()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val conversationSets: StateFlow<List<ConversationSetEntity>> = dao.observeAllConversationSets()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     private val _usage = MutableStateFlow(UsageUiState())
     val usage = _usage.asStateFlow()
 
@@ -109,13 +122,36 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         services.secrets.put("assemblyai", value.trim())
         if (settings.value.provider == "assemblyai") refreshUsage("assemblyai")
     }
+    fun saveGeminiKey(value: String) = services.secrets.put("gemini", value.trim())
+    fun saveOpenAiKey(value: String) = services.secrets.put("openai_compatible", value.trim())
+    fun saveAnthropicKey(value: String) = services.secrets.put("anthropic", value.trim())
     fun hasDeepgramKey() = services.secrets.has("deepgram")
     fun hasAssemblyAiKey() = services.secrets.has("assemblyai")
+    fun hasGeminiKey() = services.secrets.has("gemini")
+    fun hasOpenAiKey() = services.secrets.has("openai_compatible")
+    fun hasAnthropicKey() = services.secrets.has("anthropic")
+    fun aiUsage(provider: String): LocalApiUsage? {
+        val secretName = when (provider) {
+            "openai" -> "openai_compatible"
+            "anthropic" -> "anthropic"
+            else -> "gemini"
+        }
+        val key = services.secrets.get(secretName) ?: return null
+        return services.usage.get("ai_" + provider, key)
+    }
     fun setMobileData(value: Boolean) = viewModelScope.launch { services.settings.setAllowMobileData(value) }
     fun setKeyterms(value: String) = viewModelScope.launch { services.settings.setKeyterms(value) }
     fun setProvider(value: String) = viewModelScope.launch {
         services.settings.setProvider(value)
         refreshUsage(value)
+    }
+    fun setAiProvider(value: String) = viewModelScope.launch { services.settings.setAiProvider(value) }
+    fun setAiAutoRun(value: Boolean) = viewModelScope.launch { services.settings.setAiAutoRun(value) }
+    fun setAiGapMinutes(value: Int) = viewModelScope.launch { services.settings.setAiGapMinutes(value) }
+    fun saveAiEndpoint(baseUrl: String, model: String, anthropicModel: String) = viewModelScope.launch {
+        services.settings.setOpenAiBaseUrl(baseUrl)
+        services.settings.setOpenAiModel(model)
+        services.settings.setAnthropicModel(anthropicModel)
     }
 
     fun refreshUsage(provider: String = settings.value.provider) {
@@ -147,13 +183,30 @@ class ReviewViewModel(
     private val _reloadVersion = MutableStateFlow(0)
     val reloadVersion = _reloadVersion.asStateFlow()
 
-    val state: StateFlow<ReviewState> = combine(
+    private data class CoreReviewState(
+        val recording: RecordingEntity?,
+        val segments: List<TranscriptSegmentEntity>,
+        val comments: List<CommentEntity>,
+        val aliases: Map<String, String>,
+        val ai: AiRecordingEntity?,
+    )
+
+    private val coreState = combine(
         dao.observeRecording(recordingId),
         dao.observeSegments(recordingId),
         dao.observeComments(recordingId),
         dao.observeAliases(recordingId),
-    ) { recording, segments, comments, aliases ->
-        ReviewState(recording, segments, comments, aliases.associate { it.speakerId to it.displayName })
+        dao.observeAiRecording(recordingId),
+    ) { recording, segments, comments, aliases, ai ->
+        CoreReviewState(recording, segments, comments, aliases.associate { it.speakerId to it.displayName }, ai)
+    }
+
+    val state: StateFlow<ReviewState> = combine(
+        coreState,
+        dao.observeConversationSets(recordingId),
+        dao.observeSpeakerSuggestions(recordingId),
+    ) { core, sets, suggestions ->
+        ReviewState(core.recording, core.segments, core.comments, core.aliases, core.ai, sets, suggestions)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReviewState())
 
     fun savePlaybackPosition(positionMs: Long) = viewModelScope.launch {
@@ -199,6 +252,66 @@ class ReviewViewModel(
         refreshDerivedData()
     }
 
+    fun runAiPass() = viewModelScope.launch {
+        val settings = services.settings.settings.first()
+        val current = dao.getAiRecording(recordingId) ?: AiRecordingEntity(recordingId)
+        dao.upsertAiRecording(current.copy(status = AiPassStatus.RUNNING, errorMessage = null))
+        AiPassWorker.enqueue(app, recordingId, allowMobileData = settings.allowMobileData, force = true)
+    }
+
+    fun setSkipAiPass(skip: Boolean) = viewModelScope.launch {
+        val current = dao.getAiRecording(recordingId) ?: AiRecordingEntity(recordingId)
+        dao.upsertAiRecording(
+            current.copy(
+                skipAiPass = skip,
+                status = if (skip) AiPassStatus.SKIPPED else if (current.status == AiPassStatus.SKIPPED) AiPassStatus.NOT_RUN else current.status,
+            )
+        )
+        refreshDerivedData()
+    }
+
+    fun confirmSuggestion(suggestion: SpeakerSuggestionEntity) = viewModelScope.launch {
+        dao.upsertAlias(SpeakerAliasEntity(recordingId, suggestion.speakerId, suggestion.suggestedName))
+        dao.deleteSpeakerSuggestion(recordingId, suggestion.speakerId)
+        refreshDerivedData()
+    }
+
+    fun undoRename() = viewModelScope.launch {
+        runCatching { services.aiPass.undoRename(recordingId) }
+            .onFailure { Log.e("DebriefAi", "Undo rename failed", it) }
+    }
+
+    fun mergeWithNext(setId: String) = viewModelScope.launch {
+        val sets = dao.getConversationSets(recordingId)
+        val index = sets.indexOfFirst { it.id == setId }
+        if (index !in 0 until sets.lastIndex) return@launch
+        val first = sets[index]
+        val second = sets[index + 1]
+        val merged = first.copy(
+            endMs = second.endMs,
+            summary = listOf(first.summary, second.summary).filter(String::isNotBlank).joinToString(" "),
+            speakerIds = (first.speakerIds.split('|') + second.speakerIds.split('|'))
+                .filter(String::isNotBlank).distinct().joinToString("|"),
+        )
+        persistSets(sets.take(index) + merged + sets.drop(index + 2))
+    }
+
+    fun splitSet(setId: String, timestampMs: Long) = viewModelScope.launch {
+        val sets = dao.getConversationSets(recordingId)
+        val index = sets.indexOfFirst { it.id == setId }
+        if (index < 0) return@launch
+        val target = sets[index]
+        if (timestampMs <= target.startMs + 1_000 || timestampMs >= target.endMs - 1_000) return@launch
+        val first = target.copy(endMs = timestampMs - 1, summary = "")
+        val second = target.copy(
+            id = UUID.randomUUID().toString(),
+            startMs = timestampMs,
+            title = target.title + " (continued)",
+            summary = "",
+        )
+        persistSets(sets.take(index) + first + second + sets.drop(index + 1))
+    }
+
     suspend fun search(query: String): List<SearchHit> = withContext(Dispatchers.IO) {
         services.search.search(query, recordingId)
     }
@@ -229,10 +342,21 @@ class ReviewViewModel(
 
     private suspend fun refreshDerivedData() {
         services.search.rebuild(recordingId)
-        val folder = services.settings.settings.stateIn(viewModelScope).value.folderUri
+        val folder = services.settings.settings.first().folderUri
         folder?.let { uri ->
             DocumentFile.fromTreeUri(app, Uri.parse(uri))?.let { services.sidecars.write(it, recordingId) }
         }
+    }
+
+    private suspend fun persistSets(sets: List<ConversationSetEntity>) {
+        val ai = dao.getAiRecording(recordingId) ?: AiRecordingEntity(recordingId)
+        val suggestions = dao.getSpeakerSuggestions(recordingId)
+        dao.replaceAiAnalysis(
+            ai,
+            sets.mapIndexed { index, set -> set.copy(orderIndex = index) },
+            suggestions,
+        )
+        refreshDerivedData()
     }
 
     companion object {

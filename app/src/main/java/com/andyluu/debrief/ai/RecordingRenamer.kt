@@ -14,7 +14,13 @@ class RecordingRenamer(
         val file = DocumentFile.fromSingleUri(context, Uri.parse(recording.documentUri))
             ?: throw AiPassException("The recording file is no longer available")
         val originalExtension = recording.displayName.substringAfterLast('.', "")
-        var base = requestedName.substringBeforeLast('.', requestedName)
+        val requested = requestedName.trim()
+        val requestedExtension = requested.substringAfterLast('.', "")
+        var base = if (requestedExtension.equals(originalExtension, ignoreCase = true)) {
+            requested.substringBeforeLast('.')
+        } else {
+            requested
+        }
             .replace(Regex("""[\\/:*?"<>|]"""), "-")
             .replace(Regex("\\s+"), " ")
             .trim(' ', '.', '-')
@@ -32,4 +38,3 @@ class RecordingRenamer(
         return file.name ?: finalName
     }
 }
-

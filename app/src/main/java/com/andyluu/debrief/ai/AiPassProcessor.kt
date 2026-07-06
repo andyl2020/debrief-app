@@ -12,6 +12,7 @@ import com.andyluu.debrief.data.SearchRepository
 import com.andyluu.debrief.data.SecureSecretStore
 import com.andyluu.debrief.data.SettingsStore
 import com.andyluu.debrief.data.SidecarStore
+import com.andyluu.debrief.data.UsageStore
 import com.andyluu.debrief.data.SpeakerAliasEntity
 import com.andyluu.debrief.data.SpeakerSuggestionEntity
 import kotlinx.coroutines.flow.first
@@ -27,6 +28,7 @@ class AiPassProcessor(
     private val search: SearchRepository,
     private val sidecars: SidecarStore,
     private val renamer: RecordingRenamer,
+    private val usage: UsageStore,
 ) {
     private val dao = database.dao()
 
@@ -49,11 +51,14 @@ class AiPassProcessor(
             words = words,
             gapMinutes = settings.aiGapMinutes,
         )
+        val previousSets = dao.getConversationSets(recordingId)
+        val previousSuggestions = dao.getSpeakerSuggestions(recordingId)
         dao.replaceAiAnalysis(
             existing.copy(status = AiPassStatus.RUNNING, errorMessage = null, provider = settings.aiProvider),
-            heuristicSets,
-            emptyList(),
+            previousSets.ifEmpty { heuristicSets },
+            previousSuggestions,
         )
+        var latestAi = existing
         try {
             val secretName = when (settings.aiProvider) {
                 "openai" -> "openai_compatible"
@@ -71,22 +76,28 @@ class AiPassProcessor(
                 AiPassRequest(buildPrompt(recording.displayName, recording.lastModified, segments, heuristicSets)),
                 key,
             )
+            usage.recordSuccess("ai_" + settings.aiProvider, key, recording.durationMs)
             val normalizedSets = normalizeSets(recordingId, recording.durationMs, response, segments, heuristicSets)
             val aliases = dao.getAliases(recordingId).associate { it.speakerId to it.displayName }
             val knownSpeakerIds = segments.mapTo(mutableSetOf()) { it.speakerId }
-            response.speakers.filter {
+            val explicitSpeakers = response.speakers.filter {
                 it.confidence.equals("explicit", true) &&
                     it.speakerId in knownSpeakerIds &&
                     it.name.isNotBlank()
-            }.forEach {
+            }
+            explicitSpeakers.forEach {
                 dao.upsertAlias(SpeakerAliasEntity(recordingId, it.speakerId, it.name.trim()))
             }
-            val andySpeaker = response.andySpeakerId
+            val explicitNames = explicitSpeakers.associate { it.speakerId to it.name.trim() }
+            val andyCandidate = response.andySpeakerId
                 ?.takeIf { it in knownSpeakerIds }
                 ?: normalizedSets.map { it.speakerIds.split('|').filter(String::isNotBlank).toSet() }
                     .takeIf { it.size > 1 }
                     ?.reduceOrNull(Set<String>::intersect)
                     ?.singleOrNull()
+            val andySpeaker = andyCandidate?.takeIf {
+                explicitNames[it].isNullOrBlank() || explicitNames[it].equals("Andy", ignoreCase = true)
+            }
             if (andySpeaker != null && aliases[andySpeaker].isNullOrBlank()) {
                 dao.upsertAlias(SpeakerAliasEntity(recordingId, andySpeaker, "Andy"))
             }
@@ -107,6 +118,7 @@ class AiPassProcessor(
                 provider = settings.aiProvider,
                 lastRunAt = System.currentTimeMillis(),
             )
+            latestAi = completed
             dao.replaceAiAnalysis(completed, normalizedSets, suggestions)
             search.rebuild(recordingId)
             if (response.suggestedFilename.isNotBlank()) {
@@ -118,7 +130,7 @@ class AiPassProcessor(
             }
         } catch (error: Throwable) {
             dao.upsertAiRecording(
-                existing.copy(
+                latestAi.copy(
                     status = AiPassStatus.FAILED,
                     errorMessage = error.message?.take(300) ?: "AI pass failed",
                     provider = settings.aiProvider,
@@ -201,4 +213,3 @@ class AiPassProcessor(
         else -> "Gemini"
     }
 }
-
