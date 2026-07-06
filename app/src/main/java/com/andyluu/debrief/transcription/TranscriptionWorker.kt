@@ -20,6 +20,7 @@ import com.andyluu.debrief.DebriefApplication
 import com.andyluu.debrief.R
 import com.andyluu.debrief.data.RecordingStatus
 import kotlinx.coroutines.flow.first
+import com.andyluu.debrief.ai.AiPassWorker
 
 class TranscriptionWorker(
     appContext: Context,
@@ -60,6 +61,9 @@ class TranscriptionWorker(
             services.search.rebuild(recordingId)
             settings.folderUri?.let { uri ->
                 DocumentFile.fromTreeUri(applicationContext, Uri.parse(uri))?.let { services.sidecars.write(it, recordingId) }
+            }
+            if (settings.aiAutoRun) {
+                AiPassWorker.enqueue(applicationContext, recordingId, settings.allowMobileData)
             }
             Result.success()
         } catch (error: Throwable) {

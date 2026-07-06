@@ -23,6 +23,23 @@ class SearchRepository(private val database: DebriefDatabase) {
                     arrayOf(recordingId, recording.displayName, "", comment.timestampMs, comment.text, "comment"),
                 )
             }
+            dao.getAiRecording(recordingId)?.let { ai ->
+                if (ai.summary.isNotBlank()) {
+                    db.execSQL(
+                        "INSERT INTO transcript_fts(recording_id, recording_name, speaker_id, timestamp_ms, body, kind) VALUES(?,?,?,?,?,?)",
+                        arrayOf(recordingId, recording.displayName, "", 0L, ai.summary, "summary"),
+                    )
+                }
+            }
+            dao.getConversationSets(recordingId).forEach { set ->
+                val body = listOf(set.title, set.summary).filter(String::isNotBlank).joinToString(". ")
+                if (body.isNotBlank()) {
+                    db.execSQL(
+                        "INSERT INTO transcript_fts(recording_id, recording_name, speaker_id, timestamp_ms, body, kind) VALUES(?,?,?,?,?,?)",
+                        arrayOf(recordingId, recording.displayName, "", set.startMs, body, "summary"),
+                    )
+                }
+            }
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()

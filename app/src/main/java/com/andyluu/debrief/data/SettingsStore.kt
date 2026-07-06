@@ -7,6 +7,7 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -24,6 +25,12 @@ data class AppSettings(
     val allowMobileData: Boolean = false,
     val keyterms: String = "",
     val provider: String = "deepgram",
+    val aiProvider: String = "gemini",
+    val aiAutoRun: Boolean = true,
+    val aiGapMinutes: Int = 3,
+    val openAiBaseUrl: String = "",
+    val openAiModel: String = "",
+    val anthropicModel: String = "claude-haiku-4-5",
 )
 
 class SettingsStore(private val context: Context) {
@@ -32,6 +39,12 @@ class SettingsStore(private val context: Context) {
         val mobileData = booleanPreferencesKey("allow_mobile_data")
         val keyterms = stringPreferencesKey("keyterms")
         val provider = stringPreferencesKey("provider")
+        val aiProvider = stringPreferencesKey("ai_provider")
+        val aiAutoRun = booleanPreferencesKey("ai_auto_run")
+        val aiGapMinutes = intPreferencesKey("ai_gap_minutes")
+        val openAiBaseUrl = stringPreferencesKey("openai_base_url")
+        val openAiModel = stringPreferencesKey("openai_model")
+        val anthropicModel = stringPreferencesKey("anthropic_model")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -40,6 +53,12 @@ class SettingsStore(private val context: Context) {
             allowMobileData = prefs[Keys.mobileData] ?: false,
             keyterms = prefs[Keys.keyterms] ?: "",
             provider = prefs[Keys.provider] ?: "deepgram",
+            aiProvider = prefs[Keys.aiProvider] ?: "gemini",
+            aiAutoRun = prefs[Keys.aiAutoRun] ?: true,
+            aiGapMinutes = (prefs[Keys.aiGapMinutes] ?: 3).coerceIn(1, 10),
+            openAiBaseUrl = prefs[Keys.openAiBaseUrl] ?: "",
+            openAiModel = prefs[Keys.openAiModel] ?: "",
+            anthropicModel = prefs[Keys.anthropicModel] ?: "claude-haiku-4-5",
         )
     }
 
@@ -47,6 +66,12 @@ class SettingsStore(private val context: Context) {
     suspend fun setAllowMobileData(allow: Boolean) = context.dataStore.edit { it[Keys.mobileData] = allow }
     suspend fun setKeyterms(value: String) = context.dataStore.edit { it[Keys.keyterms] = value }
     suspend fun setProvider(value: String) = context.dataStore.edit { it[Keys.provider] = value }
+    suspend fun setAiProvider(value: String) = context.dataStore.edit { it[Keys.aiProvider] = value }
+    suspend fun setAiAutoRun(value: Boolean) = context.dataStore.edit { it[Keys.aiAutoRun] = value }
+    suspend fun setAiGapMinutes(value: Int) = context.dataStore.edit { it[Keys.aiGapMinutes] = value.coerceIn(1, 10) }
+    suspend fun setOpenAiBaseUrl(value: String) = context.dataStore.edit { it[Keys.openAiBaseUrl] = value.trim() }
+    suspend fun setOpenAiModel(value: String) = context.dataStore.edit { it[Keys.openAiModel] = value.trim() }
+    suspend fun setAnthropicModel(value: String) = context.dataStore.edit { it[Keys.anthropicModel] = value.trim() }
 }
 
 class SecureSecretStore(context: Context) {

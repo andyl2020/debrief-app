@@ -9,6 +9,8 @@ import com.andyluu.debrief.data.SettingsStore
 import com.andyluu.debrief.data.SidecarStore
 import com.andyluu.debrief.data.UsageStore
 import com.andyluu.debrief.transcription.UsageRepository
+import com.andyluu.debrief.ai.AiPassProcessor
+import com.andyluu.debrief.ai.RecordingRenamer
 
 class AppServices(application: Application) {
     val database = DebriefDatabase.get(application)
@@ -18,6 +20,8 @@ class AppServices(application: Application) {
     val usageRepository = UsageRepository(usage)
     val search = SearchRepository(database)
     val sidecars = SidecarStore(application, database, search)
+    val renamer = RecordingRenamer(application, database.dao())
+    val aiPass = AiPassProcessor(application, database, settings, secrets, search, sidecars, renamer)
     val folders = FolderRepository(application, database.dao(), sidecars)
 }
 

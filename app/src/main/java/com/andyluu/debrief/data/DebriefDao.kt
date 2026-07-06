@@ -35,6 +35,9 @@ interface DebriefDao {
     @Query("UPDATE recordings SET playbackPositionMs = :positionMs WHERE id = :id")
     suspend fun updatePlaybackPosition(id: String, positionMs: Long)
 
+    @Query("UPDATE recordings SET documentUri = :documentUri, displayName = :displayName, lastModified = :lastModified WHERE id = :id")
+    suspend fun updateRecordingLocation(id: String, documentUri: String, displayName: String, lastModified: Long)
+
     @Query("DELETE FROM recordings WHERE id NOT IN (:activeIds)")
     suspend fun deleteMissingRecordings(activeIds: List<String>)
 
@@ -61,6 +64,54 @@ interface DebriefDao {
 
     @Query("SELECT * FROM speaker_aliases WHERE recordingId = :recordingId")
     suspend fun getAliases(recordingId: String): List<SpeakerAliasEntity>
+
+    @Query("SELECT * FROM ai_recordings")
+    fun observeAllAiRecordings(): Flow<List<AiRecordingEntity>>
+
+    @Query("SELECT * FROM ai_recordings WHERE recordingId = :recordingId")
+    fun observeAiRecording(recordingId: String): Flow<AiRecordingEntity?>
+
+    @Query("SELECT * FROM ai_recordings WHERE recordingId = :recordingId")
+    suspend fun getAiRecording(recordingId: String): AiRecordingEntity?
+
+    @Upsert
+    suspend fun upsertAiRecording(aiRecording: AiRecordingEntity)
+
+    @Query("UPDATE ai_recordings SET skipAiPass = :skip, status = CASE WHEN :skip THEN 'SKIPPED' ELSE status END WHERE recordingId = :recordingId")
+    suspend fun updateAiSkip(recordingId: String, skip: Boolean)
+
+    @Query("SELECT * FROM conversation_sets ORDER BY recordingId, orderIndex")
+    fun observeAllConversationSets(): Flow<List<ConversationSetEntity>>
+
+    @Query("SELECT * FROM conversation_sets WHERE recordingId = :recordingId ORDER BY orderIndex")
+    fun observeConversationSets(recordingId: String): Flow<List<ConversationSetEntity>>
+
+    @Query("SELECT * FROM conversation_sets WHERE recordingId = :recordingId ORDER BY orderIndex")
+    suspend fun getConversationSets(recordingId: String): List<ConversationSetEntity>
+
+    @Upsert
+    suspend fun upsertConversationSet(set: ConversationSetEntity)
+
+    @Query("DELETE FROM conversation_sets WHERE id = :setId")
+    suspend fun deleteConversationSet(setId: String)
+
+    @Query("DELETE FROM conversation_sets WHERE recordingId = :recordingId")
+    suspend fun deleteConversationSets(recordingId: String)
+
+    @Insert
+    suspend fun insertConversationSets(sets: List<ConversationSetEntity>)
+
+    @Query("SELECT * FROM speaker_suggestions WHERE recordingId = :recordingId ORDER BY speakerId")
+    fun observeSpeakerSuggestions(recordingId: String): Flow<List<SpeakerSuggestionEntity>>
+
+    @Query("SELECT * FROM speaker_suggestions WHERE recordingId = :recordingId ORDER BY speakerId")
+    suspend fun getSpeakerSuggestions(recordingId: String): List<SpeakerSuggestionEntity>
+
+    @Query("DELETE FROM speaker_suggestions WHERE recordingId = :recordingId")
+    suspend fun deleteSpeakerSuggestions(recordingId: String)
+
+    @Insert
+    suspend fun insertSpeakerSuggestions(suggestions: List<SpeakerSuggestionEntity>)
 
     @Query("SELECT * FROM comments WHERE id = :commentId")
     suspend fun getComment(commentId: String): CommentEntity?
@@ -96,5 +147,18 @@ interface DebriefDao {
         deleteWords(recordingId)
         insertSegments(segments)
         insertWords(words)
+    }
+
+    @Transaction
+    suspend fun replaceAiAnalysis(
+        aiRecording: AiRecordingEntity,
+        sets: List<ConversationSetEntity>,
+        suggestions: List<SpeakerSuggestionEntity>,
+    ) {
+        upsertAiRecording(aiRecording)
+        deleteConversationSets(aiRecording.recordingId)
+        deleteSpeakerSuggestions(aiRecording.recordingId)
+        if (sets.isNotEmpty()) insertConversationSets(sets)
+        if (suggestions.isNotEmpty()) insertSpeakerSuggestions(suggestions)
     }
 }

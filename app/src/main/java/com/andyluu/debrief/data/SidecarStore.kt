@@ -17,6 +17,7 @@ class SidecarStore(
 
     suspend fun write(root: DocumentFile, recordingId: String) = withContext(Dispatchers.IO) {
         val recording = dao.getRecording(recordingId) ?: return@withContext
+        val ai = dao.getAiRecording(recordingId)
         val document = SidecarDocument(
             recordingName = recording.displayName,
             recordingSizeBytes = recording.sizeBytes,
@@ -30,6 +31,15 @@ class SidecarStore(
                 SidecarComment(it.id, it.timestampMs, it.text, it.createdAt, it.updatedAt)
             },
             speakerAliases = dao.getAliases(recordingId).associate { it.speakerId to it.displayName },
+            originalRecordingName = ai?.originalDisplayName,
+            aiSummary = ai?.summary.orEmpty(),
+            skipAiPass = ai?.skipAiPass ?: false,
+            sets = dao.getConversationSets(recordingId).map {
+                SidecarSet(it.id, it.orderIndex, it.startMs, it.endMs, it.title, it.summary, it.speakerIds)
+            },
+            speakerSuggestions = dao.getSpeakerSuggestions(recordingId).map {
+                SidecarSpeakerSuggestion(it.speakerId, it.suggestedName, it.confidence, it.evidence)
+            },
         )
         val directory = findContainingDirectory(root, recording.documentUri) ?: root
         val name = sidecarName(recording.displayName)
@@ -75,6 +85,23 @@ class SidecarStore(
             dao.upsertComment(CommentEntity(it.id, recording.id, it.timestampMs, it.text, it.createdAt, it.updatedAt))
         }
         document.speakerAliases.forEach { (id, name) -> dao.upsertAlias(SpeakerAliasEntity(recording.id, id, name)) }
+        if (document.aiSummary.isNotBlank() || document.sets.isNotEmpty() || document.skipAiPass) {
+            dao.replaceAiAnalysis(
+                AiRecordingEntity(
+                    recordingId = recording.id,
+                    summary = document.aiSummary,
+                    originalDisplayName = document.originalRecordingName,
+                    skipAiPass = document.skipAiPass,
+                    status = if (document.skipAiPass) AiPassStatus.SKIPPED else AiPassStatus.READY,
+                ),
+                document.sets.map {
+                    ConversationSetEntity(it.id, recording.id, it.orderIndex, it.startMs, it.endMs, it.title, it.summary, it.speakerIds)
+                },
+                document.speakerSuggestions.map {
+                    SpeakerSuggestionEntity(recording.id, it.speakerId, it.suggestedName, it.confidence, it.evidence)
+                },
+            )
+        }
         if (document.transcript.isNotEmpty()) {
             dao.updateStatus(recording.id, RecordingStatus.READY)
             search.rebuild(recording.id)

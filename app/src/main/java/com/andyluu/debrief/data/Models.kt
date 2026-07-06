@@ -7,6 +7,7 @@ import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 
 enum class RecordingStatus { NEW, QUEUED, TRANSCRIBING, READY, FAILED }
+enum class AiPassStatus { NOT_RUN, RUNNING, READY, FAILED, SKIPPED }
 
 @Entity(tableName = "recordings")
 data class RecordingEntity(
@@ -87,6 +88,68 @@ data class SpeakerAliasEntity(
     val displayName: String,
 )
 
+@Entity(
+    tableName = "ai_recordings",
+    foreignKeys = [ForeignKey(
+        entity = RecordingEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["recordingId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index("recordingId")],
+)
+data class AiRecordingEntity(
+    @PrimaryKey val recordingId: String,
+    val summary: String = "",
+    val originalDisplayName: String? = null,
+    val suggestedFilename: String? = null,
+    val skipAiPass: Boolean = false,
+    val status: AiPassStatus = AiPassStatus.NOT_RUN,
+    val errorMessage: String? = null,
+    val provider: String? = null,
+    val lastRunAt: Long? = null,
+)
+
+@Entity(
+    tableName = "conversation_sets",
+    foreignKeys = [ForeignKey(
+        entity = RecordingEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["recordingId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index("recordingId"), Index(value = ["recordingId", "orderIndex"])],
+)
+data class ConversationSetEntity(
+    @PrimaryKey val id: String,
+    val recordingId: String,
+    val orderIndex: Int,
+    val startMs: Long,
+    val endMs: Long,
+    val title: String,
+    val summary: String = "",
+    val speakerIds: String = "",
+)
+
+@Entity(
+    tableName = "speaker_suggestions",
+    primaryKeys = ["recordingId", "speakerId"],
+    foreignKeys = [ForeignKey(
+        entity = RecordingEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["recordingId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index("recordingId")],
+)
+data class SpeakerSuggestionEntity(
+    val recordingId: String,
+    val speakerId: String,
+    val suggestedName: String,
+    val confidence: String,
+    val evidence: String = "",
+)
+
 data class ReviewBundle(
     val recording: RecordingEntity,
     val segments: List<TranscriptSegmentEntity>,
@@ -106,13 +169,18 @@ data class SearchHit(
 
 @Serializable
 data class SidecarDocument(
-    val schemaVersion: Int = 1,
+    val schemaVersion: Int = 2,
     val recordingName: String,
     val recordingSizeBytes: Long,
     val transcript: List<SidecarSegment>,
     val words: List<SidecarWord>,
     val comments: List<SidecarComment>,
     val speakerAliases: Map<String, String>,
+    val originalRecordingName: String? = null,
+    val aiSummary: String = "",
+    val skipAiPass: Boolean = false,
+    val sets: List<SidecarSet> = emptyList(),
+    val speakerSuggestions: List<SidecarSpeakerSuggestion> = emptyList(),
 )
 
 @Serializable
@@ -138,4 +206,23 @@ data class SidecarComment(
     val text: String,
     val createdAt: Long,
     val updatedAt: Long,
+)
+
+@Serializable
+data class SidecarSet(
+    val id: String,
+    val orderIndex: Int,
+    val startMs: Long,
+    val endMs: Long,
+    val title: String,
+    val summary: String,
+    val speakerIds: String,
+)
+
+@Serializable
+data class SidecarSpeakerSuggestion(
+    val speakerId: String,
+    val suggestedName: String,
+    val confidence: String,
+    val evidence: String,
 )

@@ -15,8 +15,10 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 
 ## Current checkpoint
 
-- The Claude artifact has been captured completely and saved as `debrief-ai-features-prd-addendum.md`.
-- Next: implement the P1 AI-pass data model, deterministic set detection, provider abstraction, settings/controls, summaries and speaker suggestions, rename/undo, UI, and tests.
+- The Claude artifact is saved as `debrief-ai-features-prd-addendum.md`.
+- AI persistence/migration, deterministic set detection, Gemini/OpenAI-compatible/Claude structured-output clients, retry worker, summary search indexing, sidecar v2, and SAF rename support are implemented.
+- `testDebugUnitTest lintDebug` passes after this slice.
+- Next: wire Settings and review/library controls, manual merge/split and speaker confirmation, undo rename, then run migration/device/release verification.
 
 ## Resume protocol
 
@@ -29,8 +31,8 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 
 - [x] Bug diagnosis, fixes, full verification, v1.1.1 release.
 - [x] Save the source artifact as a Markdown addendum.
-- [ ] AI-pass persistence model and migration.
-- [ ] Set detection and provider clients with structured output.
+- [x] AI-pass persistence model and migration.
+- [x] Set detection and provider clients with structured output.
 - [ ] Settings, automatic/re-run/skip controls, and AI result UI.
 - [ ] Physical rename with undo and sidecar preservation.
 - [ ] Full regression testing, signed build, v1.2.0 release.
@@ -41,4 +43,3 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - `./gradlew connectedDebugAndroidTest` on Android 11 and Android 15 PS16K
 - `./gradlew lintRelease assembleRelease`
 - `scripts/check-arm64-16kb.ps1`
-

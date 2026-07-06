@@ -27,9 +27,9 @@ class FolderRepository(
 
         audioFiles.forEach { file ->
             val uri = file.uri.toString()
-            val id = sha256(uri)
+            val existing = dao.getRecordingByUri(uri) ?: dao.getRecording(sha256(uri))
+            val id = existing?.id ?: sha256(uri)
             activeIds += id
-            val existing = dao.getRecording(id)
             val recording = RecordingEntity(
                 id = id,
                 documentUri = uri,
