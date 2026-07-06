@@ -2,6 +2,7 @@ package com.andyluu.debrief.ai
 
 import android.content.Context
 import androidx.work.Constraints
+import androidx.work.BackoffPolicy
 import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
@@ -10,6 +11,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.andyluu.debrief.DebriefApplication
+import java.util.concurrent.TimeUnit
 
 class AiPassWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
@@ -20,7 +22,8 @@ class AiPassWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
         }.fold(
             onSuccess = { Result.success() },
             onFailure = { error ->
-                if (runAttemptCount < 2 && error !is AiPassException) Result.retry()
+                val retryable = error !is AiPassException || error.retryable
+                if (runAttemptCount < 4 && retryable) Result.retry()
                 else Result.failure(Data.Builder().putString("error", error.message?.take(300)).build())
             },
         )
@@ -35,6 +38,7 @@ class AiPassWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
             val request = OneTimeWorkRequestBuilder<AiPassWorker>()
                 .setInputData(Data.Builder().putString(KEY_RECORDING_ID, recordingId).putBoolean(KEY_FORCE, force).build())
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(network).build())
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
                 .addTag("ai-pass")
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(
@@ -45,4 +49,3 @@ class AiPassWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
         }
     }
 }
-

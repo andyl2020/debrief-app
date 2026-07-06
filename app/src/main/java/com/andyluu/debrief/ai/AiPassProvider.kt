@@ -11,5 +11,4 @@ interface AiPassProvider {
     suspend fun analyze(request: AiPassRequest, apiKey: String): AiPassResponse
 }
 
-class AiPassException(message: String) : Exception(message)
-
+class AiPassException(message: String, val retryable: Boolean = false) : Exception(message)

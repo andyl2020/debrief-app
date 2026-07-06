@@ -11,6 +11,8 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 class GeminiAiProviderTest {
@@ -50,6 +52,22 @@ class GeminiAiProviderTest {
         }
     }
 
+    @Test
+    fun exhaustedQuotaIsMarkedForWorkerRetry() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(429).setBody("""{"error":{"message":"primary quota"}}"""))
+            server.enqueue(MockResponse().setResponseCode(429).setBody("""{"error":{"message":"fallback quota"}}"""))
+            val provider = GeminiAiProvider(baseUrl = server.url("/v1beta/models").toString())
+
+            try {
+                provider.analyze(AiPassRequest("Analyze"), "test-key")
+                fail("Expected a retryable quota exception")
+            } catch (error: AiPassException) {
+                assertTrue(error.retryable)
+            }
+        }
+    }
+
     private fun resultJson() = aiJson.encodeToString(
         AiPassResponse.serializer(),
         AiPassResponse(
@@ -74,4 +92,3 @@ class GeminiAiProviderTest {
         },
     )
 }
-

@@ -161,7 +161,10 @@ private data class HttpResult(val code: Int, val body: String) {
                     if (error is JsonObject) error["message"]?.jsonPrimitive?.contentOrNull else error.jsonPrimitive.contentOrNull
                 }
             }.getOrNull()
-            throw AiPassException(detail?.take(300) ?: "AI provider request failed (HTTP " + code + ")")
+            throw AiPassException(
+                detail?.take(300) ?: "AI provider request failed (HTTP " + code + ")",
+                retryable = code == 429 || code == 503 || code in 500..599,
+            )
         }
         return body
     }
