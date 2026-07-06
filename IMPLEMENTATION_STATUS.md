@@ -23,7 +23,9 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - Six instrumentation tests passed on each emulator; unit tests and lint pass.
 - Final signed v1.2.0 APK passed release lint, R8, signature verification, ARM64/x86-64 16 KB ELF checks, clean installs, and launches on 4 KB and 16 KB emulators.
 - Final APK SHA-256: `BBE5D549BD562BA5F28DD46863F8A0E0E8A95D99ED159ECF4183C3B8CF92B4BF`.
-- Next: publish the already-built APK as GitHub Release v1.2.0 and verify the public download.
+- GitHub Release v1.2.0 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.2.0
+- The unauthenticated public APK download was fetched again and matched the signed build's byte size and SHA-256.
+- No implementation work remains for this addendum checkpoint.
 
 ## Resume protocol
 
@@ -41,7 +43,7 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - [x] Settings, automatic/re-run/skip controls, and AI result UI.
 - [x] Physical rename with undo and sidecar preservation.
 - [x] Full regression testing and signed build.
-- [ ] Publish and verify GitHub Release v1.2.0.
+- [x] Publish and verify GitHub Release v1.2.0.
 
 ## Last verified commands
 
