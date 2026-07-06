@@ -46,6 +46,12 @@ Signing material and local tooling are ignored by Git.
 
 Download the latest APK from GitHub Releases, allow your browser to install unknown apps if Android asks, and open the downloaded APK. On first launch, link the folder containing recordings and save the Deepgram key in Settings.
 
+GitHub-hosted APKs are sideloaded rather than installed through Google Play, so Play Protect may show an unknown-developer warning. Only continue when the APK came from this repository's release page.
+
+On Samsung Galaxy devices, Auto Blocker prevents all unknown-source installs while enabled. Open **Settings → Security and privacy → Auto Blocker** and temporarily turn it off, then search Settings for **Install unknown apps** and allow the app that opened the APK (usually My Files or Chrome). Turn Auto Blocker back on after installation.
+
+If Android reports a package conflict, uninstall an older Debrief build and retry. Releases from this repository share one signing certificate and upgrade normally; independently signed debug builds do not.
+
 ## Scope
 
 Android 10 or newer. Recording, video, live transcription, cloud sync, collaboration, and iOS are intentionally out of scope for v1.

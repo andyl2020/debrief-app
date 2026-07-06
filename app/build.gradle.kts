@@ -14,8 +14,8 @@ android {
         applicationId = "com.andyluu.debrief"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -32,6 +32,10 @@ android {
                 keyAlias = alias
                 keyPassword = password
             }
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+            enableV4Signing = true
         }
     }
 
@@ -58,7 +62,12 @@ android {
         buildConfig = false
     }
 
-    packaging.resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    packaging {
+        // Extract native libraries on install instead of relying on direct APK mmap.
+        // This is more tolerant of OEM package installers and older vendor kernels.
+        jniLibs.useLegacyPackaging = true
+        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    }
 }
 
 dependencies {
