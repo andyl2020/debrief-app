@@ -32,7 +32,9 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - Unit/lint/debug builds pass, and 10 instrumentation tests pass on both Android 11 and Android 15 PS16K with no crash-buffer entries.
 - The signed v1.2.2 APK passed release lint/R8, production signature verification, ARM64/x86-64 16 KB alignment, and signed upgrades from v1.2.1 on 4 KB and 16 KB emulators with no crash-buffer entries.
 - Final APK SHA-256: `A57D4F1BB35167738F596D54B8914E5F98B74D13987EDBA623F866C79CF7F672`.
-- Next: publish and verify the public v1.2.2 APK.
+- GitHub Release v1.2.2 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.2.2
+- Its unauthenticated public APK download matched the signed build's 8,871,212-byte size and SHA-256.
+- No implementation work remains for the v1.2.2 crash-hardening checkpoint.
 
 ## Resume protocol
 
@@ -53,7 +55,7 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - [x] Publish and verify GitHub Release v1.2.0.
 - [x] Publish and verify final GitHub Release v1.2.1.
 - [x] Harden error handling and repair comment visibility.
-- [ ] Publish and verify GitHub Release v1.2.2.
+- [x] Publish and verify GitHub Release v1.2.2.
 
 ## Last verified commands
 
