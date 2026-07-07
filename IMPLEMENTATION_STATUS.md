@@ -42,6 +42,10 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - GitHub Release v1.3.0 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.3.0
 - Its unauthenticated public APK download matched the signed build's 8,890,293-byte size and SHA-256.
 - No implementation work remains for the v1.3.0 playback-speed checkpoint.
+- v1.4.0 Chapters is implemented as a side drawer combining AI-detected sets and comments in chronological order with tap-to-seek, active-set highlighting, merge, and split controls.
+- Duplicate set lists were removed from Library cards and the transcript body; compact AI status and controls now live in Chapters.
+- `AGENTS.md` makes detailed release documentation mandatory, and `RELEASE_NOTES.md` is the cumulative feature/usage/limitations/history guide.
+- Unit tests and a debug build pass; full lint, dual-emulator instrumentation, signing, upgrade verification, and public release remain.
 
 ## Resume protocol
 
@@ -66,6 +70,9 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - [x] Implement and device-test playback speed ramping.
 - [x] Sign and upgrade-test v1.3.0 on 4 KB and 16 KB Android emulators.
 - [x] Publish and independently verify GitHub Release v1.3.0.
+- [x] Implement Chapters and consolidate duplicate set/AI UI.
+- [x] Establish permanent cumulative release documentation.
+- [ ] Fully verify and publish GitHub Release v1.4.0.
 
 ## Last verified commands
 

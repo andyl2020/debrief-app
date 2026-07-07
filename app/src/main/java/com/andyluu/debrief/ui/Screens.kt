@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -59,6 +61,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -68,6 +72,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -117,9 +123,7 @@ fun LibraryScreen(
     val recordings by viewModel.recordings.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val aiRecordings by viewModel.aiRecordings.collectAsStateWithLifecycle()
-    val conversationSets by viewModel.conversationSets.collectAsStateWithLifecycle()
     val aiByRecording = aiRecordings.associateBy { it.recordingId }
-    val setsByRecording = conversationSets.groupBy { it.recordingId }
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbar.showSnackbar(it) }
@@ -205,11 +209,9 @@ fun LibraryScreen(
                             RecordingCard(
                                 recording = recording,
                                 ai = aiByRecording[recording.id],
-                                sets = setsByRecording[recording.id].orEmpty(),
                                 selectionMode = selectionMode,
                                 selected = recording.id in selectedIds,
                                 onOpen = { onOpenRecording(recording.id, 0) },
-                                onOpenAt = { onOpenRecording(recording.id, it) },
                                 onToggleSelection = {
                                     if (recording.isTranscribable()) {
                                         selectedIds = if (recording.id in selectedIds) selectedIds - recording.id else selectedIds + recording.id
@@ -230,15 +232,12 @@ fun LibraryScreen(
 internal fun RecordingCard(
     recording: RecordingEntity,
     ai: AiRecordingEntity? = null,
-    sets: List<ConversationSetEntity> = emptyList(),
     selectionMode: Boolean,
     selected: Boolean,
     onOpen: () -> Unit,
-    onOpenAt: (Long) -> Unit = { onOpen() },
     onToggleSelection: () -> Unit,
 ) {
     val selectable = recording.isTranscribable()
-    var expanded by remember(recording.id) { mutableStateOf(false) }
     ElevatedCard(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp).combinedClickable(
             onClick = { if (selectionMode) { if (selectable) onToggleSelection() } else onOpen() },
@@ -272,26 +271,6 @@ internal fun RecordingCard(
             recording.errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             ai?.summary?.takeIf(String::isNotBlank)?.let {
                 Text(it, Modifier.padding(top = 10.dp), style = MaterialTheme.typography.bodyMedium)
-            }
-            if (sets.isNotEmpty() && !selectionMode) {
-                TextButton(onClick = { expanded = !expanded }) {
-                    Text(if (expanded) "Hide ${sets.size} sets" else "Show ${sets.size} sets")
-                }
-                if (expanded) {
-                    sets.forEach { set ->
-                        Row(
-                            Modifier.fillMaxWidth().clickable { onOpenAt(set.startMs) }.padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(formatTimestamp(set.startMs), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
-                            Spacer(Modifier.width(10.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(set.title, fontWeight = FontWeight.SemiBold)
-                                if (set.summary.isNotBlank()) Text(set.summary, style = MaterialTheme.typography.bodySmall, maxLines = 2)
-                            }
-                        }
-                    }
-                }
             }
         }
     }
@@ -680,7 +659,37 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
         localResults = if (query.isBlank()) emptyList() else viewModel.search(query)
     }
 
-    Scaffold(
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = drawerState.isOpen,
+        drawerContent = {
+            ModalDrawerSheet(Modifier.widthIn(max = 360.dp)) {
+                ChaptersDrawerContent(
+                    recording = recording,
+                    ai = state.ai,
+                    sets = state.sets,
+                    comments = state.comments,
+                    suggestions = state.suggestions,
+                    aliases = state.aliases,
+                    positionMs = position,
+                    onClose = { scope.launch { drawerState.close() } },
+                    onSkip = viewModel::setSkipAiPass,
+                    onUndoRename = viewModel::undoRename,
+                    onConfirmSuggestion = viewModel::confirmSuggestion,
+                    onSeek = { timestamp ->
+                        player?.seekTo(timestamp)
+                        position = timestamp
+                        follow = true
+                        scope.launch { drawerState.close() }
+                    },
+                    onMerge = viewModel::mergeWithNext,
+                    onSplit = viewModel::splitSet,
+                )
+            }
+        },
+    ) {
+      Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             CenterAlignedTopAppBar(
@@ -739,6 +748,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                     onReload = { follow = true; viewModel.reloadTranscript() },
                     onRunAi = viewModel::runAiPass,
                     onAddComment = { addComment = true },
+                    onOpenChapters = { scope.launch { drawerState.open() } },
                 )
             }
             if (query.isNotBlank()) {
@@ -751,22 +761,6 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                 }
             } else {
                 LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    item {
-                        AiPassPanel(
-                            recording = recording,
-                            ai = state.ai,
-                            sets = state.sets,
-                            suggestions = state.suggestions,
-                            aliases = state.aliases,
-                            positionMs = position,
-                            onSkip = viewModel::setSkipAiPass,
-                            onUndoRename = viewModel::undoRename,
-                            onConfirmSuggestion = viewModel::confirmSuggestion,
-                            onSeek = { timestamp -> player?.seekTo(timestamp); position = timestamp; follow = true },
-                            onMerge = viewModel::mergeWithNext,
-                            onSplit = viewModel::splitSet,
-                        )
-                    }
                     val leadingComments = leadingComments(state.comments, state.segments)
                     if (leadingComments.isNotEmpty()) {
                         item {
@@ -797,6 +791,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                 }
             }
         }
+    }
     }
 
     if (addComment) TextEntryDialog("Comment at ${formatTimestamp(position)}", "Add", onDismiss = { addComment = false }) {
@@ -861,6 +856,7 @@ internal fun ReviewToolbarActions(
     onReload: () -> Unit,
     onRunAi: () -> Unit,
     onAddComment: () -> Unit,
+    onOpenChapters: () -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onReload) { Icon(Icons.Default.Refresh, "Reload transcript") }
@@ -873,6 +869,7 @@ internal fun ReviewToolbarActions(
             else Icon(Icons.Default.AutoAwesome, null)
         }
         IconButton(onClick = onAddComment) { Icon(Icons.Default.AddComment, "Add comment") }
+        IconButton(onClick = onOpenChapters) { Icon(Icons.Default.List, "Open chapters") }
     }
 }
 

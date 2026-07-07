@@ -14,6 +14,7 @@ Debrief is a local-first Android app for reviewing long field recordings. It lin
 - Per-key local usage tracking plus Deepgram provider usage, spend, and balance when the key has read scopes
 - Gemini, OpenAI-compatible, or Claude post-transcription AI pass for conversation sets, summaries, speaker suggestions, and intelligent physical rename with undo
 - Per-recording AI privacy skip, automatic/re-run controls, configurable silence gap, manual set merge/split, and local per-key AI usage
+- Side-opening Chapters table of contents combining AI-detected conversation sets and timestamped comments, with tap-to-jump navigation
 - Media3 playback with immediate 1×/1.2×/1.5×/2×/3×/4× speed control, saved position, transcript follow/highlight, tap-to-seek, and transcript reload
 - SQLCipher-encrypted Room database and bundled FTS5 search across transcripts, summaries, and comments
 - Timestamped comment create/edit/delete and recording-wide speaker aliases
@@ -51,6 +52,8 @@ Signing material and local tooling are ignored by Git.
 Download the latest APK from GitHub Releases, allow your browser to install unknown apps if Android asks, and open the downloaded APK. On first launch, link the folder containing recordings and save the Deepgram key in Settings. Add a Gemini key under AI Pass to enable the default post-transcription analysis.
 
 GitHub-hosted APKs are sideloaded rather than installed through Google Play, so Play Protect may show an unknown-developer warning. Only continue when the APK came from this repository's release page.
+
+See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the complete feature guide, usage instructions, release history, limitations, and known edge cases.
 
 On Samsung Galaxy devices, Auto Blocker prevents all unknown-source installs while enabled. Open **Settings → Security and privacy → Auto Blocker** and temporarily turn it off, then search Settings for **Install unknown apps** and allow the app that opened the APK (usually My Files or Chrome). Turn Auto Blocker back on after installation.
 

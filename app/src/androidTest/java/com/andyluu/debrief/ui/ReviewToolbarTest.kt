@@ -25,6 +25,7 @@ class ReviewToolbarTest {
                     onReload = {},
                     onRunAi = { aiClicks++ },
                     onAddComment = {},
+                    onOpenChapters = {},
                 )
             }
         }
@@ -33,9 +34,11 @@ class ReviewToolbarTest {
         val aiNode = compose.onNodeWithContentDescription("Run AI pass").assertIsEnabled()
         val aiX = aiNode.fetchSemanticsNode().boundsInRoot.left
         val commentX = compose.onNodeWithContentDescription("Add comment").fetchSemanticsNode().boundsInRoot.left
+        val chaptersX = compose.onNodeWithContentDescription("Open chapters").fetchSemanticsNode().boundsInRoot.left
 
         assertTrue(reloadX < aiX)
         assertTrue(aiX < commentX)
+        assertTrue(commentX < chaptersX)
         aiNode.performClick()
         compose.runOnIdle { assertEquals(1, aiClicks) }
     }
@@ -44,7 +47,7 @@ class ReviewToolbarTest {
     fun aiActionIsDisabledWhileRunning() {
         compose.setContent {
             DebriefTheme {
-                ReviewToolbarActions(true, {}, {}, {})
+                ReviewToolbarActions(true, {}, {}, {}, {})
             }
         }
 
