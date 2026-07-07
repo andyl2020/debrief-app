@@ -27,7 +27,10 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - v1.2.1 adds exponential worker retry when both Gemini Flash and Flash-Lite are temporarily quota-limited.
 - GitHub Release v1.2.1 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.2.1
 - Its unauthenticated public APK download matched the signed build's 8,858,542-byte size and SHA-256.
-- No implementation work remains for this addendum checkpoint.
+- v1.2.2 crash-hardening is implemented: missing transcription/AI keys are blocked with actionable messages; comment writes are isolated from non-critical sidecar/index failures; gap and trailing comments remain visible; Review actions report failures instead of throwing.
+- The AI action now sits between transcript reload and add-comment in the review toolbar.
+- Unit/lint/debug builds pass, and 10 instrumentation tests pass on both Android 11 and Android 15 PS16K with no crash-buffer entries.
+- Next: sign, upgrade-test, publish, and verify v1.2.2.
 
 ## Resume protocol
 
@@ -47,6 +50,8 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - [x] Full regression testing and signed build.
 - [x] Publish and verify GitHub Release v1.2.0.
 - [x] Publish and verify final GitHub Release v1.2.1.
+- [x] Harden error handling and repair comment visibility.
+- [ ] Publish and verify GitHub Release v1.2.2.
 
 ## Last verified commands
 

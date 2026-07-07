@@ -24,6 +24,7 @@ import com.andyluu.debrief.data.TranscriptSegmentEntity
 import com.andyluu.debrief.transcription.TranscriptionWorker
 import com.andyluu.debrief.transcription.ApiUsageSnapshot
 import com.andyluu.debrief.ai.AiPassWorker
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -32,12 +33,15 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import java.util.UUID
 
 data class ReviewState(
@@ -56,6 +60,13 @@ data class UsageUiState(
     val error: String? = null,
 )
 
+internal fun userMessage(fallback: String, error: Throwable): String = when (error) {
+    is SecurityException -> "Permission was denied. Re-link the recordings folder and try again."
+    is IOException -> fallback + " Check storage and your connection, then try again."
+    is IllegalArgumentException -> error.message?.takeIf(String::isNotBlank)?.take(180) ?: fallback
+    else -> fallback
+}
+
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as DebriefApplication
     private val services = app.services
@@ -71,12 +82,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     private val _usage = MutableStateFlow(UsageUiState())
     val usage = _usage.asStateFlow()
+    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val messages = _messages.asSharedFlow()
 
     init {
         viewModelScope.launch {
             services.settings.settings.map { it.folderUri }.filterNotNull().distinctUntilChanged().collect { uri ->
                 runCatching { services.folders.scan(Uri.parse(uri)) }
-                    .onFailure { Log.e("DebriefScan", "Folder refresh failed", it) }
+                    .onFailure {
+                        Log.e("DebriefScan", "Folder refresh failed", it)
+                        _messages.emit(userMessage("Couldn't refresh the recordings folder.", it))
+                    }
             }
         }
     }
@@ -88,6 +104,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 services.folders.scan(uri)
             }
             result.exceptionOrNull()?.let { Log.e("DebriefScan", "Folder link failed", it) }
+            result.exceptionOrNull()?.let { _messages.emit(userMessage("Couldn't open that folder.", it)) }
             onComplete(result)
         }
     }
@@ -96,35 +113,59 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val uri = settings.value.folderUri ?: return
         viewModelScope.launch {
             runCatching { services.folders.scan(Uri.parse(uri)) }
-                .onFailure { Log.e("DebriefScan", "Folder refresh failed", it) }
+                .onFailure {
+                    Log.e("DebriefScan", "Folder refresh failed", it)
+                    _messages.emit(userMessage("Couldn't refresh the recordings folder.", it))
+                }
         }
     }
 
     fun transcribe(recordingIds: Collection<String>) {
-        val eligible = recordings.value
-            .filter { it.id in recordingIds && (it.status == RecordingStatus.NEW || it.status == RecordingStatus.FAILED) }
-        viewModelScope.launch {
-            eligible.forEach { recording ->
-                dao.updateStatus(recording.id, RecordingStatus.QUEUED)
-                TranscriptionWorker.enqueue(app, recording.id, settings.value.allowMobileData)
+        launchHandled("Couldn't queue transcription.") {
+            val eligible = recordingIds.distinct().mapNotNull { dao.getRecording(it) }
+                .filter { it.status == RecordingStatus.NEW || it.status == RecordingStatus.FAILED }
+            val provider = settings.value.provider
+            if (services.secrets.get(provider).isNullOrBlank()) {
+                _messages.emit("Add your " + providerName(provider) + " API key in Settings before transcribing.")
+                return@launchHandled
             }
+            if (eligible.isEmpty()) {
+                _messages.emit("Select at least one new or failed recording.")
+                return@launchHandled
+            }
+            eligible.forEach { recording ->
+                try {
+                    dao.updateStatus(recording.id, RecordingStatus.QUEUED)
+                    TranscriptionWorker.enqueue(app, recording.id, settings.value.allowMobileData)
+                } catch (error: Throwable) {
+                    dao.updateStatus(recording.id, RecordingStatus.FAILED, "Could not queue transcription")
+                    throw error
+                }
+            }
+            _messages.emit(eligible.size.toString() + " " + if (eligible.size == 1) "recording queued." else "recordings queued.")
         }
     }
 
     suspend fun search(query: String, recordingId: String? = null): List<SearchHit> =
-        withContext(Dispatchers.IO) { services.search.search(query, recordingId) }
+        try {
+            withContext(Dispatchers.IO) { services.search.search(query, recordingId) }
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            Log.e("DebriefSearch", "Search failed", error)
+            _messages.emit(userMessage("Search is temporarily unavailable.", error))
+            emptyList()
+        }
 
-    fun saveDeepgramKey(value: String) {
-        services.secrets.put("deepgram", value.trim())
-        if (settings.value.provider == "deepgram") refreshUsage("deepgram")
-    }
-    fun saveAssemblyAiKey(value: String) {
-        services.secrets.put("assemblyai", value.trim())
-        if (settings.value.provider == "assemblyai") refreshUsage("assemblyai")
-    }
-    fun saveGeminiKey(value: String) = services.secrets.put("gemini", value.trim())
-    fun saveOpenAiKey(value: String) = services.secrets.put("openai_compatible", value.trim())
-    fun saveAnthropicKey(value: String) = services.secrets.put("anthropic", value.trim())
+    fun saveDeepgramKey(value: String, onResult: (Boolean) -> Unit = {}) =
+        saveSecret("deepgram", "Deepgram", value, onResult) { refreshUsage("deepgram") }
+    fun saveAssemblyAiKey(value: String, onResult: (Boolean) -> Unit = {}) =
+        saveSecret("assemblyai", "AssemblyAI", value, onResult) { refreshUsage("assemblyai") }
+    fun saveGeminiKey(value: String, onResult: (Boolean) -> Unit = {}) =
+        saveSecret("gemini", "Gemini", value, onResult)
+    fun saveOpenAiKey(value: String, onResult: (Boolean) -> Unit = {}) =
+        saveSecret("openai_compatible", "OpenAI-compatible", value, onResult)
+    fun saveAnthropicKey(value: String, onResult: (Boolean) -> Unit = {}) =
+        saveSecret("anthropic", "Anthropic", value, onResult)
     fun hasDeepgramKey() = services.secrets.has("deepgram")
     fun hasAssemblyAiKey() = services.secrets.has("assemblyai")
     fun hasGeminiKey() = services.secrets.has("gemini")
@@ -139,19 +180,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val key = services.secrets.get(secretName) ?: return null
         return services.usage.get("ai_" + provider, key)
     }
-    fun setMobileData(value: Boolean) = viewModelScope.launch { services.settings.setAllowMobileData(value) }
-    fun setKeyterms(value: String) = viewModelScope.launch { services.settings.setKeyterms(value) }
-    fun setProvider(value: String) = viewModelScope.launch {
+    fun setMobileData(value: Boolean) = launchHandled("Couldn't update mobile-data settings.") { services.settings.setAllowMobileData(value) }
+    fun setKeyterms(value: String) = launchHandled("Couldn't save keyterms.") {
+        services.settings.setKeyterms(value)
+        _messages.emit("Keyterms saved.")
+    }
+    fun setProvider(value: String) = launchHandled("Couldn't change transcription provider.") {
         services.settings.setProvider(value)
         refreshUsage(value)
     }
-    fun setAiProvider(value: String) = viewModelScope.launch { services.settings.setAiProvider(value) }
-    fun setAiAutoRun(value: Boolean) = viewModelScope.launch { services.settings.setAiAutoRun(value) }
-    fun setAiGapMinutes(value: Int) = viewModelScope.launch { services.settings.setAiGapMinutes(value) }
-    fun saveAiEndpoint(baseUrl: String, model: String, anthropicModel: String) = viewModelScope.launch {
+    fun setAiProvider(value: String) = launchHandled("Couldn't change AI provider.") { services.settings.setAiProvider(value) }
+    fun setAiAutoRun(value: Boolean) = launchHandled("Couldn't update automatic AI settings.") { services.settings.setAiAutoRun(value) }
+    fun setAiGapMinutes(value: Int) = launchHandled("Couldn't update the silence gap.") { services.settings.setAiGapMinutes(value) }
+    fun saveAiEndpoint(baseUrl: String, model: String, anthropicModel: String) = launchHandled("Couldn't save AI provider settings.") {
         services.settings.setOpenAiBaseUrl(baseUrl)
         services.settings.setOpenAiModel(model)
         services.settings.setAnthropicModel(anthropicModel)
+        _messages.emit("AI provider settings saved.")
     }
 
     fun refreshUsage(provider: String = settings.value.provider) {
@@ -171,6 +216,44 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun providerName(provider: String) = if (provider == "assemblyai") "AssemblyAI" else "Deepgram"
+
+    private fun saveSecret(
+        name: String,
+        label: String,
+        value: String,
+        onResult: (Boolean) -> Unit,
+        onSaved: () -> Unit = {},
+    ) {
+        viewModelScope.launch {
+            val trimmed = value.trim()
+            if (trimmed.isBlank()) {
+                _messages.emit("Enter a " + label + " API key first.")
+                onResult(false)
+                return@launch
+            }
+            try {
+                services.secrets.put(name, trimmed)
+                _messages.emit(label + " API key encrypted and saved.")
+                onResult(true)
+                onSaved()
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                Log.e("DebriefSecrets", "Saving " + label + " key failed", error)
+                _messages.emit(userMessage("Couldn't save the " + label + " API key.", error))
+                onResult(false)
+            }
+        }
+    }
+
+    private fun launchHandled(fallback: String, block: suspend () -> Unit) = viewModelScope.launch {
+        try {
+            block()
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            Log.e("DebriefUi", fallback, error)
+            _messages.emit(userMessage(fallback, error))
+        }
+    }
 }
 
 class ReviewViewModel(
@@ -182,6 +265,8 @@ class ReviewViewModel(
     private val dao = services.database.dao()
     private val _reloadVersion = MutableStateFlow(0)
     val reloadVersion = _reloadVersion.asStateFlow()
+    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val messages = _messages.asSharedFlow()
 
     private data class CoreReviewState(
         val recording: RecordingEntity?,
@@ -209,11 +294,11 @@ class ReviewViewModel(
         ReviewState(core.recording, core.segments, core.comments, core.aliases, core.ai, sets, suggestions)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReviewState())
 
-    fun savePlaybackPosition(positionMs: Long) = viewModelScope.launch {
+    fun savePlaybackPosition(positionMs: Long) = launchHandled("Couldn't save the playback position.") {
         dao.updatePlaybackPosition(recordingId, positionMs)
     }
 
-    fun reloadTranscript() = viewModelScope.launch {
+    fun reloadTranscript() = launchHandled("Couldn't reload the transcript.") {
         val recording = dao.getRecording(recordingId)
         if (recording != null && dao.getSegments(recordingId).isEmpty()) {
             services.settings.settings.first().folderUri?.let { folderUri ->
@@ -223,43 +308,79 @@ class ReviewViewModel(
             }
         }
         _reloadVersion.update { it + 1 }
+        _messages.emit(if (dao.getSegments(recordingId).isEmpty()) "No saved transcript was found." else "Transcript reloaded.")
     }
 
-    fun addComment(timestampMs: Long, text: String) = viewModelScope.launch {
+    fun addComment(timestampMs: Long, text: String) = launchHandled("Couldn't add the comment.") {
+        val trimmed = text.trim()
+        if (trimmed.isBlank()) {
+            _messages.emit("Comment text can't be empty.")
+            return@launchHandled
+        }
         dao.upsertComment(
             CommentEntity(
                 id = UUID.randomUUID().toString(),
                 recordingId = recordingId,
                 timestampMs = timestampMs,
-                text = text.trim(),
+                text = trimmed,
             )
         )
         refreshDerivedData()
+        _messages.emit("Comment added.")
     }
 
-    fun editComment(comment: CommentEntity, text: String) = viewModelScope.launch {
-        dao.upsertComment(comment.copy(text = text.trim(), updatedAt = System.currentTimeMillis()))
+    fun editComment(comment: CommentEntity, text: String) = launchHandled("Couldn't update the comment.") {
+        val trimmed = text.trim()
+        if (trimmed.isBlank()) {
+            _messages.emit("Comment text can't be empty.")
+            return@launchHandled
+        }
+        dao.upsertComment(comment.copy(text = trimmed, updatedAt = System.currentTimeMillis()))
         refreshDerivedData()
+        _messages.emit("Comment updated.")
     }
 
-    fun deleteComment(commentId: String) = viewModelScope.launch {
+    fun deleteComment(commentId: String) = launchHandled("Couldn't delete the comment.") {
         dao.deleteComment(commentId)
         refreshDerivedData()
+        _messages.emit("Comment deleted.")
     }
 
-    fun renameSpeaker(speakerId: String, displayName: String) = viewModelScope.launch {
-        dao.upsertAlias(SpeakerAliasEntity(recordingId, speakerId, displayName.trim()))
+    fun renameSpeaker(speakerId: String, displayName: String) = launchHandled("Couldn't rename the speaker.") {
+        val trimmed = displayName.trim()
+        if (trimmed.isBlank()) {
+            _messages.emit("Speaker name can't be empty.")
+            return@launchHandled
+        }
+        dao.upsertAlias(SpeakerAliasEntity(recordingId, speakerId, trimmed))
         refreshDerivedData()
+        _messages.emit("Speaker renamed.")
     }
 
-    fun runAiPass() = viewModelScope.launch {
+    fun runAiPass() = launchHandled("Couldn't start the AI pass.") {
         val settings = services.settings.settings.first()
         val current = dao.getAiRecording(recordingId) ?: AiRecordingEntity(recordingId)
+        if (current.skipAiPass) {
+            _messages.emit("Turn off Skip AI Pass for this recording first.")
+            return@launchHandled
+        }
+        val recording = dao.getRecording(recordingId)
+        if (recording?.status != RecordingStatus.READY || dao.getSegments(recordingId).isEmpty()) {
+            _messages.emit("Finish transcription before running the AI pass.")
+            return@launchHandled
+        }
+        val configurationError = aiConfigurationError(settings)
+        if (configurationError != null) {
+            dao.upsertAiRecording(current.copy(status = AiPassStatus.FAILED, errorMessage = configurationError))
+            _messages.emit(configurationError)
+            return@launchHandled
+        }
         dao.upsertAiRecording(current.copy(status = AiPassStatus.RUNNING, errorMessage = null))
         AiPassWorker.enqueue(app, recordingId, allowMobileData = settings.allowMobileData, force = true)
+        _messages.emit("AI pass queued.")
     }
 
-    fun setSkipAiPass(skip: Boolean) = viewModelScope.launch {
+    fun setSkipAiPass(skip: Boolean) = launchHandled("Couldn't update Skip AI Pass.") {
         val current = dao.getAiRecording(recordingId) ?: AiRecordingEntity(recordingId)
         dao.upsertAiRecording(
             current.copy(
@@ -268,23 +389,25 @@ class ReviewViewModel(
             )
         )
         refreshDerivedData()
+        _messages.emit(if (skip) "AI pass skipped for this recording." else "AI pass enabled for this recording.")
     }
 
-    fun confirmSuggestion(suggestion: SpeakerSuggestionEntity) = viewModelScope.launch {
+    fun confirmSuggestion(suggestion: SpeakerSuggestionEntity) = launchHandled("Couldn't confirm the speaker suggestion.") {
         dao.upsertAlias(SpeakerAliasEntity(recordingId, suggestion.speakerId, suggestion.suggestedName))
         dao.deleteSpeakerSuggestion(recordingId, suggestion.speakerId)
         refreshDerivedData()
+        _messages.emit("Speaker name confirmed.")
     }
 
-    fun undoRename() = viewModelScope.launch {
-        runCatching { services.aiPass.undoRename(recordingId) }
-            .onFailure { Log.e("DebriefAi", "Undo rename failed", it) }
+    fun undoRename() = launchHandled("Couldn't undo the recording rename.") {
+        services.aiPass.undoRename(recordingId)
+        _messages.emit("Recording name restored.")
     }
 
-    fun mergeWithNext(setId: String) = viewModelScope.launch {
+    fun mergeWithNext(setId: String) = launchHandled("Couldn't merge the conversation sets.") {
         val sets = dao.getConversationSets(recordingId)
         val index = sets.indexOfFirst { it.id == setId }
-        if (index !in 0 until sets.lastIndex) return@launch
+        if (index !in 0 until sets.lastIndex) return@launchHandled
         val first = sets[index]
         val second = sets[index + 1]
         val merged = first.copy(
@@ -294,14 +417,15 @@ class ReviewViewModel(
                 .filter(String::isNotBlank).distinct().joinToString("|"),
         )
         persistSets(sets.take(index) + merged + sets.drop(index + 2))
+        _messages.emit("Conversation sets merged.")
     }
 
-    fun splitSet(setId: String, timestampMs: Long) = viewModelScope.launch {
+    fun splitSet(setId: String, timestampMs: Long) = launchHandled("Couldn't split the conversation set.") {
         val sets = dao.getConversationSets(recordingId)
         val index = sets.indexOfFirst { it.id == setId }
-        if (index < 0) return@launch
+        if (index < 0) return@launchHandled
         val target = sets[index]
-        if (timestampMs <= target.startMs + 1_000 || timestampMs >= target.endMs - 1_000) return@launch
+        if (timestampMs <= target.startMs + 1_000 || timestampMs >= target.endMs - 1_000) return@launchHandled
         val first = target.copy(endMs = timestampMs - 1, summary = "")
         val second = target.copy(
             id = UUID.randomUUID().toString(),
@@ -310,10 +434,16 @@ class ReviewViewModel(
             summary = "",
         )
         persistSets(sets.take(index) + first + second + sets.drop(index + 1))
+        _messages.emit("Conversation set split.")
     }
 
-    suspend fun search(query: String): List<SearchHit> = withContext(Dispatchers.IO) {
-        services.search.search(query, recordingId)
+    suspend fun search(query: String): List<SearchHit> = try {
+        withContext(Dispatchers.IO) { services.search.search(query, recordingId) }
+    } catch (error: Throwable) {
+        if (error is CancellationException) throw error
+        Log.e("DebriefSearch", "Recording search failed", error)
+        _messages.emit(userMessage("Search is temporarily unavailable.", error))
+        emptyList()
     }
 
     suspend fun exportMarkdown(): String = withContext(Dispatchers.IO) {
@@ -341,10 +471,22 @@ class ReviewViewModel(
     }
 
     private suspend fun refreshDerivedData() {
-        services.search.rebuild(recordingId)
-        val folder = services.settings.settings.first().folderUri
-        folder?.let { uri ->
-            DocumentFile.fromTreeUri(app, Uri.parse(uri))?.let { services.sidecars.write(it, recordingId) }
+        try {
+            services.search.rebuild(recordingId)
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            Log.e("DebriefSearch", "Derived search update failed", error)
+            _messages.emit("Saved on device, but the search index couldn't update yet.")
+        }
+        try {
+            val folder = services.settings.settings.first().folderUri
+            folder?.let { uri ->
+                DocumentFile.fromTreeUri(app, Uri.parse(uri))?.let { services.sidecars.write(it, recordingId) }
+            }
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            Log.e("DebriefSidecar", "Sidecar update failed", error)
+            _messages.emit("Saved on device, but the sidecar backup couldn't update. Re-link the folder to retry.")
         }
     }
 
@@ -357,6 +499,40 @@ class ReviewViewModel(
             suggestions,
         )
         refreshDerivedData()
+    }
+
+    private fun aiConfigurationError(settings: AppSettings): String? {
+        val secretName = when (settings.aiProvider) {
+            "openai" -> "openai_compatible"
+            "anthropic" -> "anthropic"
+            else -> "gemini"
+        }
+        val providerLabel = when (settings.aiProvider) {
+            "openai" -> "OpenAI-compatible"
+            "anthropic" -> "Anthropic"
+            else -> "Gemini"
+        }
+        if (services.secrets.get(secretName).isNullOrBlank()) {
+            return "Add your " + providerLabel + " API key in Settings before running the AI pass."
+        }
+        if (settings.aiProvider == "openai") {
+            if (!settings.openAiBaseUrl.startsWith("https://")) return "Enter an HTTPS base URL for the OpenAI-compatible provider."
+            if (settings.openAiModel.isBlank()) return "Enter a model name for the OpenAI-compatible provider."
+        }
+        if (settings.aiProvider == "anthropic" && settings.anthropicModel.isBlank()) {
+            return "Enter a Claude model name in Settings."
+        }
+        return null
+    }
+
+    private fun launchHandled(fallback: String, block: suspend () -> Unit) = viewModelScope.launch {
+        try {
+            block()
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            Log.e("DebriefReview", fallback, error)
+            _messages.emit(userMessage(fallback, error))
+        }
     }
 
     companion object {

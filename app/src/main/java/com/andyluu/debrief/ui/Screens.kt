@@ -28,6 +28,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddComment
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -115,11 +116,16 @@ fun LibraryScreen(
     val conversationSets by viewModel.conversationSets.collectAsStateWithLifecycle()
     val aiByRecording = aiRecordings.associateBy { it.recordingId }
     val setsByRecording = conversationSets.groupBy { it.recordingId }
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(viewModel) {
+        viewModel.messages.collect { snackbar.showSnackbar(it) }
+    }
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     val selectableIds = recordings.filter { it.isTranscribable() }.mapTo(mutableSetOf()) { it.id }
     LaunchedEffect(selectableIds) { selectedIds = selectedIds.intersect(selectableIds) }
     val selectionMode = selectedIds.isNotEmpty()
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(if (selectionMode) "${selectedIds.size} selected" else "Debrief", fontWeight = FontWeight.Bold) },
@@ -171,11 +177,19 @@ fun LibraryScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                if (!viewModel.hasDeepgramKey() && settings.provider == "deepgram") {
+                val hasTranscriptionKey = if (settings.provider == "assemblyai") {
+                    viewModel.hasAssemblyAiKey()
+                } else {
+                    viewModel.hasDeepgramKey()
+                }
+                if (!hasTranscriptionKey) {
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clickable(onClick = onOpenSettings),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                    ) { Text("Add your Deepgram key in Settings before transcribing.", Modifier.padding(14.dp)) }
+                    ) {
+                        val label = if (settings.provider == "assemblyai") "AssemblyAI" else "Deepgram"
+                        Text("Add your $label key in Settings before transcribing.", Modifier.padding(14.dp))
+                    }
                 }
                 if (recordings.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -297,11 +311,18 @@ private fun StatusChip(status: RecordingStatus) {
 fun GlobalSearchScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenHit: (SearchHit) -> Unit) {
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf(emptyList<SearchHit>()) }
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(viewModel) {
+        viewModel.messages.collect { snackbar.showSnackbar(it) }
+    }
     LaunchedEffect(query) {
         delay(250)
         results = if (query.isBlank()) emptyList() else viewModel.search(query)
     }
-    Scaffold(topBar = { CenterAlignedTopAppBar(title = { Text("Search everything") }, navigationIcon = { BackButton(onBack) }) }) { padding ->
+    Scaffold(
+        topBar = { CenterAlignedTopAppBar(title = { Text("Search everything") }, navigationIcon = { BackButton(onBack) }) },
+        snackbarHost = { SnackbarHost(snackbar) },
+    ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
             OutlinedTextField(
                 value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(),
@@ -340,7 +361,9 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     var anthropicModel by remember(settings.anthropicModel) { mutableStateOf(settings.anthropicModel) }
     var keyterms by remember(settings.keyterms) { mutableStateOf(settings.keyterms) }
     val snackbar = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+    LaunchedEffect(viewModel) {
+        viewModel.messages.collect { snackbar.showSnackbar(it) }
+    }
     LaunchedEffect(settings.provider) { viewModel.refreshUsage(settings.provider) }
     Scaffold(
         topBar = { CenterAlignedTopAppBar(title = { Text("Settings") }, navigationIcon = { BackButton(onBack) }) },
@@ -360,7 +383,7 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     value = deepgram,
                     onChange = { deepgram = it },
                     onSave = {
-                        if (deepgram.isNotBlank()) { viewModel.saveDeepgramKey(deepgram); deepgram = ""; scope.launch { snackbar.showSnackbar("Deepgram key encrypted and saved") } }
+                        viewModel.saveDeepgramKey(deepgram) { saved -> if (saved) deepgram = "" }
                     },
                 )
             }
@@ -370,7 +393,7 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     value = assembly,
                     onChange = { assembly = it },
                     onSave = {
-                        if (assembly.isNotBlank()) { viewModel.saveAssemblyAiKey(assembly); assembly = ""; scope.launch { snackbar.showSnackbar("AssemblyAI key encrypted and saved") } }
+                        viewModel.saveAssemblyAiKey(assembly) { saved -> if (saved) assembly = "" }
                     },
                 )
             }
@@ -395,7 +418,7 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     value = gemini,
                     onChange = { gemini = it },
                     onSave = {
-                        if (gemini.isNotBlank()) { viewModel.saveGeminiKey(gemini); gemini = ""; scope.launch { snackbar.showSnackbar("Gemini key encrypted and saved") } }
+                        viewModel.saveGeminiKey(gemini) { saved -> if (saved) gemini = "" }
                     },
                 )
             }
@@ -405,7 +428,7 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     value = openAiKey,
                     onChange = { openAiKey = it },
                     onSave = {
-                        if (openAiKey.isNotBlank()) { viewModel.saveOpenAiKey(openAiKey); openAiKey = ""; scope.launch { snackbar.showSnackbar("Compatible provider key encrypted and saved") } }
+                        viewModel.saveOpenAiKey(openAiKey) { saved -> if (saved) openAiKey = "" }
                     },
                 )
             }
@@ -415,7 +438,7 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     value = anthropicKey,
                     onChange = { anthropicKey = it },
                     onSave = {
-                        if (anthropicKey.isNotBlank()) { viewModel.saveAnthropicKey(anthropicKey); anthropicKey = ""; scope.launch { snackbar.showSnackbar("Anthropic key encrypted and saved") } }
+                        viewModel.saveAnthropicKey(anthropicKey) { saved -> if (saved) anthropicKey = "" }
                     },
                 )
             }
@@ -474,7 +497,6 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             item {
                 Button(onClick = {
                     viewModel.saveAiEndpoint(openAiBaseUrl, openAiModel, anthropicModel)
-                    scope.launch { snackbar.showSnackbar("AI provider settings saved") }
                 }) { Text("Save AI settings") }
             }
             aiLocalUsage?.let { local ->
@@ -518,7 +540,7 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     supportingText = { Text("One per line or comma-separated; sent only with transcription requests.") },
                 )
             }
-            item { Button(onClick = { viewModel.setKeyterms(keyterms); scope.launch { snackbar.showSnackbar("Keyterms saved") } }) { Text("Save keyterms") } }
+            item { Button(onClick = { viewModel.setKeyterms(keyterms) }) { Text("Save keyterms") } }
             item { Text("API keys are encrypted with Android Keystore and excluded from device backups. Audio is sent only to the provider you select.", style = MaterialTheme.typography.bodySmall) }
             item { Spacer(Modifier.height(24.dp)) }
         }
@@ -593,6 +615,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
     val recording = state.recording
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
     var player by remember { mutableStateOf<ExoPlayer?>(null) }
     var position by remember { mutableLongStateOf(initialTimestamp) }
@@ -604,21 +627,33 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
     var addComment by remember { mutableStateOf(false) }
     var editingComment by remember { mutableStateOf<CommentEntity?>(null) }
     var renamingSpeaker by remember { mutableStateOf<String?>(null) }
+    val aiRunning = state.ai?.status == AiPassStatus.RUNNING
+
+    LaunchedEffect(viewModel) {
+        viewModel.messages.collect { snackbar.showSnackbar(it) }
+    }
 
     DisposableEffect(recording?.documentUri) {
         if (recording != null) {
-            val exo = ExoPlayer.Builder(context).build().apply {
-                setMediaItem(MediaItem.fromUri(Uri.parse(recording.documentUri)))
-                prepare()
-                seekTo(if (initialTimestamp > 0) initialTimestamp else recording.playbackPositionMs)
-                addListener(object : Player.Listener {
-                    override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
-                })
-            }
-            player = exo
+            runCatching {
+                ExoPlayer.Builder(context).build().apply {
+                    setMediaItem(MediaItem.fromUri(Uri.parse(recording.documentUri)))
+                    prepare()
+                    seekTo(if (initialTimestamp > 0) initialTimestamp else recording.playbackPositionMs)
+                    addListener(object : Player.Listener {
+                        override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
+                    })
+                }
+            }.onSuccess { player = it }
+                .onFailure {
+                    scope.launch { snackbar.showSnackbar("Couldn't open this audio file. Re-link the folder and try again.") }
+                }
         }
         onDispose {
-            player?.let { viewModel.savePlaybackPosition(it.currentPosition); it.release() }
+            player?.let {
+                viewModel.savePlaybackPosition(it.currentPosition)
+                runCatching { it.release() }
+            }
             player = null
         }
     }
@@ -640,6 +675,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(recording?.displayName ?: "Recording", maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -647,10 +683,13 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                 actions = {
                     IconButton(onClick = {
                         scope.launch {
-                            val markdown = viewModel.exportMarkdown()
-                            context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                                type = "text/markdown"; putExtra(Intent.EXTRA_TEXT, markdown); putExtra(Intent.EXTRA_SUBJECT, recording?.displayName)
-                            }, "Export transcript"))
+                            runCatching {
+                                val markdown = viewModel.exportMarkdown()
+                                require(markdown.isNotBlank()) { "No transcript is available to export" }
+                                context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/markdown"; putExtra(Intent.EXTRA_TEXT, markdown); putExtra(Intent.EXTRA_SUBJECT, recording?.displayName)
+                                }, "Export transcript"))
+                            }.onFailure { snackbar.showSnackbar("Couldn't export the transcript.") }
                         }
                     }) { Icon(Icons.Default.Share, "Export Markdown") }
                 },
@@ -681,10 +720,12 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                     value = query, onValueChange = { query = it }, modifier = Modifier.weight(1f),
                     placeholder = { Text("Search this recording") }, leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true,
                 )
-                IconButton(onClick = { follow = true; viewModel.reloadTranscript() }) {
-                    Icon(Icons.Default.Refresh, "Reload transcript")
-                }
-                IconButton(onClick = { addComment = true }) { Icon(Icons.Default.AddComment, "Add comment") }
+                ReviewToolbarActions(
+                    aiRunning = aiRunning,
+                    onReload = { follow = true; viewModel.reloadTranscript() },
+                    onRunAi = viewModel::runAiPass,
+                    onAddComment = { addComment = true },
+                )
             }
             if (query.isNotBlank()) {
                 LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -704,7 +745,6 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                             suggestions = state.suggestions,
                             aliases = state.aliases,
                             positionMs = position,
-                            onRun = viewModel::runAiPass,
                             onSkip = viewModel::setSkipAiPass,
                             onUndoRename = viewModel::undoRename,
                             onConfirmSuggestion = viewModel::confirmSuggestion,
@@ -713,9 +753,20 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                             onSplit = viewModel::splitSet,
                         )
                     }
+                    val leadingComments = leadingComments(state.comments, state.segments)
+                    if (leadingComments.isNotEmpty()) {
+                        item {
+                            StandaloneCommentsCard(
+                                comments = leadingComments,
+                                onSeek = { timestamp -> player?.seekTo(timestamp); position = timestamp; follow = true },
+                                onComment = { editingComment = it },
+                                onDeleteComment = viewModel::deleteComment,
+                            )
+                        }
+                    }
                     items(state.segments.size) { index ->
                         val segment = state.segments[index]
-                        val comments = state.comments.filter { it.timestampMs in segment.startMs..segment.endMs }
+                        val comments = commentsForSegment(state.comments, state.segments, index, duration)
                         SegmentCard(
                             speaker = state.aliases[segment.speakerId] ?: segment.speakerId,
                             timestamp = segment.startMs,
@@ -750,6 +801,70 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
 }
 
 @Composable
+internal fun ReviewToolbarActions(
+    aiRunning: Boolean,
+    onReload: () -> Unit,
+    onRunAi: () -> Unit,
+    onAddComment: () -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onReload) { Icon(Icons.Default.Refresh, "Reload transcript") }
+        IconButton(
+            onClick = onRunAi,
+            enabled = !aiRunning,
+            modifier = Modifier.semantics { contentDescription = "Run AI pass" },
+        ) {
+            if (aiRunning) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+            else Icon(Icons.Default.AutoAwesome, null)
+        }
+        IconButton(onClick = onAddComment) { Icon(Icons.Default.AddComment, "Add comment") }
+    }
+}
+
+internal fun leadingComments(
+    comments: List<CommentEntity>,
+    segments: List<com.andyluu.debrief.data.TranscriptSegmentEntity>,
+): List<CommentEntity> = comments.filter { comment ->
+    segments.firstOrNull()?.let { comment.timestampMs < it.startMs } ?: true
+}
+
+internal fun commentsForSegment(
+    comments: List<CommentEntity>,
+    segments: List<com.andyluu.debrief.data.TranscriptSegmentEntity>,
+    index: Int,
+    durationMs: Long,
+): List<CommentEntity> {
+    val segment = segments.getOrNull(index) ?: return emptyList()
+    val windowEnd = segments.getOrNull(index + 1)?.startMs?.minus(1) ?: maxOf(segment.endMs, durationMs)
+    return comments.filter { it.timestampMs in segment.startMs..windowEnd }
+}
+
+@Composable
+private fun StandaloneCommentsCard(
+    comments: List<CommentEntity>,
+    onSeek: (Long) -> Unit,
+    onComment: (CommentEntity) -> Unit,
+    onDeleteComment: (String) -> Unit,
+) {
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        Column(Modifier.padding(14.dp)) {
+            Text("Comments", fontWeight = FontWeight.SemiBold)
+            comments.forEach { comment ->
+                Row(
+                    Modifier.fillMaxWidth().clickable { onSeek(comment.timestampMs) }.padding(top = 8.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp)).padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(formatTimestamp(comment.timestampMs) + "  " + comment.text, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    IconButton(onClick = { onComment(comment) }, Modifier.size(32.dp)) { Icon(Icons.Default.Edit, "Edit comment", Modifier.size(18.dp)) }
+                    IconButton(onClick = { onDeleteComment(comment.id) }, Modifier.size(32.dp)) { Icon(Icons.Default.Delete, "Delete comment", Modifier.size(18.dp)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun AiPassPanel(
     recording: RecordingEntity?,
     ai: AiRecordingEntity?,
@@ -757,7 +872,6 @@ private fun AiPassPanel(
     suggestions: List<com.andyluu.debrief.data.SpeakerSuggestionEntity>,
     aliases: Map<String, String>,
     positionMs: Long,
-    onRun: () -> Unit,
     onSkip: (Boolean) -> Unit,
     onUndoRename: () -> Unit,
     onConfirmSuggestion: (com.andyluu.debrief.data.SpeakerSuggestionEntity) -> Unit,
@@ -765,7 +879,6 @@ private fun AiPassPanel(
     onMerge: (String) -> Unit,
     onSplit: (String, Long) -> Unit,
 ) {
-    val running = ai?.status == AiPassStatus.RUNNING
     val skipped = ai?.skipAiPass == true
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -786,13 +899,8 @@ private fun AiPassPanel(
                 }
                 Switch(checked = skipped, onCheckedChange = onSkip, modifier = Modifier.semantics { contentDescription = "Skip AI pass" })
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onRun, enabled = !running && !skipped) {
-                    Text(if (ai?.lastRunAt == null) "Run AI pass" else "Re-run AI pass")
-                }
-                if (ai?.originalDisplayName != null && recording?.displayName != ai.originalDisplayName) {
-                    OutlinedButton(onClick = onUndoRename) { Text("Undo rename") }
-                }
+            if (ai?.originalDisplayName != null && recording?.displayName != ai.originalDisplayName) {
+                OutlinedButton(onClick = onUndoRename) { Text("Undo rename") }
             }
             ai?.errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             ai?.summary?.takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
