@@ -45,7 +45,8 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - v1.4.0 Chapters is implemented as a side drawer combining AI-detected sets and comments in chronological order with tap-to-seek, active-set highlighting, merge, and split controls.
 - Duplicate set lists were removed from Library cards and the transcript body; compact AI status and controls now live in Chapters.
 - `AGENTS.md` makes detailed release documentation mandatory, and `RELEASE_NOTES.md` is the cumulative feature/usage/limitations/history guide.
-- Unit tests and a debug build pass; full lint, dual-emulator instrumentation, signing, upgrade verification, and public release remain.
+- Unit tests, lint, and debug builds pass; 12 instrumentation tests pass on both Android 11 and Android 15 PS16K.
+- Production signing, upgrade verification, and public release remain.
 
 ## Resume protocol
 
