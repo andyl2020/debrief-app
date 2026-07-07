@@ -18,14 +18,14 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - The Claude artifact is saved as `debrief-ai-features-prd-addendum.md`.
 - AI persistence/migration, deterministic set detection, Gemini/OpenAI-compatible/Claude structured-output clients, retry worker, summary search indexing, sidecar v2, and SAF rename support are implemented.
 - Settings and review/library controls, local AI-key usage, manual merge/split, speaker confirmation, privacy skip, physical rename, and undo are implemented.
-- Provider request/response tests cover Gemini structured JSON and Flash-Lite fallback.
-- Signed v1.1.1 → v1.2.0 upgrade and Room migration passed on Android 11 and Android 15 PS16K with no crash.
+- Provider request/response tests cover Gemini structured JSON, Flash-Lite fallback, and retryable dual-quota exhaustion.
+- Signed v1.1.1 → v1.2.0 database migration and v1.2.0 → v1.2.1 upgrades passed on Android 11 and Android 15 PS16K with no crash.
 - Six instrumentation tests passed on each emulator; unit tests and lint pass.
-- Final signed v1.2.0 APK passed release lint, R8, signature verification, ARM64/x86-64 16 KB ELF checks, clean installs, and launches on 4 KB and 16 KB emulators.
-- Final APK SHA-256: `BBE5D549BD562BA5F28DD46863F8A0E0E8A95D99ED159ECF4183C3B8CF92B4BF`.
+- Final signed v1.2.1 APK passed release lint, R8, signature verification, ARM64/x86-64 16 KB ELF checks, upgrades, and launches on 4 KB and 16 KB emulators.
+- Final APK SHA-256: `6B08370E66E9C323EC760CE598ACFF79E0A3BD61BE3FDEFB7426F8D925E0753C`.
 - GitHub Release v1.2.0 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.2.0
-- The unauthenticated public APK download was fetched again and matched the signed build's byte size and SHA-256.
-- No implementation work remains for this addendum checkpoint.
+- v1.2.1 adds exponential worker retry when both Gemini Flash and Flash-Lite are temporarily quota-limited.
+- Next: publish v1.2.1 and verify its unauthenticated public APK hash.
 
 ## Resume protocol
 
@@ -44,10 +44,11 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - [x] Physical rename with undo and sidecar preservation.
 - [x] Full regression testing and signed build.
 - [x] Publish and verify GitHub Release v1.2.0.
+- [ ] Publish and verify final GitHub Release v1.2.1.
 
 ## Last verified commands
 
 - `./gradlew testDebugUnitTest`
 - `./gradlew connectedDebugAndroidTest` on Android 11 and Android 15 PS16K
 - `./gradlew lintRelease assembleRelease`
-- `scripts/check-arm64-16kb.ps1`
+- `python scripts/verify_16kb_elf.py app/build/outputs/apk/release/app-release.apk`
