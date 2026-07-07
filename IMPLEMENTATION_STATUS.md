@@ -30,7 +30,9 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - v1.2.2 crash-hardening is implemented: missing transcription/AI keys are blocked with actionable messages; comment writes are isolated from non-critical sidecar/index failures; gap and trailing comments remain visible; Review actions report failures instead of throwing.
 - The AI action now sits between transcript reload and add-comment in the review toolbar.
 - Unit/lint/debug builds pass, and 10 instrumentation tests pass on both Android 11 and Android 15 PS16K with no crash-buffer entries.
-- Next: sign, upgrade-test, publish, and verify v1.2.2.
+- The signed v1.2.2 APK passed release lint/R8, production signature verification, ARM64/x86-64 16 KB alignment, and signed upgrades from v1.2.1 on 4 KB and 16 KB emulators with no crash-buffer entries.
+- Final APK SHA-256: `A57D4F1BB35167738F596D54B8914E5F98B74D13987EDBA623F866C79CF7F672`.
+- Next: publish and verify the public v1.2.2 APK.
 
 ## Resume protocol
 
