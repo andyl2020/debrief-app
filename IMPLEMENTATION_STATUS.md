@@ -25,7 +25,9 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - Final APK SHA-256: `6B08370E66E9C323EC760CE598ACFF79E0A3BD61BE3FDEFB7426F8D925E0753C`.
 - GitHub Release v1.2.0 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.2.0
 - v1.2.1 adds exponential worker retry when both Gemini Flash and Flash-Lite are temporarily quota-limited.
-- Next: publish v1.2.1 and verify its unauthenticated public APK hash.
+- GitHub Release v1.2.1 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.2.1
+- Its unauthenticated public APK download matched the signed build's 8,858,542-byte size and SHA-256.
+- No implementation work remains for this addendum checkpoint.
 
 ## Resume protocol
 
@@ -44,7 +46,7 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - [x] Physical rename with undo and sidecar preservation.
 - [x] Full regression testing and signed build.
 - [x] Publish and verify GitHub Release v1.2.0.
-- [ ] Publish and verify final GitHub Release v1.2.1.
+- [x] Publish and verify final GitHub Release v1.2.1.
 
 ## Last verified commands
 
