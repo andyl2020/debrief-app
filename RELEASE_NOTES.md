@@ -54,13 +54,15 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 
 ## Release history
 
-### v1.4.0 — Chapters and UI consolidation
+### v1.4.0 — Chapters and UI consolidation (2026-07-07)
 
 - Added the side-opening Chapters table of contents combining detected sets and comments in playback order.
 - Added tap-to-jump, current-set highlighting, set merge, and current-position split controls inside Chapters.
 - Moved AI status, summary, speaker confirmations, Skip AI, errors, and rename undo into a compact Chapters overview.
 - Removed duplicate set lists from Library cards and the transcript body.
 - Added this cumulative feature guide and a mandatory repository release-documentation policy.
+- Verified 12/12 instrumentation tests on Android 11 with 4 KB pages and Android 15 with 16 KB pages, plus unit tests, lint, R8, production signing, native alignment, and signed upgrades from v1.3.0.
+- APK: 8,924,056 bytes; SHA-256 `F148221E0C65C3270730B735650CCEB1915A3857B9263899BBDE71FB66C577C7`.
 
 ### v1.3.0 — Playback speed ramping
 
