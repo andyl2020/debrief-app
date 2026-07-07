@@ -48,6 +48,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -71,10 +73,12 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -621,6 +625,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
     var position by remember { mutableLongStateOf(initialTimestamp) }
     var duration by remember { mutableLongStateOf(1) }
     var playing by remember { mutableStateOf(false) }
+    var playbackSpeed by rememberSaveable { mutableFloatStateOf(1f) }
     var follow by remember { mutableStateOf(true) }
     var query by remember { mutableStateOf("") }
     var localResults by remember { mutableStateOf(emptyList<SearchHit>()) }
@@ -638,6 +643,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
             runCatching {
                 ExoPlayer.Builder(context).build().apply {
                     setMediaItem(MediaItem.fromUri(Uri.parse(recording.documentUri)))
+                    setPlaybackSpeed(playbackSpeed)
                     prepare()
                     seekTo(if (initialTimestamp > 0) initialTimestamp else recording.playbackPositionMs)
                     addListener(object : Player.Listener {
@@ -705,6 +711,14 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(formatTimestamp(position), style = MaterialTheme.typography.labelMedium)
                     Spacer(Modifier.weight(1f))
+                    PlaybackSpeedControl(
+                        speed = playbackSpeed,
+                        onSpeedSelected = { speed ->
+                            playbackSpeed = speed
+                            runCatching { player?.setPlaybackSpeed(speed) }
+                                .onFailure { scope.launch { snackbar.showSnackbar("Couldn't change playback speed.") } }
+                        },
+                    )
                     IconButton(onClick = { player?.let { if (it.isPlaying) it.pause() else it.play() } }) {
                         Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, if (playing) "Pause" else "Play", Modifier.size(36.dp))
                     }
@@ -796,6 +810,47 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
     renamingSpeaker?.let { id ->
         TextEntryDialog("Rename $id", "Apply", initial = state.aliases[id].orEmpty(), onDismiss = { renamingSpeaker = null }) {
             viewModel.renameSpeaker(id, it); renamingSpeaker = null
+        }
+    }
+}
+
+internal val PLAYBACK_SPEED_OPTIONS = listOf(1f, 1.2f, 1.5f, 2f, 3f, 4f)
+
+internal fun formatPlaybackSpeed(speed: Float): String = when (speed) {
+    1f -> "1×"
+    1.2f -> "1.2×"
+    1.5f -> "1.5×"
+    2f -> "2×"
+    3f -> "3×"
+    4f -> "4×"
+    else -> "${speed}×"
+}
+
+@Composable
+internal fun PlaybackSpeedControl(
+    speed: Float,
+    onSpeedSelected: (Float) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val speedLabel = formatPlaybackSpeed(speed)
+
+    Box {
+        TextButton(
+            onClick = { expanded = true },
+            modifier = Modifier.semantics { contentDescription = "Playback speed, $speedLabel" },
+        ) {
+            Text(speedLabel, fontWeight = FontWeight.SemiBold)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            PLAYBACK_SPEED_OPTIONS.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(formatPlaybackSpeed(option)) },
+                    onClick = {
+                        expanded = false
+                        onSpeedSelected(option)
+                    },
+                )
+            }
         }
     }
 }

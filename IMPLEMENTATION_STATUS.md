@@ -1,6 +1,6 @@
 # Debrief implementation checkpoint
 
-Last updated: 2026-07-06
+Last updated: 2026-07-07
 
 ## Objective
 
@@ -35,6 +35,9 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - GitHub Release v1.2.2 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.2.2
 - Its unauthenticated public APK download matched the signed build's 8,871,212-byte size and SHA-256.
 - No implementation work remains for the v1.2.2 crash-hardening checkpoint.
+- v1.3.0 playback speed ramping is implemented with immediate 1×, 1.2×, 1.5×, 2×, 3×, and 4× Media3 playback changes and a compact player-menu control.
+- Playback-speed unit/UI regression tests pass; 11 instrumentation tests pass on both Android 11 and Android 15 PS16K.
+- Production signing, upgrade verification, and GitHub Release v1.3.0 are the remaining actions for this checkpoint.
 
 ## Resume protocol
 
@@ -56,6 +59,8 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - [x] Publish and verify final GitHub Release v1.2.1.
 - [x] Harden error handling and repair comment visibility.
 - [x] Publish and verify GitHub Release v1.2.2.
+- [x] Implement and device-test playback speed ramping.
+- [ ] Sign, upgrade-test, and publish GitHub Release v1.3.0.
 
 ## Last verified commands
 

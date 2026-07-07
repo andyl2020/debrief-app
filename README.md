@@ -14,7 +14,7 @@ Debrief is a local-first Android app for reviewing long field recordings. It lin
 - Per-key local usage tracking plus Deepgram provider usage, spend, and balance when the key has read scopes
 - Gemini, OpenAI-compatible, or Claude post-transcription AI pass for conversation sets, summaries, speaker suggestions, and intelligent physical rename with undo
 - Per-recording AI privacy skip, automatic/re-run controls, configurable silence gap, manual set merge/split, and local per-key AI usage
-- Media3 playback, saved position, transcript follow/highlight, tap-to-seek, and transcript reload
+- Media3 playback with immediate 1×/1.2×/1.5×/2×/3×/4× speed control, saved position, transcript follow/highlight, tap-to-seek, and transcript reload
 - SQLCipher-encrypted Room database and bundled FTS5 search across transcripts, summaries, and comments
 - Timestamped comment create/edit/delete and recording-wide speaker aliases
 - Markdown share-sheet export

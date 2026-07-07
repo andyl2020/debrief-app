@@ -2,8 +2,10 @@ package com.andyluu.debrief.ui
 
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -47,5 +49,23 @@ class ReviewToolbarTest {
         }
 
         compose.onNodeWithContentDescription("Run AI pass").assertIsNotEnabled()
+    }
+
+    @Test
+    fun playbackSpeedMenuOffersEveryRateAndSelectsImmediately() {
+        var selectedSpeed = 1f
+        compose.setContent {
+            DebriefTheme {
+                PlaybackSpeedControl(selectedSpeed) { selectedSpeed = it }
+            }
+        }
+
+        compose.onNodeWithContentDescription("Playback speed, 1×").performClick()
+        listOf("1.2×", "1.5×", "2×", "3×", "4×").forEach {
+            compose.onNodeWithText(it).assertIsDisplayed()
+        }
+        compose.onNodeWithText("3×").performClick()
+
+        compose.runOnIdle { assertEquals(3f, selectedSpeed) }
     }
 }
