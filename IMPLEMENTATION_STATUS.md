@@ -53,7 +53,9 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - No implementation work remains for the v1.4.0 Chapters checkpoint.
 - v1.4.1 restricts in-player FTS to transcript body rows, preventing filename, comment, AI-summary, and detected-set metadata matches while preserving broad Library search.
 - Scoped/global regression coverage passes; unit tests, lint, debug builds, and 12 instrumentation tests on both Android 11 and Android 15 PS16K are green.
-- Production signing, upgrade verification, and public release remain.
+- The signed v1.4.1 APK passed release lint/R8, production signature verification, ARM64/x86-64 16 KB alignment, and signed upgrades from v1.4.0 on 4 KB and 16 KB emulators with empty crash buffers.
+- Final v1.4.1 APK SHA-256: `BDE849E424120677512E1EB6D3D9ECB3256BEF726D400C3447C026F19153CE7B` (8,924,121 bytes).
+- Publishing and independently downloading GitHub Release v1.4.1 is the remaining action.
 
 ## Resume protocol
 

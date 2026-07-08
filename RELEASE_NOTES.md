@@ -60,6 +60,8 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - In-player search now searches transcript text only. It intentionally excludes the filename, comments, AI summary, and detected-set titles/summaries.
 - Library-wide search remains broad and continues to search filenames, transcript text, comments, AI summaries, and detected sets.
 - No database migration or reindex is required; this is a query-scope correction.
+- Verified 12/12 instrumentation tests on Android 11 with 4 KB pages and Android 15 with 16 KB pages, plus unit tests, lint, R8, production signing, native alignment, and signed upgrades from v1.4.0.
+- APK: 8,924,121 bytes; SHA-256 `BDE849E424120677512E1EB6D3D9ECB3256BEF726D400C3447C026F19153CE7B`.
 
 ### v1.4.0 — Chapters and UI consolidation (2026-07-07)
 
