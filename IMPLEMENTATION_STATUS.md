@@ -52,7 +52,8 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - Its unauthenticated public APK download matched the signed build's 8,924,056-byte size and SHA-256.
 - No implementation work remains for the v1.4.0 Chapters checkpoint.
 - v1.4.1 restricts in-player FTS to transcript body rows, preventing filename, comment, AI-summary, and detected-set metadata matches while preserving broad Library search.
-- Scoped/global instrumentation regression coverage is updated; full verification and release remain.
+- Scoped/global regression coverage passes; unit tests, lint, debug builds, and 12 instrumentation tests on both Android 11 and Android 15 PS16K are green.
+- Production signing, upgrade verification, and public release remain.
 
 ## Resume protocol
 
