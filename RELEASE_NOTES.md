@@ -62,6 +62,8 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Balanced mode uses a temporary 96 kbps mono AAC upload; Data saver retains the previous temporary 64 kbps mono AAC behavior.
 - Replaced Deepgram's deprecated `diarize=true` request with `diarize_model=latest` for the current batch diarizer.
 - This is Phase 1 of the audio-quality roadmap. Enhanced playback and safe retranscription controls remain separate future phases so their quality impact can be measured independently.
+- Verified 14/14 instrumentation tests on Android 11 with 4 KB pages and Android 15 with 16 KB pages, plus unit tests, lint, R8, production signing, native alignment, and signed upgrades from v1.4.1.
+- APK: 8,930,151 bytes; SHA-256 `1FCD3FDB1ED5867FFEB48711F11AC71BE09AD8A2A26B937C55F2CD19C3D4B815`.
 
 ### v1.4.1 — Transcript-only player search (2026-07-08)
 
