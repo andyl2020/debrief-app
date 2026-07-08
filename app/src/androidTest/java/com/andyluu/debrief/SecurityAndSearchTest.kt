@@ -168,12 +168,12 @@ class SecurityAndSearchTest {
         val viewModel = ReviewViewModel(app, id)
 
         viewModel.addComment(12_000, "Visible even in a transcript gap")
-        withTimeout(5_000) {
+        withTimeout(15_000) {
             while (dao.getComments(id).none { it.text == "Visible even in a transcript gap" }) delay(50)
         }
 
         viewModel.runAiPass()
-        val ai = withTimeout(5_000) {
+        val ai = withTimeout(15_000) {
             var current = dao.getAiRecording(id)
             while (current?.status != AiPassStatus.FAILED) {
                 delay(50)

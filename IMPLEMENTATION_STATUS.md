@@ -59,7 +59,8 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - Its unauthenticated public APK download matched the signed build's 8,924,121-byte size and SHA-256.
 - No implementation work remains for the v1.4.1 transcript-only player-search checkpoint.
 - v1.5.0 Phase 1 adds Original/Balanced/Data saver transcription upload modes, defaults to unchanged source streaming, and upgrades Deepgram to `diarize_model=latest`.
-- Phase 1 unit and device regression coverage is implemented; full verification and release remain.
+- Phase 1 unit tests, lint, and debug builds pass; 14 instrumentation tests pass on both Android 11 and Android 15 PS16K.
+- Production signing, upgrade verification, and public release remain.
 - Phase 2 (enhanced-audio playback) and Phase 3 (safe retranscription controls) are intentionally pending separate implementation/verification passes.
 
 ## Resume protocol
