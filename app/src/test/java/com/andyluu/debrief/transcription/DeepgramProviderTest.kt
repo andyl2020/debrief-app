@@ -6,6 +6,16 @@ import org.junit.Test
 
 class DeepgramProviderTest {
     @Test
+    fun requestsLatestBatchDiarizerInsteadOfDeprecatedFlag() {
+        val url = DeepgramProvider().requestUrl(listOf("Debrief"))
+
+        assertEquals("latest", url.queryParameter("diarize_model"))
+        assertEquals(null, url.queryParameter("diarize"))
+        assertEquals("nova-3", url.queryParameter("model"))
+        assertEquals("Debrief", url.queryParameter("keyterm"))
+    }
+
+    @Test
     fun parsesUtterancesAndWordTimestamps() {
         val payload = """
             {

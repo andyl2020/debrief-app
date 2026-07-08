@@ -21,6 +21,7 @@ import com.andyluu.debrief.data.SpeakerAliasEntity
 import com.andyluu.debrief.data.SpeakerSuggestionEntity
 import com.andyluu.debrief.data.LocalApiUsage
 import com.andyluu.debrief.data.TranscriptSegmentEntity
+import com.andyluu.debrief.data.TranscriptionAudioQuality
 import com.andyluu.debrief.transcription.TranscriptionWorker
 import com.andyluu.debrief.transcription.ApiUsageSnapshot
 import com.andyluu.debrief.ai.AiPassWorker
@@ -189,6 +190,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         services.settings.setProvider(value)
         refreshUsage(value)
     }
+    fun setTranscriptionAudioQuality(value: TranscriptionAudioQuality) = launchHandled("Couldn't change transcription audio quality.") {
+        services.settings.setTranscriptionAudioQuality(value)
+        _messages.emit("Transcription audio quality set to ${audioQualityLabel(value)}.")
+    }
     fun setAiProvider(value: String) = launchHandled("Couldn't change AI provider.") { services.settings.setAiProvider(value) }
     fun setAiAutoRun(value: Boolean) = launchHandled("Couldn't update automatic AI settings.") { services.settings.setAiAutoRun(value) }
     fun setAiGapMinutes(value: Int) = launchHandled("Couldn't update the silence gap.") { services.settings.setAiGapMinutes(value) }
@@ -216,6 +221,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun providerName(provider: String) = if (provider == "assemblyai") "AssemblyAI" else "Deepgram"
+    private fun audioQualityLabel(value: TranscriptionAudioQuality) = when (value) {
+        TranscriptionAudioQuality.ORIGINAL -> "Original"
+        TranscriptionAudioQuality.BALANCED -> "Balanced"
+        TranscriptionAudioQuality.DATA_SAVER -> "Data saver"
+    }
 
     private fun saveSecret(
         name: String,

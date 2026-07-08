@@ -58,6 +58,9 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - GitHub Release v1.4.1 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.4.1
 - Its unauthenticated public APK download matched the signed build's 8,924,121-byte size and SHA-256.
 - No implementation work remains for the v1.4.1 transcript-only player-search checkpoint.
+- v1.5.0 Phase 1 adds Original/Balanced/Data saver transcription upload modes, defaults to unchanged source streaming, and upgrades Deepgram to `diarize_model=latest`.
+- Phase 1 unit and device regression coverage is implemented; full verification and release remain.
+- Phase 2 (enhanced-audio playback) and Phase 3 (safe retranscription controls) are intentionally pending separate implementation/verification passes.
 
 ## Resume protocol
 
@@ -87,6 +90,10 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - [x] Fully verify and publish GitHub Release v1.4.0.
 - [x] Fix in-player search scope to transcript text only.
 - [x] Fully verify and publish GitHub Release v1.4.1.
+- [x] Implement Phase 1 upload-quality modes and latest Deepgram diarization.
+- [ ] Fully verify and publish GitHub Release v1.5.0.
+- [ ] Phase 2: optional enhanced-audio playback.
+- [ ] Phase 3: safe retranscription and recovery controls.
 
 ## Last verified commands
 

@@ -9,6 +9,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Link a phone folder from the Library screen. Debrief scans MP3, M4A, WAV, and AAC files in place; it does not copy or upload them until you explicitly transcribe.
 - Press and hold recordings to enter multi-select, check the recordings you want, then tap **Transcribe**. Batch transcription is disabled until at least one eligible recording is selected.
 - Choose Deepgram or AssemblyAI in Settings and save the matching API key. Missing or invalid configuration is reported in the UI instead of crashing the app.
+- Choose an upload-quality mode in Settings. **Original** streams the linked file unchanged and is the default for best transcription accuracy; **Balanced** creates a temporary 96 kbps mono AAC copy; **Data saver** creates a temporary 64 kbps mono AAC copy. Original recordings are never modified.
 - Deepgram uses Nova-3 diarization, punctuation, utterances, and word timestamps. Long timelines are rebuilt from complete provider word data so gaps in provider utterance grouping do not discard speech.
 
 ### Review and playback
@@ -53,6 +54,14 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.5.0 — Original-quality transcription uploads (2026-07-08)
+
+- Added Original, Balanced, and Data saver transcription-audio modes with Original as the safe default for existing and new installs.
+- Original mode streams the linked recording directly to Deepgram or AssemblyAI without transcoding or creating a second full-size cache copy.
+- Balanced mode uses a temporary 96 kbps mono AAC upload; Data saver retains the previous temporary 64 kbps mono AAC behavior.
+- Replaced Deepgram's deprecated `diarize=true` request with `diarize_model=latest` for the current batch diarizer.
+- This is Phase 1 of the audio-quality roadmap. Enhanced playback and safe retranscription controls remain separate future phases so their quality impact can be measured independently.
 
 ### v1.4.1 — Transcript-only player search (2026-07-08)
 

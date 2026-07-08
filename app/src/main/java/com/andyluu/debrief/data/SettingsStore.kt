@@ -20,11 +20,23 @@ import javax.crypto.spec.GCMParameterSpec
 
 private val Context.dataStore by preferencesDataStore("debrief_settings")
 
+enum class TranscriptionAudioQuality(val storedValue: String, val bitrate: Int?) {
+    ORIGINAL("original", null),
+    BALANCED("balanced", 96_000),
+    DATA_SAVER("data_saver", 64_000);
+
+    companion object {
+        fun fromStoredValue(value: String?): TranscriptionAudioQuality = entries
+            .firstOrNull { it.storedValue == value } ?: ORIGINAL
+    }
+}
+
 data class AppSettings(
     val folderUri: String? = null,
     val allowMobileData: Boolean = false,
     val keyterms: String = "",
     val provider: String = "deepgram",
+    val transcriptionAudioQuality: TranscriptionAudioQuality = TranscriptionAudioQuality.ORIGINAL,
     val aiProvider: String = "gemini",
     val aiAutoRun: Boolean = true,
     val aiGapMinutes: Int = 3,
@@ -39,6 +51,7 @@ class SettingsStore(private val context: Context) {
         val mobileData = booleanPreferencesKey("allow_mobile_data")
         val keyterms = stringPreferencesKey("keyterms")
         val provider = stringPreferencesKey("provider")
+        val transcriptionAudioQuality = stringPreferencesKey("transcription_audio_quality")
         val aiProvider = stringPreferencesKey("ai_provider")
         val aiAutoRun = booleanPreferencesKey("ai_auto_run")
         val aiGapMinutes = intPreferencesKey("ai_gap_minutes")
@@ -53,6 +66,7 @@ class SettingsStore(private val context: Context) {
             allowMobileData = prefs[Keys.mobileData] ?: false,
             keyterms = prefs[Keys.keyterms] ?: "",
             provider = prefs[Keys.provider] ?: "deepgram",
+            transcriptionAudioQuality = TranscriptionAudioQuality.fromStoredValue(prefs[Keys.transcriptionAudioQuality]),
             aiProvider = prefs[Keys.aiProvider] ?: "gemini",
             aiAutoRun = prefs[Keys.aiAutoRun] ?: true,
             aiGapMinutes = (prefs[Keys.aiGapMinutes] ?: 3).coerceIn(1, 10),
@@ -66,6 +80,9 @@ class SettingsStore(private val context: Context) {
     suspend fun setAllowMobileData(allow: Boolean) = context.dataStore.edit { it[Keys.mobileData] = allow }
     suspend fun setKeyterms(value: String) = context.dataStore.edit { it[Keys.keyterms] = value }
     suspend fun setProvider(value: String) = context.dataStore.edit { it[Keys.provider] = value }
+    suspend fun setTranscriptionAudioQuality(value: TranscriptionAudioQuality) = context.dataStore.edit {
+        it[Keys.transcriptionAudioQuality] = value.storedValue
+    }
     suspend fun setAiProvider(value: String) = context.dataStore.edit { it[Keys.aiProvider] = value }
     suspend fun setAiAutoRun(value: Boolean) = context.dataStore.edit { it[Keys.aiAutoRun] = value }
     suspend fun setAiGapMinutes(value: Int) = context.dataStore.edit { it[Keys.aiGapMinutes] = value.coerceIn(1, 10) }

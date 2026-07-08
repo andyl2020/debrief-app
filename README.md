@@ -8,8 +8,8 @@ Debrief is a local-first Android app for reviewing long field recordings. It lin
 - MP3, M4A, WAV, and AAC library with new/queued/transcribing/ready/failed states
 - WorkManager transcription queue with unmetered Wi-Fi by default and automatic retry
 - Long-press multi-select with explicit checkbox-based batch transcription
-- On-device mono AAC upload preparation at 64 kbps
-- Deepgram Nova-3 batch transcription with diarization, utterances, punctuation, keyterms, and word timestamps
+- Selectable transcription upload quality: unchanged original audio by default, balanced 96 kbps mono AAC, or 64 kbps data saver
+- Deepgram Nova-3 batch transcription with the latest batch diarizer, utterances, punctuation, keyterms, and word timestamps
 - Pluggable AssemblyAI fallback using upload, submit, and polling APIs
 - Per-key local usage tracking plus Deepgram provider usage, spend, and balance when the key has read scopes
 - Gemini, OpenAI-compatible, or Claude post-transcription AI pass for conversation sets, summaries, speaker suggestions, and intelligent physical rename with undo

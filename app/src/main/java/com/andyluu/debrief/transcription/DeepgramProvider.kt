@@ -14,9 +14,9 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -33,28 +33,17 @@ class DeepgramProvider(
     override suspend fun transcribe(
         context: Context,
         recordingId: String,
-        audioFile: File,
+        audioBody: okhttp3.RequestBody,
         mimeType: String,
         apiKey: String,
         keyterms: List<String>,
     ): TranscriptionResult = withContext(Dispatchers.IO) {
-        val url = okhttp3.HttpUrl.Builder()
-            .scheme("https")
-            .host("api.deepgram.com")
-            .addPathSegments("v1/listen")
-            .addQueryParameter("model", "nova-3")
-            .addQueryParameter("language", "en")
-            .addQueryParameter("diarize", "true")
-            .addQueryParameter("utterances", "true")
-            .addQueryParameter("punctuate", "true")
-            .addQueryParameter("smart_format", "true")
-            .apply { keyterms.take(100).filter(String::isNotBlank).forEach { addQueryParameter("keyterm", it.trim()) } }
-            .build()
+        val url = requestUrl(keyterms)
         val request = Request.Builder()
             .url(url)
             .header("Authorization", "Token $apiKey")
             .header("Accept", "application/json")
-            .post(audioFile.asRequestBody(mimeType.toMediaTypeOrNull()))
+            .post(audioBody)
             .build()
 
         client.newCall(request).execute().use { response ->
@@ -68,6 +57,19 @@ class DeepgramProvider(
             parse(recordingId, body)
         }
     }
+
+    internal fun requestUrl(keyterms: List<String>): HttpUrl = HttpUrl.Builder()
+            .scheme("https")
+            .host("api.deepgram.com")
+            .addPathSegments("v1/listen")
+            .addQueryParameter("model", "nova-3")
+            .addQueryParameter("language", "en")
+            .addQueryParameter("diarize_model", "latest")
+            .addQueryParameter("utterances", "true")
+            .addQueryParameter("punctuate", "true")
+            .addQueryParameter("smart_format", "true")
+            .apply { keyterms.take(100).filter(String::isNotBlank).forEach { addQueryParameter("keyterm", it.trim()) } }
+            .build()
 
     internal fun parse(recordingId: String, payload: String): TranscriptionResult {
         val root = json.parseToJsonElement(payload).jsonObject

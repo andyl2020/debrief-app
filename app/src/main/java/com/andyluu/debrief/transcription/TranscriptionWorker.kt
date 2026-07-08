@@ -36,13 +36,21 @@ class TranscriptionWorker(
         val recording = dao.getRecording(recordingId) ?: return Result.failure()
         setForeground(foregroundInfo("Transcribing ${recording.displayName}"))
         dao.updateStatus(recordingId, RecordingStatus.TRANSCRIBING)
-        var compressed: java.io.File? = null
+        var preparedAudio: PreparedAudio? = null
         return try {
             val settings = services.settings.settings.first()
             val providerName = settings.provider
             val key = services.secrets.get(providerName)
                 ?: throw TranscriptionException("Add the ${providerName.replaceFirstChar(Char::uppercase)} API key in Settings")
-            compressed = AudioCompressor.compress(applicationContext, Uri.parse(recording.documentUri), recordingId)
+            val audio = AudioPreparer.prepare(
+                context = applicationContext,
+                source = Uri.parse(recording.documentUri),
+                recordingId = recordingId,
+                sourceMimeType = recording.mimeType,
+                sourceSizeBytes = recording.sizeBytes,
+                quality = settings.transcriptionAudioQuality,
+            )
+            preparedAudio = audio
             val provider: TranscriptionProvider = when (providerName) {
                 "assemblyai" -> AssemblyAiProvider()
                 else -> DeepgramProvider()
@@ -50,8 +58,8 @@ class TranscriptionWorker(
             val result = provider.transcribe(
                 context = applicationContext,
                 recordingId = recordingId,
-                audioFile = compressed,
-                mimeType = "audio/mp4",
+                audioBody = audio.body,
+                mimeType = audio.mimeType,
                 apiKey = key,
                 keyterms = settings.keyterms.lines().flatMap { it.split(',') }.map(String::trim).filter(String::isNotBlank),
             )
@@ -72,7 +80,7 @@ class TranscriptionWorker(
             if (runAttemptCount < 3 && error !is TranscriptionException) Result.retry()
             else Result.failure(Data.Builder().putString("error", message).build())
         } finally {
-            compressed?.delete()
+            preparedAudio?.cleanup()
         }
     }
 

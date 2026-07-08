@@ -28,13 +28,13 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.AddComment
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -107,6 +107,7 @@ import com.andyluu.debrief.data.ConversationSetEntity
 import com.andyluu.debrief.data.RecordingEntity
 import com.andyluu.debrief.data.RecordingStatus
 import com.andyluu.debrief.data.SearchHit
+import com.andyluu.debrief.data.TranscriptionAudioQuality
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -380,6 +381,20 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     },
                 )
             }
+            item { Text("Transcription audio quality", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+            item {
+                Text(
+                    "Original audio usually gives speech models the most information. Compressed modes reduce upload size but can lose quiet speech details.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            item {
+                AudioQualitySelector(
+                    selected = settings.transcriptionAudioQuality,
+                    onSelected = viewModel::setTranscriptionAudioQuality,
+                )
+            }
             item { HorizontalDivider() }
             item { Text("AI pass", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             item {
@@ -527,6 +542,39 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             item { Text("API keys are encrypted with Android Keystore and excluded from device backups. Audio is sent only to the provider you select.", style = MaterialTheme.typography.bodySmall) }
             item { Spacer(Modifier.height(24.dp)) }
         }
+    }
+}
+
+@Composable
+internal fun AudioQualitySelector(
+    selected: TranscriptionAudioQuality,
+    onSelected: (TranscriptionAudioQuality) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        FilterChip(
+            selected = selected == TranscriptionAudioQuality.ORIGINAL,
+            onClick = { onSelected(TranscriptionAudioQuality.ORIGINAL) },
+            label = { Text("Original · best accuracy") },
+        )
+        FilterChip(
+            selected = selected == TranscriptionAudioQuality.BALANCED,
+            onClick = { onSelected(TranscriptionAudioQuality.BALANCED) },
+            label = { Text("Balanced · 96 kbps mono") },
+        )
+        FilterChip(
+            selected = selected == TranscriptionAudioQuality.DATA_SAVER,
+            onClick = { onSelected(TranscriptionAudioQuality.DATA_SAVER) },
+            label = { Text("Data saver · 64 kbps mono") },
+        )
+        Text(
+            when (selected) {
+                TranscriptionAudioQuality.ORIGINAL -> "Streams the linked recording unchanged. Uses more upload data and preserves its channels and codec."
+                TranscriptionAudioQuality.BALANCED -> "Creates a temporary 96 kbps mono AAC upload copy. The original remains untouched."
+                TranscriptionAudioQuality.DATA_SAVER -> "Creates the smallest temporary upload copy. Best for limited bandwidth, not difficult audio."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -869,7 +917,7 @@ internal fun ReviewToolbarActions(
             else Icon(Icons.Default.AutoAwesome, null)
         }
         IconButton(onClick = onAddComment) { Icon(Icons.Default.AddComment, "Add comment") }
-        IconButton(onClick = onOpenChapters) { Icon(Icons.Default.List, "Open chapters") }
+        IconButton(onClick = onOpenChapters) { Icon(Icons.AutoMirrored.Filled.List, "Open chapters") }
     }
 }
 

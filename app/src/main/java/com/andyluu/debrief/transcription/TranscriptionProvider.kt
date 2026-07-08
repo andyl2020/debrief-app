@@ -4,6 +4,7 @@ import android.content.Context
 import com.andyluu.debrief.data.TranscriptSegmentEntity
 import com.andyluu.debrief.data.TranscriptWordEntity
 import java.io.File
+import okhttp3.RequestBody
 
 data class TranscriptionResult(
     val segments: List<TranscriptSegmentEntity>,
@@ -14,7 +15,7 @@ interface TranscriptionProvider {
     suspend fun transcribe(
         context: Context,
         recordingId: String,
-        audioFile: File,
+        audioBody: RequestBody,
         mimeType: String,
         apiKey: String,
         keyterms: List<String>,

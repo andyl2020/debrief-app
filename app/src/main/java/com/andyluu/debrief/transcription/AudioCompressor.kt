@@ -24,14 +24,15 @@ import kotlin.coroutines.resumeWithException
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 object AudioCompressor {
-    suspend fun compress(context: Context, source: Uri, recordingId: String): File {
-        val output = File(context.cacheDir, "debrief_${recordingId.take(16)}.m4a")
+    suspend fun compress(context: Context, source: Uri, recordingId: String, bitrate: Int): File {
+        require(bitrate in 32_000..320_000) { "Unsupported audio bitrate" }
+        val output = File(context.cacheDir, "debrief_${recordingId.take(16)}_${bitrate}.m4a")
         if (output.exists()) output.delete()
         withContext(Dispatchers.Main) {
             suspendCancellableCoroutine { continuation ->
                 val encoderFactory = DefaultEncoderFactory.Builder(context)
                     .setRequestedAudioEncoderSettings(
-                        AudioEncoderSettings.Builder().setBitrate(64_000).build()
+                        AudioEncoderSettings.Builder().setBitrate(bitrate).build()
                     ).build()
                 val monoMixer = ChannelMixingAudioProcessor().apply {
                     putChannelMixingMatrix(ChannelMixingMatrix.create(1, 1))

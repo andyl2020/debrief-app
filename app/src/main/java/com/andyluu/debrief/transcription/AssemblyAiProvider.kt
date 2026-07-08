@@ -18,7 +18,6 @@ import kotlinx.serialization.json.putJsonArray
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -37,7 +36,7 @@ class AssemblyAiProvider(
     override suspend fun transcribe(
         context: Context,
         recordingId: String,
-        audioFile: File,
+        audioBody: okhttp3.RequestBody,
         mimeType: String,
         apiKey: String,
         keyterms: List<String>,
@@ -45,7 +44,7 @@ class AssemblyAiProvider(
         val upload = call(
             Request.Builder().url("https://api.assemblyai.com/v2/upload")
                 .header("authorization", apiKey)
-                .post(audioFile.asRequestBody("application/octet-stream".toMediaType()))
+                .post(audioBody)
                 .build()
         )
         val uploadUrl = upload.jsonObject["upload_url"]?.jsonPrimitive?.content
