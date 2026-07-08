@@ -51,6 +51,8 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - GitHub Release v1.4.0 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.4.0
 - Its unauthenticated public APK download matched the signed build's 8,924,056-byte size and SHA-256.
 - No implementation work remains for the v1.4.0 Chapters checkpoint.
+- v1.4.1 restricts in-player FTS to transcript body rows, preventing filename, comment, AI-summary, and detected-set metadata matches while preserving broad Library search.
+- Scoped/global instrumentation regression coverage is updated; full verification and release remain.
 
 ## Resume protocol
 
@@ -78,6 +80,8 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - [x] Implement Chapters and consolidate duplicate set/AI UI.
 - [x] Establish permanent cumulative release documentation.
 - [x] Fully verify and publish GitHub Release v1.4.0.
+- [x] Fix in-player search scope to transcript text only.
+- [ ] Fully verify and publish GitHub Release v1.4.1.
 
 ## Last verified commands
 

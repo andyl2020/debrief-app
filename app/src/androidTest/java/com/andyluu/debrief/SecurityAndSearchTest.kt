@@ -45,7 +45,7 @@ class SecurityAndSearchTest {
     }
 
     @Test
-    fun ftsFindsTranscriptAndComments() = runBlocking {
+    fun scopedSearchFindsOnlyTranscriptWhileGlobalSearchIncludesOtherMetadata() = runBlocking {
         val db = DebriefDatabase.get(context)
         val dao = db.dao()
         val recording = RecordingEntity(
@@ -67,7 +67,10 @@ class SecurityAndSearchTest {
         search.rebuild(recording.id)
 
         assertEquals(1234, search.search("launch", recording.id).single().timestampMs)
-        assertTrue(search.search("Jordan", recording.id).single().isComment)
+        assertTrue(search.search("Jordan", recording.id).isEmpty())
+        assertTrue(search.search("Field", recording.id).isEmpty())
+        assertTrue(search.search("Jordan").any { it.recordingId == recording.id && it.isComment })
+        assertTrue(search.search("Field").any { it.recordingId == recording.id })
     }
 
     @Test
@@ -127,8 +130,10 @@ class SecurityAndSearchTest {
         val search = SearchRepository(db)
         search.rebuild(recording.id)
 
-        assertEquals(0, search.search("launch", recording.id).single().timestampMs)
-        assertEquals(5_000, search.search("Jordan", recording.id).single().timestampMs)
+        assertTrue(search.search("launch", recording.id).isEmpty())
+        assertTrue(search.search("Jordan", recording.id).isEmpty())
+        assertTrue(search.search("launch").any { it.recordingId == recording.id && it.timestampMs == 0L })
+        assertTrue(search.search("Jordan").any { it.recordingId == recording.id && it.timestampMs == 5_000L })
 
         dao.upsertRecording(recording.copy(displayName = "Renamed.m4a", lastModified = 2))
         assertEquals("Discussed the rooftop launch plan", dao.getAiRecording(recording.id)?.summary)

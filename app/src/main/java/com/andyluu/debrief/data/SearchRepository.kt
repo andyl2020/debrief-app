@@ -51,14 +51,15 @@ class SearchRepository(private val database: DebriefDatabase) {
             .joinToString(" AND ") { "\"${it.replace("\"", "\"\"")}\"*" }
         if (match.isBlank()) return emptyList()
         val scoped = recordingId != null
+        val matchExpression = if (scoped) "body : ($match)" else match
         val sql = buildString {
             append("SELECT recording_id, recording_name, CAST(timestamp_ms AS INTEGER), speaker_id, ")
             append("snippet(transcript_fts, 4, '[', ']', '…', 16), kind FROM transcript_fts ")
             append("WHERE transcript_fts MATCH ? ")
-            if (scoped) append("AND recording_id = ? ")
+            if (scoped) append("AND recording_id = ? AND kind = 'transcript' ")
             append("ORDER BY rank LIMIT 100")
         }
-        val args = if (scoped) arrayOf(match, recordingId!!) else arrayOf(match)
+        val args = if (scoped) arrayOf(matchExpression, recordingId!!) else arrayOf(matchExpression)
         val cursor = database.openHelper.readableDatabase.query(SimpleSQLiteQuery(sql, args))
         return cursor.use {
             buildList {

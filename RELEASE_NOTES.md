@@ -54,6 +54,13 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 
 ## Release history
 
+### v1.4.1 — Transcript-only player search (2026-07-08)
+
+- Fixed recording-level search matching the audio filename even when the words were absent from its transcript.
+- In-player search now searches transcript text only. It intentionally excludes the filename, comments, AI summary, and detected-set titles/summaries.
+- Library-wide search remains broad and continues to search filenames, transcript text, comments, AI summaries, and detected sets.
+- No database migration or reindex is required; this is a query-scope correction.
+
 ### v1.4.0 — Chapters and UI consolidation (2026-07-07)
 
 - Added the side-opening Chapters table of contents combining detected sets and comments in playback order.
