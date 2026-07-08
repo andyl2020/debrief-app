@@ -62,7 +62,9 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - Phase 1 unit tests, lint, and debug builds pass; 14 instrumentation tests pass on both Android 11 and Android 15 PS16K.
 - The signed v1.5.0 APK passed release lint/R8, production signature verification, ARM64/x86-64 16 KB alignment, and signed upgrades from v1.4.1 on 4 KB and 16 KB emulators with empty crash buffers.
 - Final v1.5.0 APK SHA-256: `1FCD3FDB1ED5867FFEB48711F11AC71BE09AD8A2A26B937C55F2CD19C3D4B815` (8,930,151 bytes).
-- Publishing and independently downloading GitHub Release v1.5.0 is the remaining Phase 1 action.
+- GitHub Release v1.5.0 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.5.0
+- Its unauthenticated public APK download matched the signed build's 8,930,151-byte size and SHA-256.
+- No implementation work remains for Phase 1; Phase 2 and Phase 3 remain intentionally pending.
 - Phase 2 (enhanced-audio playback) and Phase 3 (safe retranscription controls) are intentionally pending separate implementation/verification passes.
 
 ## Resume protocol
@@ -94,7 +96,7 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - [x] Fix in-player search scope to transcript text only.
 - [x] Fully verify and publish GitHub Release v1.4.1.
 - [x] Implement Phase 1 upload-quality modes and latest Deepgram diarization.
-- [ ] Fully verify and publish GitHub Release v1.5.0.
+- [x] Fully verify and publish GitHub Release v1.5.0.
 - [ ] Phase 2: optional enhanced-audio playback.
 - [ ] Phase 3: safe retranscription and recovery controls.
 
