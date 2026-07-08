@@ -55,7 +55,9 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - Scoped/global regression coverage passes; unit tests, lint, debug builds, and 12 instrumentation tests on both Android 11 and Android 15 PS16K are green.
 - The signed v1.4.1 APK passed release lint/R8, production signature verification, ARM64/x86-64 16 KB alignment, and signed upgrades from v1.4.0 on 4 KB and 16 KB emulators with empty crash buffers.
 - Final v1.4.1 APK SHA-256: `BDE849E424120677512E1EB6D3D9ECB3256BEF726D400C3447C026F19153CE7B` (8,924,121 bytes).
-- Publishing and independently downloading GitHub Release v1.4.1 is the remaining action.
+- GitHub Release v1.4.1 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.4.1
+- Its unauthenticated public APK download matched the signed build's 8,924,121-byte size and SHA-256.
+- No implementation work remains for the v1.4.1 transcript-only player-search checkpoint.
 
 ## Resume protocol
 
@@ -84,7 +86,7 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - [x] Establish permanent cumulative release documentation.
 - [x] Fully verify and publish GitHub Release v1.4.0.
 - [x] Fix in-player search scope to transcript text only.
-- [ ] Fully verify and publish GitHub Release v1.4.1.
+- [x] Fully verify and publish GitHub Release v1.4.1.
 
 ## Last verified commands
 
