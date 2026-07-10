@@ -16,15 +16,20 @@ import com.andyluu.debrief.data.CommentEntity
 import com.andyluu.debrief.data.ConversationSetEntity
 import com.andyluu.debrief.data.RecordingEntity
 import com.andyluu.debrief.data.RecordingStatus
+import com.andyluu.debrief.data.RepairEntity
+import com.andyluu.debrief.data.RepairRunEntity
 import com.andyluu.debrief.data.SearchHit
 import com.andyluu.debrief.data.SpeakerAliasEntity
 import com.andyluu.debrief.data.SpeakerSuggestionEntity
+import com.andyluu.debrief.data.SuspectSpanEntity
 import com.andyluu.debrief.data.LocalApiUsage
 import com.andyluu.debrief.data.TranscriptSegmentEntity
 import com.andyluu.debrief.data.TranscriptionAudioQuality
 import com.andyluu.debrief.transcription.TranscriptionWorker
 import com.andyluu.debrief.transcription.ApiUsageSnapshot
 import com.andyluu.debrief.ai.AiPassWorker
+import com.andyluu.debrief.enhance.AiEnhanceWorker
+import com.andyluu.debrief.enhance.EnhanceConstants
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -53,6 +58,9 @@ data class ReviewState(
     val ai: AiRecordingEntity? = null,
     val sets: List<ConversationSetEntity> = emptyList(),
     val suggestions: List<SpeakerSuggestionEntity> = emptyList(),
+    val suspectSpans: List<SuspectSpanEntity> = emptyList(),
+    val repairRun: RepairRunEntity? = null,
+    val repairs: List<RepairEntity> = emptyList(),
 )
 
 data class UsageUiState(
@@ -286,6 +294,12 @@ class ReviewViewModel(
         val ai: AiRecordingEntity?,
     )
 
+    private data class EnhanceReviewState(
+        val suspectSpans: List<SuspectSpanEntity>,
+        val repairRun: RepairRunEntity?,
+        val repairs: List<RepairEntity>,
+    )
+
     private val coreState = combine(
         dao.observeRecording(recordingId),
         dao.observeSegments(recordingId),
@@ -296,12 +310,32 @@ class ReviewViewModel(
         CoreReviewState(recording, segments, comments, aliases.associate { it.speakerId to it.displayName }, ai)
     }
 
+    private val enhanceState = combine(
+        dao.observeSuspectSpans(recordingId),
+        dao.observeLatestRepairRun(recordingId),
+        dao.observeRepairs(recordingId),
+    ) { suspectSpans, repairRun, repairs ->
+        EnhanceReviewState(suspectSpans, repairRun, repairs)
+    }
+
     val state: StateFlow<ReviewState> = combine(
         coreState,
         dao.observeConversationSets(recordingId),
         dao.observeSpeakerSuggestions(recordingId),
-    ) { core, sets, suggestions ->
-        ReviewState(core.recording, core.segments, core.comments, core.aliases, core.ai, sets, suggestions)
+        enhanceState,
+    ) { core, sets, suggestions, enhance ->
+        ReviewState(
+            core.recording,
+            core.segments,
+            core.comments,
+            core.aliases,
+            core.ai,
+            sets,
+            suggestions,
+            enhance.suspectSpans,
+            enhance.repairRun,
+            enhance.repairs,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReviewState())
 
     fun savePlaybackPosition(positionMs: Long) = launchHandled("Couldn't save the playback position.") {
@@ -390,6 +424,42 @@ class ReviewViewModel(
         _messages.emit("AI pass queued.")
     }
 
+    fun runAiEnhance() = launchHandled("Couldn't start AI Enhance.") {
+        val settings = services.settings.settings.first()
+        val current = dao.getAiRecording(recordingId) ?: AiRecordingEntity(recordingId)
+        if (current.skipAiPass) {
+            _messages.emit("Turn off Skip AI for this recording first.")
+            return@launchHandled
+        }
+        val recording = dao.getRecording(recordingId)
+        if (recording?.status != RecordingStatus.READY || dao.getSegments(recordingId).isEmpty()) {
+            _messages.emit("Finish transcription before running AI Enhance.")
+            return@launchHandled
+        }
+        if (services.secrets.get("gemini").isNullOrBlank()) {
+            _messages.emit("Add your Gemini API key in Settings before running AI Enhance.")
+            return@launchHandled
+        }
+        AiEnhanceWorker.enqueueAuto(app, recordingId, allowMobileData = settings.allowMobileData)
+        _messages.emit("AI Enhance queued.")
+    }
+
+    fun runEnhanceSelection(startMs: Long, endMs: Long) = launchHandled("Couldn't start Enhance Selection.") {
+        val settings = services.settings.settings.first()
+        val start = minOf(startMs, endMs).coerceAtLeast(0L)
+        val end = maxOf(startMs, endMs)
+        if (end - start > EnhanceConstants.SELECTION_SOFT_CAP_MS) {
+            _messages.emit("Enhance Selection is capped at 15 minutes. Split this range into smaller parts.")
+            return@launchHandled
+        }
+        if (services.secrets.get("gemini").isNullOrBlank()) {
+            _messages.emit("Add your Gemini API key in Settings before running AI Enhance.")
+            return@launchHandled
+        }
+        AiEnhanceWorker.enqueueSelection(app, recordingId, settings.allowMobileData, start, end)
+        _messages.emit("Enhance Selection queued for ${formatTimestamp(start)} to ${formatTimestamp(end)}.")
+    }
+
     fun setSkipAiPass(skip: Boolean) = launchHandled("Couldn't update Skip AI Pass.") {
         val current = dao.getAiRecording(recordingId) ?: AiRecordingEntity(recordingId)
         dao.upsertAiRecording(
@@ -407,6 +477,16 @@ class ReviewViewModel(
         dao.deleteSpeakerSuggestion(recordingId, suggestion.speakerId)
         refreshDerivedData()
         _messages.emit("Speaker name confirmed.")
+    }
+
+    fun acceptRepair(repairId: String) = launchHandled("Couldn't accept the repair.") {
+        services.aiEnhance.setRepairApplied(repairId, true)
+        _messages.emit("Repair accepted.")
+    }
+
+    fun revertRepair(repairId: String) = launchHandled("Couldn't revert the repair.") {
+        services.aiEnhance.setRepairReverted(repairId, true)
+        _messages.emit("Repair reverted.")
     }
 
     fun undoRename() = launchHandled("Couldn't undo the recording rename.") {

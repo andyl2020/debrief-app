@@ -199,6 +199,10 @@ class AiEnhanceProcessor(
         dao.setRepairReverted(repairId, reverted)
     }
 
+    suspend fun setRepairApplied(repairId: String, applied: Boolean) {
+        dao.setRepairApplied(repairId, applied)
+    }
+
     private fun buildAutoTextChunks(
         segments: List<TranscriptSegmentEntity>,
         suspects: List<SuspectSpanEntity>,

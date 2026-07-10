@@ -21,7 +21,7 @@ import com.andyluu.debrief.R
 import com.andyluu.debrief.data.RecordingStatus
 import com.andyluu.debrief.enhance.SuspectSpanDetector
 import kotlinx.coroutines.flow.first
-import com.andyluu.debrief.ai.AiPassWorker
+import com.andyluu.debrief.enhance.AiEnhanceWorker
 
 class TranscriptionWorker(
     appContext: Context,
@@ -76,7 +76,7 @@ class TranscriptionWorker(
                 DocumentFile.fromTreeUri(applicationContext, Uri.parse(uri))?.let { services.sidecars.write(it, recordingId) }
             }
             if (settings.aiAutoRun) {
-                AiPassWorker.enqueue(applicationContext, recordingId, settings.allowMobileData)
+                AiEnhanceWorker.enqueueAuto(applicationContext, recordingId, settings.allowMobileData)
             }
             Result.success()
         } catch (error: Throwable) {

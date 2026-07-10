@@ -95,6 +95,9 @@ interface DebriefDao {
     @Query("UPDATE repairs SET reverted = :reverted, applied = CASE WHEN :reverted THEN 0 ELSE 1 END WHERE id = :repairId")
     suspend fun setRepairReverted(repairId: String, reverted: Boolean)
 
+    @Query("UPDATE repairs SET applied = :applied, reverted = CASE WHEN :applied THEN 0 ELSE reverted END WHERE id = :repairId")
+    suspend fun setRepairApplied(repairId: String, applied: Boolean)
+
     @Query("SELECT * FROM comments WHERE recordingId = :recordingId ORDER BY timestampMs")
     fun observeComments(recordingId: String): Flow<List<CommentEntity>>
 

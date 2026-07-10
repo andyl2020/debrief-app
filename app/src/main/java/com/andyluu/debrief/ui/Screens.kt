@@ -4,6 +4,7 @@ package com.andyluu.debrief.ui
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
@@ -87,6 +88,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -106,7 +108,12 @@ import com.andyluu.debrief.data.AiRecordingEntity
 import com.andyluu.debrief.data.ConversationSetEntity
 import com.andyluu.debrief.data.RecordingEntity
 import com.andyluu.debrief.data.RecordingStatus
+import com.andyluu.debrief.data.RepairEntity
+import com.andyluu.debrief.data.RepairRunEntity
+import com.andyluu.debrief.data.RepairRunStatus
 import com.andyluu.debrief.data.SearchHit
+import com.andyluu.debrief.data.SuspectSpanEntity
+import com.andyluu.debrief.data.TranscriptSegmentEntity
 import com.andyluu.debrief.data.TranscriptionAudioQuality
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -396,10 +403,10 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 )
             }
             item { HorizontalDivider() }
-            item { Text("AI pass", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+            item { Text("AI Enhance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             item {
                 Text(
-                    "Runs after transcription to detect conversation sets, identify speakers, summarize, and rename. Only transcript text is sent; audio is never sent to the AI provider.",
+                    "Repairs rough transcript spots with conservative text edits and short Gemini audio clips. Full recordings are never sent to Gemini. Organize Recording remains available from the player overflow menu.",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -476,7 +483,7 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Run automatically", fontWeight = FontWeight.SemiBold)
-                        Text("Run the AI pass after each successful transcription.", style = MaterialTheme.typography.bodySmall)
+                        Text("Run AI Enhance after each successful transcription. Off by default; manual is safer for quota and privacy.", style = MaterialTheme.typography.bodySmall)
                     }
                     Switch(settings.aiAutoRun, onCheckedChange = viewModel::setAiAutoRun)
                 }
@@ -659,7 +666,19 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
     var addComment by remember { mutableStateOf(false) }
     var editingComment by remember { mutableStateOf<CommentEntity?>(null) }
     var renamingSpeaker by remember { mutableStateOf<String?>(null) }
-    val aiRunning = state.ai?.status == AiPassStatus.RUNNING
+    var overflowExpanded by remember { mutableStateOf(false) }
+    var cleanedView by rememberSaveable { mutableStateOf(false) }
+    var selectionStart by remember { mutableStateOf<Long?>(null) }
+    var selectionEnd by remember { mutableStateOf<Long?>(null) }
+    var reviewingRepair by remember { mutableStateOf<RepairEntity?>(null) }
+    val organizeRunning = state.ai?.status == AiPassStatus.RUNNING
+    val enhanceRunning = state.repairRun?.status == RepairRunStatus.RUNNING || state.repairRun?.status == RepairRunStatus.QUEUED
+    val unresolvedSuspects = state.suspectSpans.count { !it.resolved }
+    val activeRepairs = state.repairs.filter { it.applied && !it.reverted }
+
+    LaunchedEffect(state.repairRun?.status, state.repairs.size) {
+        if (state.repairRun?.status == RepairRunStatus.READY && activeRepairs.isNotEmpty()) cleanedView = true
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbar.showSnackbar(it) }
@@ -744,17 +763,36 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                 title = { Text(recording?.displayName ?: "Recording", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = { BackButton(onBack) },
                 actions = {
-                    IconButton(onClick = {
-                        scope.launch {
-                            runCatching {
-                                val markdown = viewModel.exportMarkdown()
-                                require(markdown.isNotBlank()) { "No transcript is available to export" }
-                                context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/markdown"; putExtra(Intent.EXTRA_TEXT, markdown); putExtra(Intent.EXTRA_SUBJECT, recording?.displayName)
-                                }, "Export transcript"))
-                            }.onFailure { snackbar.showSnackbar("Couldn't export the transcript.") }
+                    Box {
+                        IconButton(onClick = { overflowExpanded = true }) { Icon(Icons.Default.MoreVert, "Recording actions") }
+                        DropdownMenu(expanded = overflowExpanded, onDismissRequest = { overflowExpanded = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Export Markdown") },
+                                leadingIcon = { Icon(Icons.Default.Share, null) },
+                                onClick = {
+                                    overflowExpanded = false
+                                    scope.launch {
+                                        runCatching {
+                                            val markdown = viewModel.exportMarkdown()
+                                            require(markdown.isNotBlank()) { "No transcript is available to export" }
+                                            context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                                                type = "text/markdown"; putExtra(Intent.EXTRA_TEXT, markdown); putExtra(Intent.EXTRA_SUBJECT, recording?.displayName)
+                                            }, "Export transcript"))
+                                        }.onFailure { snackbar.showSnackbar("Couldn't export the transcript.") }
+                                    }
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (organizeRunning) "Organizing…" else "Organize Recording") },
+                                leadingIcon = { Icon(Icons.Default.AutoAwesome, null) },
+                                enabled = !organizeRunning,
+                                onClick = {
+                                    overflowExpanded = false
+                                    viewModel.runAiPass()
+                                },
+                            )
                         }
-                    }) { Icon(Icons.Default.Share, "Export Markdown") }
+                    }
                 },
             )
         },
@@ -764,6 +802,12 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                     value = position.coerceAtMost(duration).toFloat(),
                     onValueChange = { value -> position = value.toLong(); player?.seekTo(position) },
                     valueRange = 0f..duration.coerceAtLeast(1).toFloat(),
+                )
+                ScrubberHeatTicks(
+                    suspects = state.suspectSpans,
+                    repairs = activeRepairs,
+                    durationMs = duration,
+                    modifier = Modifier.fillMaxWidth().height(8.dp),
                 )
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(formatTimestamp(position), style = MaterialTheme.typography.labelMedium)
@@ -792,12 +836,48 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                     placeholder = { Text("Search this recording") }, leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true,
                 )
                 ReviewToolbarActions(
-                    aiRunning = aiRunning,
+                    enhanceRunning = enhanceRunning,
+                    suspectCount = unresolvedSuspects,
                     onReload = { follow = true; viewModel.reloadTranscript() },
-                    onRunAi = viewModel::runAiPass,
+                    onRunEnhance = viewModel::runAiEnhance,
                     onAddComment = { addComment = true },
                     onOpenChapters = { scope.launch { drawerState.open() } },
                 )
+            }
+            val repairRun = state.repairRun
+            if (repairRun != null) {
+                EnhanceProgressBanner(
+                    run = repairRun,
+                    repairs = state.repairs,
+                    onResume = viewModel::runAiEnhance,
+                )
+            } else if (unresolvedSuspects > 0 && query.isBlank()) {
+                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3CD))) {
+                    Text("AI Enhance found $unresolvedSuspects rough spots. Tap the sparkle button to repair them.", Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            SelectionPill(
+                startMs = selectionStart,
+                endMs = selectionEnd,
+                onClear = { selectionStart = null; selectionEnd = null },
+                onEnhance = {
+                    val start = selectionStart
+                    val end = selectionEnd
+                    if (start != null && end != null) {
+                        viewModel.runEnhanceSelection(start, end)
+                        selectionStart = null
+                        selectionEnd = null
+                    }
+                },
+            )
+            if (state.repairs.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Cleaned view", fontWeight = FontWeight.SemiBold)
+                        Text("Raw transcript remains unchanged.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(cleanedView, onCheckedChange = { cleanedView = it })
+                }
             }
             if (query.isNotBlank()) {
                 LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -823,14 +903,27 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                     items(state.segments.size) { index ->
                         val segment = state.segments[index]
                         val comments = commentsForSegment(state.comments, state.segments, index, duration)
+                        val segmentRepairs = state.repairs.overlappingRepairs(segment.startMs, segment.endMs)
+                        val segmentSuspects = state.suspectSpans.overlappingSuspects(segment.startMs, segment.endMs).filterNot { it.resolved }
                         SegmentCard(
                             speaker = state.aliases[segment.speakerId] ?: segment.speakerId,
                             timestamp = segment.startMs,
-                            text = segment.text,
+                            text = if (cleanedView) cleanedText(segment, segmentRepairs) else segment.text,
                             active = index == activeIndex,
+                            suspect = segmentSuspects.isNotEmpty(),
+                            repaired = segmentRepairs.any { it.applied && !it.reverted },
                             comments = comments,
                             onSeek = { player?.seekTo(segment.startMs); position = segment.startMs; follow = true },
+                            onLongPress = {
+                                if (selectionStart == null || selectionEnd != null) {
+                                    selectionStart = segment.startMs
+                                    selectionEnd = null
+                                } else {
+                                    selectionEnd = segment.endMs
+                                }
+                            },
                             onRename = { renamingSpeaker = segment.speakerId },
+                            onReviewRepair = { segmentRepairs.firstOrNull()?.let { reviewingRepair = it } },
                             onComment = { comment -> editingComment = comment },
                             onDeleteComment = viewModel::deleteComment,
                         )
@@ -854,6 +947,20 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
         TextEntryDialog("Rename $id", "Apply", initial = state.aliases[id].orEmpty(), onDismiss = { renamingSpeaker = null }) {
             viewModel.renameSpeaker(id, it); renamingSpeaker = null
         }
+    }
+    reviewingRepair?.let { repair ->
+        RepairReviewDialog(
+            repair = repair,
+            onDismiss = { reviewingRepair = null },
+            onAccept = {
+                viewModel.acceptRepair(repair.id)
+                reviewingRepair = null
+            },
+            onRevert = {
+                viewModel.revertRepair(repair.id)
+                reviewingRepair = null
+            },
+        )
     }
 }
 
@@ -900,21 +1007,33 @@ internal fun PlaybackSpeedControl(
 
 @Composable
 internal fun ReviewToolbarActions(
-    aiRunning: Boolean,
+    enhanceRunning: Boolean,
+    suspectCount: Int,
     onReload: () -> Unit,
-    onRunAi: () -> Unit,
+    onRunEnhance: () -> Unit,
     onAddComment: () -> Unit,
     onOpenChapters: () -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onReload) { Icon(Icons.Default.Refresh, "Reload transcript") }
         IconButton(
-            onClick = onRunAi,
-            enabled = !aiRunning,
-            modifier = Modifier.semantics { contentDescription = "Run AI pass" },
+            onClick = onRunEnhance,
+            enabled = !enhanceRunning,
+            modifier = Modifier.semantics { contentDescription = "Run AI Enhance" },
         ) {
-            if (aiRunning) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-            else Icon(Icons.Default.AutoAwesome, null)
+            if (enhanceRunning) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+            else Box {
+                Icon(Icons.Default.AutoAwesome, null)
+                if (suspectCount > 0) {
+                    Text(
+                        suspectCount.coerceAtMost(99).toString(),
+                        modifier = Modifier.align(Alignment.TopEnd)
+                            .background(Color(0xFFFFC107), RoundedCornerShape(99.dp))
+                            .padding(horizontal = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+            }
         }
         IconButton(onClick = onAddComment) { Icon(Icons.Default.AddComment, "Add comment") }
         IconButton(onClick = onOpenChapters) { Icon(Icons.AutoMirrored.Filled.List, "Open chapters") }
@@ -938,6 +1057,114 @@ internal fun commentsForSegment(
     val windowEnd = segments.getOrNull(index + 1)?.startMs?.minus(1) ?: maxOf(segment.endMs, durationMs)
     return comments.filter { it.timestampMs in segment.startMs..windowEnd }
 }
+
+@Composable
+private fun ScrubberHeatTicks(
+    suspects: List<SuspectSpanEntity>,
+    repairs: List<RepairEntity>,
+    durationMs: Long,
+    modifier: Modifier = Modifier,
+) {
+    if (durationMs <= 0) return
+    Canvas(modifier) {
+        suspects.filterNot { it.resolved }.forEach { span ->
+            val x = size.width * (span.startMs / durationMs.toFloat()).coerceIn(0f, 1f)
+            drawLine(
+                color = Color(0xFFFFB300),
+                start = Offset(x, 0f),
+                end = Offset(x, size.height),
+                strokeWidth = 3.dp.toPx(),
+            )
+        }
+        repairs.forEach { repair ->
+            val x = size.width * (repair.startMs / durationMs.toFloat()).coerceIn(0f, 1f)
+            drawLine(
+                color = Color(0xFF2E7D32),
+                start = Offset(x, 0f),
+                end = Offset(x, size.height),
+                strokeWidth = 3.dp.toPx(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun EnhanceProgressBanner(
+    run: RepairRunEntity,
+    repairs: List<RepairEntity>,
+    onResume: () -> Unit,
+) {
+    val progress = if (run.totalSteps > 0) run.completedSteps / run.totalSteps.toFloat() else 0f
+    val color = when (run.status) {
+        RepairRunStatus.READY -> Color(0xFFD5F5DF)
+        RepairRunStatus.PARTIAL, RepairRunStatus.FAILED -> Color(0xFFFFDAD6)
+        else -> MaterialTheme.colorScheme.primaryContainer
+    }
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = color)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("AI Enhance", fontWeight = FontWeight.SemiBold)
+                    Text(run.stageLabel, style = MaterialTheme.typography.bodySmall)
+                }
+                if (run.status == RepairRunStatus.PARTIAL || run.status == RepairRunStatus.FAILED) {
+                    TextButton(onClick = onResume) { Text("Resume") }
+                }
+            }
+            if (run.status == RepairRunStatus.RUNNING || run.status == RepairRunStatus.QUEUED) {
+                LinearProgressIndicator(progress = { progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+            }
+            run.errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            if (run.status == RepairRunStatus.READY && repairs.isNotEmpty()) {
+                Text("${run.fixedCount} fixed · ${run.inaudibleCount} still inaudible · tap a green span to review.", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectionPill(
+    startMs: Long?,
+    endMs: Long?,
+    onClear: () -> Unit,
+    onEnhance: () -> Unit,
+) {
+    if (startMs == null) return
+    val range = if (endMs == null) {
+        "Selection starts at ${formatTimestamp(startMs)}. Long-press another transcript card to set the end."
+    } else {
+        "${formatTimestamp(minOf(startMs, endMs))} to ${formatTimestamp(maxOf(startMs, endMs))}"
+    }
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(range, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = onClear) { Text("Clear") }
+            Button(onClick = onEnhance, enabled = endMs != null) { Text("Enhance Selection") }
+        }
+    }
+}
+
+private fun cleanedText(segment: TranscriptSegmentEntity, repairs: List<RepairEntity>): String {
+    var text = segment.text
+    val active = repairs.filter { it.applied && !it.reverted && it.repaired?.isNotBlank() == true }
+    val appended = mutableListOf<String>()
+    active.forEach { repair ->
+        val replacement = repair.repaired.orEmpty()
+        text = if (repair.original.isNotBlank() && text.contains(repair.original, ignoreCase = true)) {
+            text.replace(repair.original, replacement, ignoreCase = true)
+        } else {
+            appended += replacement
+            text
+        }
+    }
+    return if (appended.isEmpty()) text else text + "\n\nCleaned: " + appended.distinct().joinToString(" / ")
+}
+
+private fun List<RepairEntity>.overlappingRepairs(startMs: Long, endMs: Long) =
+    filter { it.startMs <= endMs && it.endMs >= startMs }
+
+private fun List<SuspectSpanEntity>.overlappingSuspects(startMs: Long, endMs: Long) =
+    filter { it.startMs <= endMs && it.endMs >= startMs }
 
 @Composable
 private fun StandaloneCommentsCard(
@@ -1038,29 +1265,45 @@ private fun AiPassPanel(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SegmentCard(
     speaker: String,
     timestamp: Long,
     text: String,
     active: Boolean,
+    suspect: Boolean,
+    repaired: Boolean,
     comments: List<CommentEntity>,
     onSeek: () -> Unit,
+    onLongPress: () -> Unit,
     onRename: () -> Unit,
+    onReviewRepair: () -> Unit,
     onComment: (CommentEntity) -> Unit,
     onDeleteComment: (String) -> Unit,
 ) {
+    val baseColor = when {
+        repaired -> Color(0xFFD5F5DF)
+        suspect -> Color(0xFFFFF3CD)
+        active -> MaterialTheme.colorScheme.primaryContainer
+        else -> MaterialTheme.colorScheme.surface
+    }
     Card(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp).clickable(onClick = onSeek),
-        colors = CardDefaults.cardColors(containerColor = if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface),
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp).combinedClickable(onClick = onSeek, onLongClick = onLongPress),
+        colors = CardDefaults.cardColors(containerColor = baseColor),
     ) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AssistChip(onClick = onRename, label = { Text(speaker) })
                 Spacer(Modifier.width(8.dp))
                 Text(formatTimestamp(timestamp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.weight(1f))
+                if (repaired) TextButton(onClick = onReviewRepair) { Text("Review") }
             }
             Text(text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 6.dp))
+            if (suspect && !repaired) {
+                Text("Rough spot", style = MaterialTheme.typography.labelSmall, color = Color(0xFF8A5A00), modifier = Modifier.padding(top = 4.dp))
+            }
             comments.forEach { comment ->
                 Row(
                     Modifier.fillMaxWidth().padding(top = 10.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp)).padding(10.dp),
@@ -1073,6 +1316,43 @@ private fun SegmentCard(
             }
         }
     }
+}
+
+@Composable
+private fun RepairReviewDialog(
+    repair: RepairEntity,
+    onDismiss: () -> Unit,
+    onAccept: () -> Unit,
+    onRevert: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Review AI repair") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("${formatTimestamp(repair.startMs)} · ${repair.source} · ${repair.confidence}", style = MaterialTheme.typography.labelMedium)
+                Text("Original", fontWeight = FontWeight.SemiBold)
+                Text(repair.original.ifBlank { "(empty)" })
+                Text("Repaired", fontWeight = FontWeight.SemiBold)
+                Text(repair.repaired ?: "[inaudible]")
+                if (repair.reason.isNotBlank()) {
+                    Text(repair.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (repair.clipUri != null) {
+                    Text("Clip saved for review in app cache.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onAccept, enabled = !repair.applied || repair.reverted) { Text("Accept") }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onRevert, enabled = repair.applied && !repair.reverted) { Text("Revert") }
+                TextButton(onClick = onDismiss) { Text("Close") }
+            }
+        },
+    )
 }
 
 @Composable
