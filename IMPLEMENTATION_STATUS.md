@@ -68,8 +68,10 @@ Implement Debrief v1.6.0 AI Enhance from `debrief-ai-enhance-prd-addendum-v2.md`
 - Phase 2 (enhanced-audio playback) and Phase 3 (safe retranscription controls) are intentionally pending separate implementation/verification passes.
 - v1.6.0 AI Enhance is implemented: low-confidence span detection, raw-immutable repair runs/diffs, Gemini text repair, optional short-clip audio re-listen, Enhance Selection, progress/resume, Cleaned view, review accept/revert, and 0.75x clip loop playback.
 - Auto-run now targets AI Enhance and remains off by default. The old organize pass is dormant under **Organize Recording** in the player overflow menu.
-- Verification status: unit tests, debug lint/build, release lint/R8, production signing, ARM64/x86-64 16 KB alignment, Android 11 instrumentation, Android 15 PS16K instrumentation, and signed v1.5.0 -> v1.6.0 upgrades passed. Public APK verification is pending until the GitHub release is published.
+- Verification status: unit tests, debug lint/build, release lint/R8, production signing, ARM64/x86-64 16 KB alignment, Android 11 instrumentation, Android 15 PS16K instrumentation, and signed v1.5.0 -> v1.6.0 upgrades passed.
 - Final local v1.6.0 APK SHA-256: `C68C007DFED7B19E0378CFD2C2EE4ADE5BE7B7562EE996F79E84640B4A301548` (9,039,347 bytes).
+- GitHub Release v1.6.0 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.6.0
+- Its unauthenticated public APK download matched the signed build's 9,039,347-byte size and SHA-256.
 
 ## Resume protocol
 
@@ -102,7 +104,7 @@ Implement Debrief v1.6.0 AI Enhance from `debrief-ai-enhance-prd-addendum-v2.md`
 - [x] Implement Phase 1 upload-quality modes and latest Deepgram diarization.
 - [x] Fully verify and publish GitHub Release v1.5.0.
 - [x] Implement AI Enhance clarity release v1.6.0.
-- [ ] Fully verify and publish GitHub Release v1.6.0.
+- [x] Fully verify and publish GitHub Release v1.6.0.
 - [ ] Phase 2: optional enhanced-audio playback.
 - [ ] Phase 3: safe retranscription and recovery controls.
 
