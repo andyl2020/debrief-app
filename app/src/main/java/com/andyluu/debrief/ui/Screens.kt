@@ -132,6 +132,8 @@ fun LibraryScreen(
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val aiRecordings by viewModel.aiRecordings.collectAsStateWithLifecycle()
     val aiByRecording = aiRecordings.associateBy { it.recordingId }
+    val repairRuns by viewModel.repairRuns.collectAsStateWithLifecycle()
+    val repairRunByRecording = repairRuns.groupBy { it.recordingId }.mapValues { entry -> entry.value.maxBy { it.createdAt } }
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbar.showSnackbar(it) }
@@ -217,6 +219,7 @@ fun LibraryScreen(
                             RecordingCard(
                                 recording = recording,
                                 ai = aiByRecording[recording.id],
+                                repairRun = repairRunByRecording[recording.id],
                                 selectionMode = selectionMode,
                                 selected = recording.id in selectedIds,
                                 onOpen = { onOpenRecording(recording.id, 0) },
@@ -240,6 +243,7 @@ fun LibraryScreen(
 internal fun RecordingCard(
     recording: RecordingEntity,
     ai: AiRecordingEntity? = null,
+    repairRun: RepairRunEntity? = null,
     selectionMode: Boolean,
     selected: Boolean,
     onOpen: () -> Unit,
@@ -273,6 +277,7 @@ internal fun RecordingCard(
                 }
                 StatusChip(recording.status)
             }
+            repairRun?.let { EnhanceMiniStatus(it) }
             if (recording.status == RecordingStatus.TRANSCRIBING || recording.status == RecordingStatus.QUEUED) {
                 LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 12.dp))
             }
@@ -282,6 +287,28 @@ internal fun RecordingCard(
             }
         }
     }
+}
+
+@Composable
+private fun EnhanceMiniStatus(run: RepairRunEntity) {
+    val label = when (run.status) {
+        RepairRunStatus.RUNNING, RepairRunStatus.QUEUED -> "Enhancing: ${run.stageLabel}"
+        RepairRunStatus.PARTIAL -> "Enhance paused: resume available"
+        RepairRunStatus.FAILED -> "Enhance failed"
+        RepairRunStatus.READY -> "Enhance ready: ${run.fixedCount} fixed"
+    }
+    val color = when (run.status) {
+        RepairRunStatus.READY -> Color(0xFFD5F5DF)
+        RepairRunStatus.PARTIAL, RepairRunStatus.FAILED -> Color(0xFFFFDAD6)
+        else -> MaterialTheme.colorScheme.primaryContainer
+    }
+    Text(
+        label,
+        Modifier.padding(top = 10.dp).background(color, RoundedCornerShape(99.dp)).padding(horizontal = 10.dp, vertical = 5.dp),
+        style = MaterialTheme.typography.labelSmall,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 private fun RecordingEntity.isTranscribable() = status == RecordingStatus.NEW || status == RecordingStatus.FAILED
@@ -486,6 +513,15 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                         Text("Run AI Enhance after each successful transcription. Off by default; manual is safer for quota and privacy.", style = MaterialTheme.typography.bodySmall)
                     }
                     Switch(settings.aiAutoRun, onCheckedChange = viewModel::setAiAutoRun)
+                }
+            }
+            item {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Send short clips to Gemini", fontWeight = FontWeight.SemiBold)
+                        Text("When on, AI Enhance can re-listen to short clips only. When off, it uses text repair only.", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(settings.aiAudioRelisten, onCheckedChange = viewModel::setAiAudioRelisten)
                 }
             }
             item {

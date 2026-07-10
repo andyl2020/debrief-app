@@ -71,6 +71,9 @@ interface DebriefDao {
     @Query("SELECT * FROM repair_runs WHERE recordingId = :recordingId ORDER BY createdAt DESC LIMIT 1")
     fun observeLatestRepairRun(recordingId: String): Flow<RepairRunEntity?>
 
+    @Query("SELECT * FROM repair_runs ORDER BY recordingId, createdAt DESC")
+    fun observeAllRepairRuns(): Flow<List<RepairRunEntity>>
+
     @Query("SELECT * FROM repair_runs WHERE recordingId = :recordingId ORDER BY createdAt DESC LIMIT 1")
     suspend fun getLatestRepairRun(recordingId: String): RepairRunEntity?
 

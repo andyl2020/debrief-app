@@ -89,6 +89,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val conversationSets: StateFlow<List<ConversationSetEntity>> = dao.observeAllConversationSets()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val repairRuns: StateFlow<List<RepairRunEntity>> = dao.observeAllRepairRuns()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     private val _usage = MutableStateFlow(UsageUiState())
     val usage = _usage.asStateFlow()
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
@@ -204,6 +206,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun setAiProvider(value: String) = launchHandled("Couldn't change AI provider.") { services.settings.setAiProvider(value) }
     fun setAiAutoRun(value: Boolean) = launchHandled("Couldn't update automatic AI settings.") { services.settings.setAiAutoRun(value) }
+    fun setAiAudioRelisten(value: Boolean) = launchHandled("Couldn't update audio re-listen settings.") { services.settings.setAiAudioRelisten(value) }
     fun setAiGapMinutes(value: Int) = launchHandled("Couldn't update the silence gap.") { services.settings.setAiGapMinutes(value) }
     fun saveAiEndpoint(baseUrl: String, model: String, anthropicModel: String) = launchHandled("Couldn't save AI provider settings.") {
         services.settings.setOpenAiBaseUrl(baseUrl)

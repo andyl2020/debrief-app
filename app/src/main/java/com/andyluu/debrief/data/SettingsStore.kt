@@ -39,6 +39,7 @@ data class AppSettings(
     val transcriptionAudioQuality: TranscriptionAudioQuality = TranscriptionAudioQuality.ORIGINAL,
     val aiProvider: String = "gemini",
     val aiAutoRun: Boolean = false,
+    val aiAudioRelisten: Boolean = true,
     val aiGapMinutes: Int = 3,
     val openAiBaseUrl: String = "",
     val openAiModel: String = "",
@@ -54,6 +55,7 @@ class SettingsStore(private val context: Context) {
         val transcriptionAudioQuality = stringPreferencesKey("transcription_audio_quality")
         val aiProvider = stringPreferencesKey("ai_provider")
         val aiAutoRun = booleanPreferencesKey("ai_auto_run")
+        val aiAudioRelisten = booleanPreferencesKey("ai_audio_relisten")
         val aiGapMinutes = intPreferencesKey("ai_gap_minutes")
         val openAiBaseUrl = stringPreferencesKey("openai_base_url")
         val openAiModel = stringPreferencesKey("openai_model")
@@ -69,6 +71,7 @@ class SettingsStore(private val context: Context) {
             transcriptionAudioQuality = TranscriptionAudioQuality.fromStoredValue(prefs[Keys.transcriptionAudioQuality]),
             aiProvider = prefs[Keys.aiProvider] ?: "gemini",
             aiAutoRun = prefs[Keys.aiAutoRun] ?: false,
+            aiAudioRelisten = prefs[Keys.aiAudioRelisten] ?: true,
             aiGapMinutes = (prefs[Keys.aiGapMinutes] ?: 3).coerceIn(1, 10),
             openAiBaseUrl = prefs[Keys.openAiBaseUrl] ?: "",
             openAiModel = prefs[Keys.openAiModel] ?: "",
@@ -85,6 +88,7 @@ class SettingsStore(private val context: Context) {
     }
     suspend fun setAiProvider(value: String) = context.dataStore.edit { it[Keys.aiProvider] = value }
     suspend fun setAiAutoRun(value: Boolean) = context.dataStore.edit { it[Keys.aiAutoRun] = value }
+    suspend fun setAiAudioRelisten(value: Boolean) = context.dataStore.edit { it[Keys.aiAudioRelisten] = value }
     suspend fun setAiGapMinutes(value: Int) = context.dataStore.edit { it[Keys.aiGapMinutes] = value.coerceIn(1, 10) }
     suspend fun setOpenAiBaseUrl(value: String) = context.dataStore.edit { it[Keys.openAiBaseUrl] = value.trim() }
     suspend fun setOpenAiModel(value: String) = context.dataStore.edit { it[Keys.openAiModel] = value.trim() }

@@ -78,15 +78,19 @@ class AiEnhanceProcessor(
             )
         }.filter { it.segments.isNotEmpty() }
 
-        val audioTargets = when (mode) {
-            RepairRunMode.AUTO -> suspects.filterNot { it.resolved }.take(EnhanceConstants.AUTO_CLIP_CAP).map {
-                AudioTarget("sp_" + it.startMs + "_" + it.endMs, it.startMs, it.endMs, it.originalText)
+        val audioTargets = if (settings.aiAudioRelisten) {
+            when (mode) {
+                RepairRunMode.AUTO -> suspects.filterNot { it.resolved }.take(EnhanceConstants.AUTO_CLIP_CAP).map {
+                    AudioTarget("sp_" + it.startMs + "_" + it.endMs, it.startMs, it.endMs, it.originalText)
+                }
+                RepairRunMode.SELECTION -> buildSelectionAudioTargets(
+                    selectionStartMs ?: 0L,
+                    selectionEndMs ?: recording.durationMs,
+                    segments,
+                )
             }
-            RepairRunMode.SELECTION -> buildSelectionAudioTargets(
-                selectionStartMs ?: 0L,
-                selectionEndMs ?: recording.durationMs,
-                segments,
-            )
+        } else {
+            emptyList()
         }
         val audioBatchSize = if (mode == RepairRunMode.AUTO) 4 else 2
         val totalSteps = textChunks.size + audioTargets.chunked(audioBatchSize).size
