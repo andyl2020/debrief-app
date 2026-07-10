@@ -1,6 +1,6 @@
 # Debrief
 
-Debrief is a local-first Android app for reviewing long field recordings. It links to a folder on the phone, transcribes recordings with speaker labels and word timestamps, and provides synced playback, AI-assisted conversation chapters, full-text search, timestamped comments, speaker naming, Markdown export, and reinstall-safe JSON sidecars.
+Debrief is a local-first Android app for reviewing long field recordings. It links to a folder on the phone, transcribes recordings with speaker labels and word timestamps, and provides synced playback, AI Enhance repair diffs, AI-assisted conversation chapters, full-text search, timestamped comments, speaker naming, Markdown export, and reinstall-safe JSON sidecars.
 
 ## What works
 
@@ -13,6 +13,7 @@ Debrief is a local-first Android app for reviewing long field recordings. It lin
 - Pluggable AssemblyAI fallback using upload, submit, and polling APIs
 - Per-key local usage tracking plus Deepgram provider usage, spend, and balance when the key has read scopes
 - Gemini, OpenAI-compatible, or Claude post-transcription AI pass for conversation sets, summaries, speaker suggestions, and intelligent physical rename with undo
+- AI Enhance with low-confidence rough-spot detection, conservative Gemini text repair, optional short-clip audio re-listen, selection enhancement, versioned repair runs, Cleaned view, and accept/revert review
 - Per-recording AI privacy skip, automatic/re-run controls, configurable silence gap, manual set merge/split, and local per-key AI usage
 - Side-opening Chapters table of contents combining AI-detected conversation sets and timestamped comments, with tap-to-jump navigation
 - Media3 playback with immediate 1×/1.2×/1.5×/2×/3×/4× speed control, saved position, transcript follow/highlight, tap-to-seek, and transcript reload
@@ -25,7 +26,7 @@ Debrief is a local-first Android app for reviewing long field recordings. It lin
 
 API keys are entered in Settings and encrypted with a non-exportable Android Keystore AES-GCM key. They are excluded from Android backup and never written to source, Gradle properties, logs, sidecars, or APK resources. The Room/FTS database is encrypted at rest with SQLCipher using a random passphrase protected by the same Keystore mechanism.
 
-The app does not provide cloud storage. Audio is prepared in the app cache, sent directly to the selected transcription provider over HTTPS, and deleted from the cache after the request completes. The optional AI pass sends transcript text, never audio, to the AI provider selected in Settings. Original recordings and all durable app data remain on the phone.
+The app does not provide cloud storage. Audio is prepared in the app cache, sent directly to the selected transcription provider over HTTPS, and deleted from the cache after the request completes. AI Enhance never sends whole recordings to Gemini; when enabled, it sends only short extracted clips for targeted re-listening. The optional Organize Recording pass sends transcript text, never audio, to the AI provider selected in Settings. Original recordings and all durable app data remain on the phone.
 
 ## Build
 
@@ -49,7 +50,7 @@ Signing material and local tooling are ignored by Git.
 
 ## Install
 
-Download the latest APK from GitHub Releases, allow your browser to install unknown apps if Android asks, and open the downloaded APK. On first launch, link the folder containing recordings and save the Deepgram key in Settings. Add a Gemini key under AI Pass to enable the default post-transcription analysis.
+Download the latest APK from GitHub Releases, allow your browser to install unknown apps if Android asks, and open the downloaded APK. On first launch, link the folder containing recordings and save the Deepgram key in Settings. Add a Gemini key under AI Enhance to enable transcript repair and optional short-clip re-listening.
 
 GitHub-hosted APKs are sideloaded rather than installed through Google Play, so Play Protect may show an unknown-developer warning. Only continue when the APK came from this repository's release page.
 

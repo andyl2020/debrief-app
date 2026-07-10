@@ -1,10 +1,10 @@
 # Debrief implementation checkpoint
 
-Last updated: 2026-07-07
+Last updated: 2026-07-09
 
 ## Objective
 
-Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing and releasing the transcript-loss and missing-chunk bugs.
+Implement Debrief v1.6.0 AI Enhance from `debrief-ai-enhance-prd-addendum-v2.md` after releasing v1.5.0 original-quality transcription uploads.
 
 ## Shipped checkpoint
 
@@ -66,6 +66,9 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - Its unauthenticated public APK download matched the signed build's 8,930,151-byte size and SHA-256.
 - No implementation work remains for Phase 1; Phase 2 and Phase 3 remain intentionally pending.
 - Phase 2 (enhanced-audio playback) and Phase 3 (safe retranscription controls) are intentionally pending separate implementation/verification passes.
+- v1.6.0 AI Enhance is implemented: low-confidence span detection, raw-immutable repair runs/diffs, Gemini text repair, optional short-clip audio re-listen, Enhance Selection, progress/resume, Cleaned view, review accept/revert, and 0.75x clip loop playback.
+- Auto-run now targets AI Enhance and remains off by default. The old organize pass is dormant under **Organize Recording** in the player overflow menu.
+- Verification status: unit/debug compile passed during implementation; full lint, instrumentation, signed release, upgrade, and public APK verification are pending.
 
 ## Resume protocol
 
@@ -97,6 +100,8 @@ Implement the P1 features in `debrief-ai-features-prd-addendum.md` after fixing 
 - [x] Fully verify and publish GitHub Release v1.4.1.
 - [x] Implement Phase 1 upload-quality modes and latest Deepgram diarization.
 - [x] Fully verify and publish GitHub Release v1.5.0.
+- [x] Implement AI Enhance clarity release v1.6.0.
+- [ ] Fully verify and publish GitHub Release v1.6.0.
 - [ ] Phase 2: optional enhanced-audio playback.
 - [ ] Phase 3: safe retranscription and recovery controls.
 

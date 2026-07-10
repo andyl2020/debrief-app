@@ -19,13 +19,24 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Use the refresh icon beside search to reload transcript state and recover a saved sidecar when local transcript rows are absent.
 - Search within a recording from the review search field, or search all recordings from the Library search action.
 
-### Chapters and AI analysis
+### AI Enhance
+
+- Tap the sparkle button beside transcript reload to run **AI Enhance**. The old organize/summarize pass moved to the top-right overflow menu as **Organize Recording**.
+- Debrief flags low-confidence transcript spans locally after transcription. Rough spots appear as amber transcript cards, amber scrubber heat ticks, and a count badge on the Enhance button.
+- Auto Enhance uses Gemini as a targeted second opinion. It first asks for conservative text-only repair diffs, then optionally sends only short extracted audio clips to Gemini for re-listening. Full source recordings are never sent to Gemini.
+- Long-press a transcript card to start a selection, long-press another card to end the selection, then tap **Enhance Selection**. Selection mode is capped at 15 minutes per run and chunks audio into short clips.
+- Raw transcripts are immutable. Cleaned view is derived from versioned repair diffs and can be toggled on/off after repairs land.
+- Tap **Review** on a green repaired span to compare original vs repaired text, accept a suggested repair, revert an applied repair, and loop any saved clip at 0.75Ã—.
+- Settings includes **Send short clips to Gemini**. Turning it off keeps text repair but disables audio re-listen. **Run automatically** is off by default and, when enabled, runs AI Enhance after transcription.
+- Library recording cards and the player show Enhance status, determinate progress, partial-failure/error copy, and resume controls.
+
+### Chapters and Organize Recording
 
 - Tap the **Chapters** list icon beside Add Comment. A drawer opens from the side with AI-detected conversation sets and comments merged into one chronological table of contents.
 - Tap any entry to seek to its timestamp and close the drawer. The set containing the current playback position is highlighted.
 - The drawer is the canonical place for detected sets. The old expandable Library set list and large in-transcript set panel were removed to avoid duplicate, inconsistent navigation.
 - Use **Merge with next** on a set or **Split active set** at the current playback position to correct chapter boundaries.
-- The compact **AI analysis** card in Chapters shows status, summary, errors, speaker-name suggestions, Skip AI state, and recording-rename undo. Tap the sparkle button beside refresh to run or rerun analysis.
+- The compact **AI analysis** card in Chapters shows status, summary, errors, speaker-name suggestions, Skip AI state, and recording-rename undo. Use **Organize Recording** in the player overflow menu to run or rerun this dormant organize pass.
 - Supported AI providers are Gemini, OpenAI-compatible endpoints, and Claude/Anthropic. The transcript text—not audio—is sent to the selected AI provider.
 
 ### Comments, search, and export
@@ -50,10 +61,28 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Comments are durable user data and are not removed by rerunning AI. A comment and set at the same timestamp both appear, with the set first.
 - High playback speeds preserve position but may reduce intelligibility and can expose decoder limitations in damaged or unusual audio files.
 - Provider usage totals depend on API-key permissions and provider availability. Local usage remains visible when provider billing endpoints are unavailable.
+- AI Enhance can make plausible wrong fixes. High-confidence repairs auto-apply to Cleaned view; medium/low repairs remain suggestions until accepted. Revert any bad fix from the review dialog.
+- Audio re-listen clips are short derived cache files, not original recordings. They may be cleared by Android cache cleanup, and they are not written to sidecars.
+- Some noisy speech is unrecoverable. Debrief should mark `[inaudible]` rather than invent words when Gemini cannot hear the clip clearly.
+- If the Gemini key is missing, rate-limited, offline, or blocked by the **Send short clips** toggle, Enhance fails gracefully or runs only the available text stage.
 - Debrief has no cloud sync, collaboration, iOS app, video support, live recording, or live transcription. Original audio and durable app data remain on the phone.
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.6.0 - AI Enhance clarity release (2026-07-09)
+
+- Repurposed the player sparkle button into **AI Enhance** and moved the old sets/speaker/summarize/rename pass to **Organize Recording** in the overflow menu.
+- Added word-confidence storage, local low-confidence span detection, amber transcript/scrubber rough-spot indicators, and an Enhance count badge.
+- Added versioned `repair_runs` and `repairs` storage. Raw transcript rows are never rewritten; Cleaned view is derived from accepted repair diffs.
+- Added Auto Enhance: Gemini text repair first, then optional short-clip audio re-listen capped to the worst rough spots. Whole recordings are never sent to Gemini.
+- Added Enhance Selection: long-press transcript cards to mark a range, then enhance only that range. Runs are soft-capped at 15 minutes and chunked into 120-second clips.
+- Added WorkManager foreground Enhance jobs with determinate progress, library/player status, partial-failure preservation, retry/backoff, and Resume.
+- Added repair review: original vs repaired text, source, confidence, reason, accept/revert, and 0.75Ã— clip loop playback when a clip exists.
+- Added Settings controls for manual-first auto-run and whether short audio clips may be sent to Gemini.
+- Added local validation gates for model diffs: edit-only output, word-ratio bounds, supported proper nouns, confidence handling, and `[inaudible]` fallback.
+- Verification: pending final signed build checks.
+- APK: pending; SHA-256 pending.
 
 ### v1.5.0 — Original-quality transcription uploads (2026-07-08)
 
