@@ -16,14 +16,15 @@ class ReviewToolbarTest {
     @get:Rule val compose = createComposeRule()
 
     @Test
-    fun aiActionIsBetweenReloadAndCommentAndInvokesCallback() {
-        var aiClicks = 0
+    fun enhanceActionIsBetweenReloadAndCommentAndInvokesCallback() {
+        var enhanceClicks = 0
         compose.setContent {
             DebriefTheme {
                 ReviewToolbarActions(
-                    aiRunning = false,
+                    enhanceRunning = false,
+                    suspectCount = 3,
                     onReload = {},
-                    onRunAi = { aiClicks++ },
+                    onRunEnhance = { enhanceClicks++ },
                     onAddComment = {},
                     onOpenChapters = {},
                 )
@@ -31,7 +32,7 @@ class ReviewToolbarTest {
         }
 
         val reloadX = compose.onNodeWithContentDescription("Reload transcript").fetchSemanticsNode().boundsInRoot.left
-        val aiNode = compose.onNodeWithContentDescription("Run AI pass").assertIsEnabled()
+        val aiNode = compose.onNodeWithContentDescription("Run AI Enhance").assertIsEnabled()
         val aiX = aiNode.fetchSemanticsNode().boundsInRoot.left
         val commentX = compose.onNodeWithContentDescription("Add comment").fetchSemanticsNode().boundsInRoot.left
         val chaptersX = compose.onNodeWithContentDescription("Open chapters").fetchSemanticsNode().boundsInRoot.left
@@ -40,18 +41,25 @@ class ReviewToolbarTest {
         assertTrue(aiX < commentX)
         assertTrue(commentX < chaptersX)
         aiNode.performClick()
-        compose.runOnIdle { assertEquals(1, aiClicks) }
+        compose.runOnIdle { assertEquals(1, enhanceClicks) }
     }
 
     @Test
-    fun aiActionIsDisabledWhileRunning() {
+    fun enhanceActionIsDisabledWhileRunning() {
         compose.setContent {
             DebriefTheme {
-                ReviewToolbarActions(true, {}, {}, {}, {})
+                ReviewToolbarActions(
+                    enhanceRunning = true,
+                    suspectCount = 0,
+                    onReload = {},
+                    onRunEnhance = {},
+                    onAddComment = {},
+                    onOpenChapters = {},
+                )
             }
         }
 
-        compose.onNodeWithContentDescription("Run AI pass").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Run AI Enhance").assertIsNotEnabled()
     }
 
     @Test
