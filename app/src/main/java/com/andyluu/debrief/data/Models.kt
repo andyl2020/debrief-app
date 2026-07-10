@@ -8,6 +8,8 @@ import kotlinx.serialization.Serializable
 
 enum class RecordingStatus { NEW, QUEUED, TRANSCRIBING, READY, FAILED }
 enum class AiPassStatus { NOT_RUN, RUNNING, READY, FAILED, SKIPPED }
+enum class RepairRunStatus { QUEUED, RUNNING, READY, FAILED, PARTIAL }
+enum class RepairRunMode { AUTO, SELECTION }
 
 @Entity(tableName = "recordings")
 data class RecordingEntity(
@@ -60,6 +62,7 @@ data class TranscriptWordEntity(
     val startMs: Long,
     val endMs: Long,
     val text: String,
+    val confidence: Double? = null,
 )
 
 @Entity(
@@ -148,6 +151,94 @@ data class SpeakerSuggestionEntity(
     val suggestedName: String,
     val confidence: String,
     val evidence: String = "",
+)
+
+@Entity(
+    tableName = "suspect_spans",
+    foreignKeys = [ForeignKey(
+        entity = RecordingEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["recordingId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index("recordingId"), Index(value = ["recordingId", "startMs"])],
+)
+data class SuspectSpanEntity(
+    @PrimaryKey val id: String,
+    val recordingId: String,
+    val startMs: Long,
+    val endMs: Long,
+    val originalText: String,
+    val flaggedWordCount: Int,
+    val minConfidence: Double,
+    val meanConfidence: Double,
+    val score: Double,
+    val resolved: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
+@Entity(
+    tableName = "repair_runs",
+    foreignKeys = [ForeignKey(
+        entity = RecordingEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["recordingId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index("recordingId"), Index(value = ["recordingId", "createdAt"])],
+)
+data class RepairRunEntity(
+    @PrimaryKey val id: String,
+    val recordingId: String,
+    val mode: RepairRunMode,
+    val status: RepairRunStatus = RepairRunStatus.QUEUED,
+    val provider: String = "gemini",
+    val stageLabel: String = "Queued",
+    val completedSteps: Int = 0,
+    val totalSteps: Int = 0,
+    val selectionStartMs: Long? = null,
+    val selectionEndMs: Long? = null,
+    val fixedCount: Int = 0,
+    val inaudibleCount: Int = 0,
+    val errorMessage: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+)
+
+@Entity(
+    tableName = "repairs",
+    foreignKeys = [
+        ForeignKey(
+            entity = RepairRunEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["runId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = RecordingEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["recordingId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("runId"), Index("recordingId"), Index(value = ["recordingId", "startMs"])],
+)
+data class RepairEntity(
+    @PrimaryKey val id: String,
+    val runId: String,
+    val recordingId: String,
+    val startMs: Long,
+    val endMs: Long,
+    val original: String,
+    val repaired: String?,
+    val type: String,
+    val source: String,
+    val confidence: String,
+    val reason: String = "",
+    val applied: Boolean = true,
+    val reverted: Boolean = false,
+    val clipUri: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
 )
 
 data class ReviewBundle(

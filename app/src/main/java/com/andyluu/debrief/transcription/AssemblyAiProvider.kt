@@ -95,6 +95,7 @@ class AssemblyAiProvider(
                 startMs = item["start"]?.jsonPrimitive?.doubleOrNull?.toLong() ?: 0,
                 endMs = item["end"]?.jsonPrimitive?.doubleOrNull?.toLong() ?: 0,
                 text = text,
+                confidence = item["confidence"]?.jsonPrimitive?.doubleOrNull,
             )
         }
         val segments = root["utterances"]?.jsonArray.orEmpty().mapNotNull { element ->

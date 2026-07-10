@@ -19,6 +19,7 @@ import androidx.work.WorkerParameters
 import com.andyluu.debrief.DebriefApplication
 import com.andyluu.debrief.R
 import com.andyluu.debrief.data.RecordingStatus
+import com.andyluu.debrief.enhance.SuspectSpanDetector
 import kotlinx.coroutines.flow.first
 import com.andyluu.debrief.ai.AiPassWorker
 
@@ -64,6 +65,10 @@ class TranscriptionWorker(
                 keyterms = settings.keyterms.lines().flatMap { it.split(',') }.map(String::trim).filter(String::isNotBlank),
             )
             dao.replaceTranscript(recordingId, result.segments, result.words)
+            dao.replaceSuspectSpans(
+                recordingId,
+                SuspectSpanDetector.detect(recordingId, result.words, recording.durationMs),
+            )
             services.usage.recordSuccess(providerName, key, recording.durationMs)
             dao.updateStatus(recordingId, RecordingStatus.READY)
             services.search.rebuild(recordingId)

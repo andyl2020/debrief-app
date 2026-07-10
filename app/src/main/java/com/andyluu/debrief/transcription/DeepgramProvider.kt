@@ -101,6 +101,7 @@ class DeepgramProvider(
                 startMs = item.seconds("start"),
                 endMs = item.seconds("end"),
                 text = text,
+                confidence = item.double("confidence"),
             )
         }
         if (segments.isEmpty() && words.isEmpty()) throw TranscriptionException("No speech was detected")
@@ -113,5 +114,6 @@ class DeepgramProvider(
     private fun speakerLabel(index: Int) = "Speaker ${('A'.code + index).toChar()}"
     private fun JsonObject.string(name: String) = get(name)?.jsonPrimitive?.content
     private fun JsonObject.int(name: String) = get(name)?.jsonPrimitive?.intOrNull
+    private fun JsonObject.double(name: String) = get(name)?.jsonPrimitive?.doubleOrNull
     private fun JsonObject.seconds(name: String) = ((get(name)?.jsonPrimitive?.doubleOrNull ?: 0.0) * 1000).toLong()
 }

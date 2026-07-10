@@ -17,6 +17,10 @@ class Converters {
     @TypeConverter fun toStatus(value: String): RecordingStatus = RecordingStatus.valueOf(value)
     @TypeConverter fun fromAiStatus(value: AiPassStatus): String = value.name
     @TypeConverter fun toAiStatus(value: String): AiPassStatus = AiPassStatus.valueOf(value)
+    @TypeConverter fun fromRepairRunStatus(value: RepairRunStatus): String = value.name
+    @TypeConverter fun toRepairRunStatus(value: String): RepairRunStatus = RepairRunStatus.valueOf(value)
+    @TypeConverter fun fromRepairRunMode(value: RepairRunMode): String = value.name
+    @TypeConverter fun toRepairRunMode(value: String): RepairRunMode = RepairRunMode.valueOf(value)
 }
 
 @Database(
@@ -29,8 +33,11 @@ class Converters {
         AiRecordingEntity::class,
         ConversationSetEntity::class,
         SpeakerSuggestionEntity::class,
+        SuspectSpanEntity::class,
+        RepairRunEntity::class,
+        RepairEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -54,7 +61,7 @@ abstract class DebriefDatabase : RoomDatabase() {
                 DebriefDatabase::class.java,
                 "debrief.db",
             ).openHelperFactory(SupportOpenHelperFactory(passphrase, null, false))
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .addCallback(object : Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
@@ -119,6 +126,79 @@ abstract class DebriefDatabase : RoomDatabase() {
                     )""".trimIndent()
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_speaker_suggestions_recordingId` ON `speaker_suggestions` (`recordingId`)")
+            }
+        }
+
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `transcript_words` ADD COLUMN `confidence` REAL")
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `suspect_spans` (
+                        `id` TEXT NOT NULL,
+                        `recordingId` TEXT NOT NULL,
+                        `startMs` INTEGER NOT NULL,
+                        `endMs` INTEGER NOT NULL,
+                        `originalText` TEXT NOT NULL,
+                        `flaggedWordCount` INTEGER NOT NULL,
+                        `minConfidence` REAL NOT NULL,
+                        `meanConfidence` REAL NOT NULL,
+                        `score` REAL NOT NULL,
+                        `resolved` INTEGER NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`recordingId`) REFERENCES `recordings`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )""".trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_suspect_spans_recordingId` ON `suspect_spans` (`recordingId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_suspect_spans_recordingId_startMs` ON `suspect_spans` (`recordingId`, `startMs`)")
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `repair_runs` (
+                        `id` TEXT NOT NULL,
+                        `recordingId` TEXT NOT NULL,
+                        `mode` TEXT NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `provider` TEXT NOT NULL,
+                        `stageLabel` TEXT NOT NULL,
+                        `completedSteps` INTEGER NOT NULL,
+                        `totalSteps` INTEGER NOT NULL,
+                        `selectionStartMs` INTEGER,
+                        `selectionEndMs` INTEGER,
+                        `fixedCount` INTEGER NOT NULL,
+                        `inaudibleCount` INTEGER NOT NULL,
+                        `errorMessage` TEXT,
+                        `createdAt` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`recordingId`) REFERENCES `recordings`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )""".trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repair_runs_recordingId` ON `repair_runs` (`recordingId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repair_runs_recordingId_createdAt` ON `repair_runs` (`recordingId`, `createdAt`)")
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `repairs` (
+                        `id` TEXT NOT NULL,
+                        `runId` TEXT NOT NULL,
+                        `recordingId` TEXT NOT NULL,
+                        `startMs` INTEGER NOT NULL,
+                        `endMs` INTEGER NOT NULL,
+                        `original` TEXT NOT NULL,
+                        `repaired` TEXT,
+                        `type` TEXT NOT NULL,
+                        `source` TEXT NOT NULL,
+                        `confidence` TEXT NOT NULL,
+                        `reason` TEXT NOT NULL,
+                        `applied` INTEGER NOT NULL,
+                        `reverted` INTEGER NOT NULL,
+                        `clipUri` TEXT,
+                        `createdAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`runId`) REFERENCES `repair_runs`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`recordingId`) REFERENCES `recordings`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )""".trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repairs_runId` ON `repairs` (`runId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repairs_recordingId` ON `repairs` (`recordingId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repairs_recordingId_startMs` ON `repairs` (`recordingId`, `startMs`)")
             }
         }
     }

@@ -53,6 +53,48 @@ interface DebriefDao {
     @Query("SELECT * FROM transcript_words WHERE recordingId = :recordingId ORDER BY startMs")
     suspend fun getWords(recordingId: String): List<TranscriptWordEntity>
 
+    @Query("SELECT * FROM suspect_spans WHERE recordingId = :recordingId ORDER BY startMs")
+    fun observeSuspectSpans(recordingId: String): Flow<List<SuspectSpanEntity>>
+
+    @Query("SELECT * FROM suspect_spans WHERE recordingId = :recordingId ORDER BY score DESC, startMs")
+    suspend fun getSuspectSpans(recordingId: String): List<SuspectSpanEntity>
+
+    @Query("DELETE FROM suspect_spans WHERE recordingId = :recordingId")
+    suspend fun deleteSuspectSpans(recordingId: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSuspectSpans(spans: List<SuspectSpanEntity>)
+
+    @Query("UPDATE suspect_spans SET resolved = 1 WHERE recordingId = :recordingId AND startMs <= :endMs AND endMs >= :startMs")
+    suspend fun markSuspectSpansResolved(recordingId: String, startMs: Long, endMs: Long)
+
+    @Query("SELECT * FROM repair_runs WHERE recordingId = :recordingId ORDER BY createdAt DESC LIMIT 1")
+    fun observeLatestRepairRun(recordingId: String): Flow<RepairRunEntity?>
+
+    @Query("SELECT * FROM repair_runs WHERE recordingId = :recordingId ORDER BY createdAt DESC LIMIT 1")
+    suspend fun getLatestRepairRun(recordingId: String): RepairRunEntity?
+
+    @Query("SELECT * FROM repair_runs WHERE id = :runId")
+    suspend fun getRepairRun(runId: String): RepairRunEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertRepairRun(run: RepairRunEntity)
+
+    @Query("SELECT * FROM repairs WHERE recordingId = :recordingId ORDER BY startMs")
+    fun observeRepairs(recordingId: String): Flow<List<RepairEntity>>
+
+    @Query("SELECT * FROM repairs WHERE recordingId = :recordingId ORDER BY startMs")
+    suspend fun getRepairs(recordingId: String): List<RepairEntity>
+
+    @Query("SELECT * FROM repairs WHERE id = :repairId")
+    suspend fun getRepair(repairId: String): RepairEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertRepair(repair: RepairEntity)
+
+    @Query("UPDATE repairs SET reverted = :reverted, applied = CASE WHEN :reverted THEN 0 ELSE 1 END WHERE id = :repairId")
+    suspend fun setRepairReverted(repairId: String, reverted: Boolean)
+
     @Query("SELECT * FROM comments WHERE recordingId = :recordingId ORDER BY timestampMs")
     fun observeComments(recordingId: String): Flow<List<CommentEntity>>
 
@@ -150,6 +192,12 @@ interface DebriefDao {
         deleteWords(recordingId)
         insertSegments(segments)
         insertWords(words)
+    }
+
+    @Transaction
+    suspend fun replaceSuspectSpans(recordingId: String, spans: List<SuspectSpanEntity>) {
+        deleteSuspectSpans(recordingId)
+        if (spans.isNotEmpty()) insertSuspectSpans(spans)
     }
 
     @Transaction
