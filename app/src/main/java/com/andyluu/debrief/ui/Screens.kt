@@ -1374,9 +1374,7 @@ private fun RepairReviewDialog(
                 if (repair.reason.isNotBlank()) {
                     Text(repair.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                if (repair.clipUri != null) {
-                    Text("Clip saved for review in app cache.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                repair.clipUri?.let { ClipLoopPlayer(it) }
             }
         },
         confirmButton = {
@@ -1389,6 +1387,32 @@ private fun RepairReviewDialog(
             }
         },
     )
+}
+
+@Composable
+private fun ClipLoopPlayer(clipUri: String) {
+    val context = LocalContext.current
+    var playing by remember { mutableStateOf(false) }
+    var player by remember { mutableStateOf<ExoPlayer?>(null) }
+    DisposableEffect(clipUri) {
+        val created = ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(Uri.parse(clipUri)))
+            repeatMode = Player.REPEAT_MODE_ONE
+            setPlaybackSpeed(0.75f)
+            prepare()
+            addListener(object : Player.Listener {
+                override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
+            })
+        }
+        player = created
+        onDispose {
+            runCatching { created.release() }
+            player = null
+        }
+    }
+    OutlinedButton(onClick = { player?.let { if (it.isPlaying) it.pause() else it.play() } }) {
+        Text(if (playing) "Pause clip" else "Loop clip at 0.75×")
+    }
 }
 
 @Composable
