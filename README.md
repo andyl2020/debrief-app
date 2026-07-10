@@ -56,6 +56,8 @@ GitHub-hosted APKs are sideloaded rather than installed through Google Play, so 
 
 See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the complete feature guide, usage instructions, release history, limitations, and known edge cases.
 
+Future iOS planning is intentionally separate from current Android development. See [docs/future/ios-and-shared-contract-strategy.md](docs/future/ios-and-shared-contract-strategy.md) for the agreed Android-first/shared-contract strategy.
+
 On Samsung Galaxy devices, Auto Blocker prevents all unknown-source installs while enabled. Open **Settings → Security and privacy → Auto Blocker** and temporarily turn it off, then search Settings for **Install unknown apps** and allow the app that opened the APK (usually My Files or Chrome). Turn Auto Blocker back on after installation.
 
 If Android reports a package conflict, uninstall an older Debrief build and retry. Releases from this repository share one signing certificate and upgrade normally; independently signed debug builds do not.
