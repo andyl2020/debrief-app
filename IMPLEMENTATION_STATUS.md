@@ -76,6 +76,8 @@ Implement Debrief v1.7.0 provider-first reliability cleanup: AssemblyAI recommen
 - Archive branch `archive/ai-enhance-v1.6.0` has been pushed from the v1.6.0 tag.
 - Verification status: unit tests, debug lint/build, release lint/R8, production signing, ARM64/x86-64 16 KB alignment, Android 11 instrumentation, Android 15 PS16K instrumentation, and signed v1.6.0 -> v1.7.0 upgrades passed.
 - Final local v1.7.0 APK SHA-256: `D54F7117E7898440C6851DFB94865D86A1A988176B77BE09F4A2779344F21F98` (9,069,287 bytes).
+- GitHub Release v1.7.0 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.7.0
+- Its unauthenticated public APK download matched the signed build's 9,069,287-byte size and SHA-256.
 
 ## Resume protocol
 
@@ -110,7 +112,7 @@ Implement Debrief v1.7.0 provider-first reliability cleanup: AssemblyAI recommen
 - [x] Implement AI Enhance clarity release v1.6.0.
 - [x] Fully verify and publish GitHub Release v1.6.0.
 - [x] Fully verify v1.7.0 provider-first reliability cleanup.
-- [ ] Publish and verify GitHub Release v1.7.0.
+- [x] Publish and verify GitHub Release v1.7.0.
 - [ ] Phase 2: optional enhanced-audio playback.
 - [ ] Phase 3: safe retranscription and recovery controls.
 

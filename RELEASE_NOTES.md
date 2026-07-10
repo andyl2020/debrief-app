@@ -86,6 +86,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Fixed stale queued transcriptions by re-enqueuing `QUEUED` recordings with current network constraints when the app starts and when the mobile-data toggle changes. Explicit transcription queueing now replaces stale unique WorkManager jobs.
 - Added unit coverage for Transcript Quality analysis, including a regression for a large missing transcript gap.
 - Verification: unit tests, debug lint/build, release lint/R8, production signing, ARM64/x86-64 16 KB native alignment, Android 11 instrumentation, Android 15 PS16K instrumentation, and signed v1.6.0 -> v1.7.0 upgrades passed.
+- Public unauthenticated APK download from GitHub matched the verified local artifact byte-for-byte.
 - APK: 9,069,287 bytes; SHA-256 `D54F7117E7898440C6851DFB94865D86A1A988176B77BE09F4A2779344F21F98`.
 
 ### v1.6.0 - AI Enhance clarity release (2026-07-09)
