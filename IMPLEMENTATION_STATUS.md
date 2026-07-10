@@ -1,10 +1,10 @@
 # Debrief implementation checkpoint
 
-Last updated: 2026-07-09
+Last updated: 2026-07-10
 
 ## Objective
 
-Implement Debrief v1.6.0 AI Enhance from `debrief-ai-enhance-prd-addendum-v2.md` after releasing v1.5.0 original-quality transcription uploads.
+Implement Debrief v1.7.0 provider-first reliability cleanup: AssemblyAI recommendation/default, AI Enhance demotion, Transcript Quality reports, and stale queued-transcription recovery.
 
 ## Shipped checkpoint
 
@@ -72,6 +72,10 @@ Implement Debrief v1.6.0 AI Enhance from `debrief-ai-enhance-prd-addendum-v2.md`
 - Final local v1.6.0 APK SHA-256: `C68C007DFED7B19E0378CFD2C2EE4ADE5BE7B7562EE996F79E84640B4A301548` (9,039,347 bytes).
 - GitHub Release v1.6.0 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.6.0
 - Its unauthenticated public APK download matched the signed build's 9,039,347-byte size and SHA-256.
+- v1.7.0 provider-first reliability cleanup is implemented: AssemblyAI is the fresh-install default and recommended noisy-field provider, AI Enhance is hidden behind an Advanced/Experimental toggle, Transcript Quality reports are stored in Room v4 and displayed in Library/Review, and stale queued transcriptions are re-enqueued on app start/mobile-data setting changes.
+- Archive branch `archive/ai-enhance-v1.6.0` has been pushed from the v1.6.0 tag.
+- Verification status: unit tests, debug lint/build, release lint/R8, production signing, ARM64/x86-64 16 KB alignment, Android 11 instrumentation, Android 15 PS16K instrumentation, and signed v1.6.0 -> v1.7.0 upgrades passed.
+- Final local v1.7.0 APK SHA-256: `D54F7117E7898440C6851DFB94865D86A1A988176B77BE09F4A2779344F21F98` (9,069,287 bytes).
 
 ## Resume protocol
 
@@ -105,6 +109,8 @@ Implement Debrief v1.6.0 AI Enhance from `debrief-ai-enhance-prd-addendum-v2.md`
 - [x] Fully verify and publish GitHub Release v1.5.0.
 - [x] Implement AI Enhance clarity release v1.6.0.
 - [x] Fully verify and publish GitHub Release v1.6.0.
+- [x] Fully verify v1.7.0 provider-first reliability cleanup.
+- [ ] Publish and verify GitHub Release v1.7.0.
 - [ ] Phase 2: optional enhanced-audio playback.
 - [ ] Phase 3: safe retranscription and recovery controls.
 

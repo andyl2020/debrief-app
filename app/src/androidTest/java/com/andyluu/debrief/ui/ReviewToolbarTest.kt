@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -21,6 +22,7 @@ class ReviewToolbarTest {
         compose.setContent {
             DebriefTheme {
                 ReviewToolbarActions(
+                    showEnhance = true,
                     enhanceRunning = false,
                     suspectCount = 3,
                     onReload = {},
@@ -49,6 +51,7 @@ class ReviewToolbarTest {
         compose.setContent {
             DebriefTheme {
                 ReviewToolbarActions(
+                    showEnhance = true,
                     enhanceRunning = true,
                     suspectCount = 0,
                     onReload = {},
@@ -60,6 +63,27 @@ class ReviewToolbarTest {
         }
 
         compose.onNodeWithContentDescription("Run AI Enhance").assertIsNotEnabled()
+    }
+
+    @Test
+    fun enhanceActionIsHiddenWhenAdvancedToggleIsOff() {
+        compose.setContent {
+            DebriefTheme {
+                ReviewToolbarActions(
+                    showEnhance = false,
+                    enhanceRunning = false,
+                    suspectCount = 3,
+                    onReload = {},
+                    onRunEnhance = {},
+                    onAddComment = {},
+                    onOpenChapters = {},
+                )
+            }
+        }
+
+        assertEquals(0, compose.onAllNodesWithContentDescription("Run AI Enhance").fetchSemanticsNodes().size)
+        compose.onNodeWithContentDescription("Reload transcript").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Add comment").assertIsDisplayed()
     }
 
     @Test

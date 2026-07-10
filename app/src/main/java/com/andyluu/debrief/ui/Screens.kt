@@ -113,6 +113,8 @@ import com.andyluu.debrief.data.RepairRunEntity
 import com.andyluu.debrief.data.RepairRunStatus
 import com.andyluu.debrief.data.SearchHit
 import com.andyluu.debrief.data.SuspectSpanEntity
+import com.andyluu.debrief.data.TranscriptQualityReportEntity
+import com.andyluu.debrief.data.TranscriptQualityStatus
 import com.andyluu.debrief.data.TranscriptSegmentEntity
 import com.andyluu.debrief.data.TranscriptionAudioQuality
 import kotlinx.coroutines.delay
@@ -134,6 +136,8 @@ fun LibraryScreen(
     val aiByRecording = aiRecordings.associateBy { it.recordingId }
     val repairRuns by viewModel.repairRuns.collectAsStateWithLifecycle()
     val repairRunByRecording = repairRuns.groupBy { it.recordingId }.mapValues { entry -> entry.value.maxBy { it.createdAt } }
+    val qualityReports by viewModel.qualityReports.collectAsStateWithLifecycle()
+    val qualityByRecording = qualityReports.associateBy { it.recordingId }
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbar.showSnackbar(it) }
@@ -219,7 +223,8 @@ fun LibraryScreen(
                             RecordingCard(
                                 recording = recording,
                                 ai = aiByRecording[recording.id],
-                                repairRun = repairRunByRecording[recording.id],
+                                repairRun = if (settings.aiEnhanceEnabled) repairRunByRecording[recording.id] else null,
+                                quality = qualityByRecording[recording.id],
                                 selectionMode = selectionMode,
                                 selected = recording.id in selectedIds,
                                 onOpen = { onOpenRecording(recording.id, 0) },
@@ -244,6 +249,7 @@ internal fun RecordingCard(
     recording: RecordingEntity,
     ai: AiRecordingEntity? = null,
     repairRun: RepairRunEntity? = null,
+    quality: TranscriptQualityReportEntity? = null,
     selectionMode: Boolean,
     selected: Boolean,
     onOpen: () -> Unit,
@@ -277,6 +283,9 @@ internal fun RecordingCard(
                 }
                 StatusChip(recording.status)
             }
+            if (recording.status == RecordingStatus.READY && quality != null) {
+                QualityChip(quality, modifier = Modifier.padding(top = 10.dp))
+            }
             repairRun?.let { EnhanceMiniStatus(it) }
             if (recording.status == RecordingStatus.TRANSCRIBING || recording.status == RecordingStatus.QUEUED) {
                 LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 12.dp))
@@ -309,6 +318,115 @@ private fun EnhanceMiniStatus(run: RepairRunEntity) {
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
+}
+
+@Composable
+private fun QualityChip(report: TranscriptQualityReportEntity, modifier: Modifier = Modifier) {
+    val (label, color) = when (report.status) {
+        TranscriptQualityStatus.GOOD -> "Quality good" to Color(0xFFD5F5DF)
+        TranscriptQualityStatus.CHECK -> "Check transcript" to Color(0xFFFFF3CD)
+        TranscriptQualityStatus.ISSUE -> "Possible issue" to Color(0xFFFFDAD6)
+    }
+    Text(
+        label,
+        modifier.background(color, RoundedCornerShape(99.dp)).padding(horizontal = 10.dp, vertical = 5.dp),
+        style = MaterialTheme.typography.labelSmall,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+@Composable
+private fun TranscriptQualityCard(
+    report: TranscriptQualityReportEntity,
+    onDetails: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val (title, color) = when (report.status) {
+        TranscriptQualityStatus.GOOD -> "Transcript quality: Good" to Color(0xFFD5F5DF)
+        TranscriptQualityStatus.CHECK -> "Transcript quality: Check transcript" to Color(0xFFFFF3CD)
+        TranscriptQualityStatus.ISSUE -> "Transcript quality: Possible issue" to Color(0xFFFFDAD6)
+    }
+    Card(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = color),
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, fontWeight = FontWeight.SemiBold)
+            Text(
+                "${providerLabel(report.provider)} · ${uploadQualityLabel(report.uploadMode)} upload · ${formatTimestamp(report.audioDurationMs)} audio · ${speakerCountLabel(report.speakerCount)}",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            report.warningsText.lineSequence().firstOrNull { it.isNotBlank() }?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onDetails) { Text("View details") }
+                TextButton(onClick = onDismiss) { Text("Dismiss") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TranscriptQualityDetailsDialog(
+    report: TranscriptQualityReportEntity,
+    onDismiss: () -> Unit,
+) {
+    val warnings = report.warningsText.lineSequence().filter(String::isNotBlank).toList()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Transcript Quality") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Provider", fontWeight = FontWeight.SemiBold)
+                Text(providerLabel(report.provider))
+                Text("Upload mode", fontWeight = FontWeight.SemiBold)
+                Text(uploadQualityLabel(report.uploadMode))
+                Text("Recording length", fontWeight = FontWeight.SemiBold)
+                Text(formatTimestamp(report.audioDurationMs))
+                Text("Transcript coverage", fontWeight = FontWeight.SemiBold)
+                Text(transcriptCoverageLabel(report))
+                Text("Transcript size", fontWeight = FontWeight.SemiBold)
+                Text("${report.segmentCount} segments · ${report.wordCount} words · ${"%.1f".format(report.wordsPerMinute)} words/min")
+                Text("Speakers", fontWeight = FontWeight.SemiBold)
+                Text(speakerCountLabel(report.speakerCount))
+                Text("Warnings", fontWeight = FontWeight.SemiBold)
+                if (warnings.isEmpty()) {
+                    Text("No integrity issues found.")
+                } else {
+                    warnings.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
+                }
+                if (report.recommendation.isNotBlank()) {
+                    Text("Recommended action", fontWeight = FontWeight.SemiBold)
+                    Text(report.recommendation, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+    )
+}
+
+private fun providerLabel(provider: String): String = when (provider) {
+    "assemblyai" -> "AssemblyAI"
+    "deepgram" -> "Deepgram"
+    else -> provider.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+}
+
+private fun uploadQualityLabel(value: String): String = when (value) {
+    TranscriptionAudioQuality.ORIGINAL.storedValue -> "Original"
+    TranscriptionAudioQuality.BALANCED.storedValue -> "Balanced"
+    TranscriptionAudioQuality.DATA_SAVER.storedValue -> "Data saver"
+    else -> value
+}
+
+private fun speakerCountLabel(count: Int): String = "$count " + if (count == 1) "speaker detected" else "speakers detected"
+
+private fun transcriptCoverageLabel(report: TranscriptQualityReportEntity): String {
+    val start = report.transcriptStartMs
+    val end = report.transcriptEndMs
+    return if (start == null || end == null) "No timed transcript coverage"
+    else "${formatTimestamp(start)}-${formatTimestamp(end)} covered"
 }
 
 private fun RecordingEntity.isTranscribable() = status == RecordingStatus.NEW || status == RecordingStatus.FAILED
@@ -390,9 +508,16 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             item { Text("Transcription provider", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             item {
+                Text(
+                    "Recommended for noisy field recordings: AssemblyAI with Original upload. Deepgram remains available as a fallback.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = settings.provider == "assemblyai", onClick = { viewModel.setProvider("assemblyai") }, label = { Text("AssemblyAI · recommended") })
                     FilterChip(selected = settings.provider == "deepgram", onClick = { viewModel.setProvider("deepgram") }, label = { Text("Deepgram Nova-3") })
-                    FilterChip(selected = settings.provider == "assemblyai", onClick = { viewModel.setProvider("assemblyai") }, label = { Text("AssemblyAI") })
                 }
             }
             item {
@@ -430,10 +555,10 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 )
             }
             item { HorizontalDivider() }
-            item { Text("AI Enhance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+            item { Text("AI tools", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             item {
                 Text(
-                    "Repairs rough transcript spots with conservative text edits and short Gemini audio clips. Full recordings are never sent to Gemini. Organize Recording remains available from the player overflow menu.",
+                    "Organize Recording can detect chapters, summaries, speaker suggestions, and rename ideas from transcript text. AI Enhance is now an Advanced/Experimental tool because AssemblyAI + Original upload is the recommended quality path.",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -507,35 +632,6 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 }
             }
             item {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Run automatically", fontWeight = FontWeight.SemiBold)
-                        Text("Run AI Enhance after each successful transcription. Off by default; manual is safer for quota and privacy.", style = MaterialTheme.typography.bodySmall)
-                    }
-                    Switch(settings.aiAutoRun, onCheckedChange = viewModel::setAiAutoRun)
-                }
-            }
-            item {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Send short clips to Gemini", fontWeight = FontWeight.SemiBold)
-                        Text("When on, AI Enhance can re-listen to short clips only. When off, it uses text repair only.", style = MaterialTheme.typography.bodySmall)
-                    }
-                    Switch(settings.aiAudioRelisten, onCheckedChange = viewModel::setAiAudioRelisten)
-                }
-            }
-            item {
-                Column {
-                    Text("Silence gap: ${settings.aiGapMinutes} minutes", fontWeight = FontWeight.SemiBold)
-                    Slider(
-                        value = settings.aiGapMinutes.toFloat(),
-                        onValueChange = { viewModel.setAiGapMinutes(it.toInt()) },
-                        valueRange = 1f..10f,
-                        steps = 8,
-                    )
-                }
-            }
-            item {
                 Button(onClick = {
                     viewModel.saveAiEndpoint(openAiBaseUrl, openAiModel, anthropicModel)
                 }) { Text("Save AI settings") }
@@ -558,6 +654,54 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            item { HorizontalDivider() }
+            item { Text("Advanced / Experimental", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+            item {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Show AI Enhance tools", fontWeight = FontWeight.SemiBold)
+                        Text("Off by default. Enables rough-spot cards, scrubber heat ticks, Cleaned view, and the Enhance button.", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(settings.aiEnhanceEnabled, onCheckedChange = viewModel::setAiEnhanceEnabled)
+                }
+            }
+            if (settings.aiEnhanceEnabled) {
+                item {
+                    Text(
+                        "AI Enhance repairs rough transcript spots with conservative text edits and optional short Gemini audio clips. Full recordings are never sent to Gemini.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                item {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Run automatically", fontWeight = FontWeight.SemiBold)
+                            Text("Run AI Enhance after each successful transcription. Off by default; manual is safer for quota and privacy.", style = MaterialTheme.typography.bodySmall)
+                        }
+                        Switch(settings.aiAutoRun, onCheckedChange = viewModel::setAiAutoRun)
+                    }
+                }
+                item {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Send short clips to Gemini", fontWeight = FontWeight.SemiBold)
+                            Text("When on, AI Enhance can re-listen to short clips only. When off, it uses text repair only.", style = MaterialTheme.typography.bodySmall)
+                        }
+                        Switch(settings.aiAudioRelisten, onCheckedChange = viewModel::setAiAudioRelisten)
+                    }
+                }
+                item {
+                    Column {
+                        Text("Silence gap: ${settings.aiGapMinutes} minutes", fontWeight = FontWeight.SemiBold)
+                        Slider(
+                            value = settings.aiGapMinutes.toFloat(),
+                            onValueChange = { viewModel.setAiGapMinutes(it.toInt()) },
+                            valueRange = 1f..10f,
+                            steps = 8,
+                        )
+                    }
+                }
             }
             item { HorizontalDivider() }
             item { Text("API key usage", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
@@ -685,6 +829,7 @@ private fun SecretField(label: String, value: String, onChange: (String) -> Unit
 @Composable
 fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val appSettings by viewModel.settings.collectAsStateWithLifecycle()
     val reloadVersion by viewModel.reloadVersion.collectAsStateWithLifecycle()
     val recording = state.recording
     val context = LocalContext.current
@@ -707,10 +852,13 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
     var selectionStart by remember { mutableStateOf<Long?>(null) }
     var selectionEnd by remember { mutableStateOf<Long?>(null) }
     var reviewingRepair by remember { mutableStateOf<RepairEntity?>(null) }
+    var showingQualityDetails by remember { mutableStateOf(false) }
+    var qualityDismissed by remember(state.qualityReport?.createdAt) { mutableStateOf(false) }
     val organizeRunning = state.ai?.status == AiPassStatus.RUNNING
-    val enhanceRunning = state.repairRun?.status == RepairRunStatus.RUNNING || state.repairRun?.status == RepairRunStatus.QUEUED
+    val showAiEnhance = appSettings.aiEnhanceEnabled
+    val enhanceRunning = showAiEnhance && (state.repairRun?.status == RepairRunStatus.RUNNING || state.repairRun?.status == RepairRunStatus.QUEUED)
     val unresolvedSuspects = state.suspectSpans.count { !it.resolved }
-    val activeRepairs = state.repairs.filter { it.applied && !it.reverted }
+    val activeRepairs = if (showAiEnhance) state.repairs.filter { it.applied && !it.reverted } else emptyList()
 
     LaunchedEffect(state.repairRun?.status, state.repairs.size) {
         if (state.repairRun?.status == RepairRunStatus.READY && activeRepairs.isNotEmpty()) cleanedView = true
@@ -839,12 +987,14 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                     onValueChange = { value -> position = value.toLong(); player?.seekTo(position) },
                     valueRange = 0f..duration.coerceAtLeast(1).toFloat(),
                 )
-                ScrubberHeatTicks(
-                    suspects = state.suspectSpans,
-                    repairs = activeRepairs,
-                    durationMs = duration,
-                    modifier = Modifier.fillMaxWidth().height(8.dp),
-                )
+                if (showAiEnhance) {
+                    ScrubberHeatTicks(
+                        suspects = state.suspectSpans,
+                        repairs = activeRepairs,
+                        durationMs = duration,
+                        modifier = Modifier.fillMaxWidth().height(8.dp),
+                    )
+                }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(formatTimestamp(position), style = MaterialTheme.typography.labelMedium)
                     Spacer(Modifier.weight(1f))
@@ -872,6 +1022,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                     placeholder = { Text("Search this recording") }, leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true,
                 )
                 ReviewToolbarActions(
+                    showEnhance = showAiEnhance,
                     enhanceRunning = enhanceRunning,
                     suspectCount = unresolvedSuspects,
                     onReload = { follow = true; viewModel.reloadTranscript() },
@@ -880,33 +1031,42 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                     onOpenChapters = { scope.launch { drawerState.open() } },
                 )
             }
+            state.qualityReport?.takeIf { !qualityDismissed }?.let { report ->
+                TranscriptQualityCard(
+                    report = report,
+                    onDetails = { showingQualityDetails = true },
+                    onDismiss = { qualityDismissed = true },
+                )
+            }
             val repairRun = state.repairRun
-            if (repairRun != null) {
+            if (showAiEnhance && repairRun != null) {
                 EnhanceProgressBanner(
                     run = repairRun,
                     repairs = state.repairs,
                     onResume = viewModel::runAiEnhance,
                 )
-            } else if (unresolvedSuspects > 0 && query.isBlank()) {
+            } else if (showAiEnhance && unresolvedSuspects > 0 && query.isBlank()) {
                 Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3CD))) {
                     Text("AI Enhance found $unresolvedSuspects rough spots. Tap the sparkle button to repair them.", Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
                 }
             }
-            SelectionPill(
-                startMs = selectionStart,
-                endMs = selectionEnd,
-                onClear = { selectionStart = null; selectionEnd = null },
-                onEnhance = {
-                    val start = selectionStart
-                    val end = selectionEnd
-                    if (start != null && end != null) {
-                        viewModel.runEnhanceSelection(start, end)
-                        selectionStart = null
-                        selectionEnd = null
-                    }
-                },
-            )
-            if (state.repairs.isNotEmpty()) {
+            if (showAiEnhance) {
+                SelectionPill(
+                    startMs = selectionStart,
+                    endMs = selectionEnd,
+                    onClear = { selectionStart = null; selectionEnd = null },
+                    onEnhance = {
+                        val start = selectionStart
+                        val end = selectionEnd
+                        if (start != null && end != null) {
+                            viewModel.runEnhanceSelection(start, end)
+                            selectionStart = null
+                            selectionEnd = null
+                        }
+                    },
+                )
+            }
+            if (showAiEnhance && state.repairs.isNotEmpty()) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Cleaned view", fontWeight = FontWeight.SemiBold)
@@ -946,16 +1106,18 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                             timestamp = segment.startMs,
                             text = if (cleanedView) cleanedText(segment, segmentRepairs) else segment.text,
                             active = index == activeIndex,
-                            suspect = segmentSuspects.isNotEmpty(),
-                            repaired = segmentRepairs.any { it.applied && !it.reverted },
+                            suspect = showAiEnhance && segmentSuspects.isNotEmpty(),
+                            repaired = showAiEnhance && segmentRepairs.any { it.applied && !it.reverted },
                             comments = comments,
                             onSeek = { player?.seekTo(segment.startMs); position = segment.startMs; follow = true },
                             onLongPress = {
-                                if (selectionStart == null || selectionEnd != null) {
-                                    selectionStart = segment.startMs
-                                    selectionEnd = null
-                                } else {
-                                    selectionEnd = segment.endMs
+                                if (showAiEnhance) {
+                                    if (selectionStart == null || selectionEnd != null) {
+                                        selectionStart = segment.startMs
+                                        selectionEnd = null
+                                    } else {
+                                        selectionEnd = segment.endMs
+                                    }
                                 }
                             },
                             onRename = { renamingSpeaker = segment.speakerId },
@@ -996,6 +1158,13 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                 viewModel.revertRepair(repair.id)
                 reviewingRepair = null
             },
+        )
+    }
+    val qualityReportForDialog = state.qualityReport
+    if (showingQualityDetails && qualityReportForDialog != null) {
+        TranscriptQualityDetailsDialog(
+            report = qualityReportForDialog,
+            onDismiss = { showingQualityDetails = false },
         )
     }
 }
@@ -1043,6 +1212,7 @@ internal fun PlaybackSpeedControl(
 
 @Composable
 internal fun ReviewToolbarActions(
+    showEnhance: Boolean,
     enhanceRunning: Boolean,
     suspectCount: Int,
     onReload: () -> Unit,
@@ -1052,22 +1222,24 @@ internal fun ReviewToolbarActions(
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onReload) { Icon(Icons.Default.Refresh, "Reload transcript") }
-        IconButton(
-            onClick = onRunEnhance,
-            enabled = !enhanceRunning,
-            modifier = Modifier.semantics { contentDescription = "Run AI Enhance" },
-        ) {
-            if (enhanceRunning) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-            else Box {
-                Icon(Icons.Default.AutoAwesome, null)
-                if (suspectCount > 0) {
-                    Text(
-                        suspectCount.coerceAtMost(99).toString(),
-                        modifier = Modifier.align(Alignment.TopEnd)
-                            .background(Color(0xFFFFC107), RoundedCornerShape(99.dp))
-                            .padding(horizontal = 4.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                    )
+        if (showEnhance) {
+            IconButton(
+                onClick = onRunEnhance,
+                enabled = !enhanceRunning,
+                modifier = Modifier.semantics { contentDescription = "Run AI Enhance" },
+            ) {
+                if (enhanceRunning) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                else Box {
+                    Icon(Icons.Default.AutoAwesome, null)
+                    if (suspectCount > 0) {
+                        Text(
+                            suspectCount.coerceAtMost(99).toString(),
+                            modifier = Modifier.align(Alignment.TopEnd)
+                                .background(Color(0xFFFFC107), RoundedCornerShape(99.dp))
+                                .padding(horizontal = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
                 }
             }
         }

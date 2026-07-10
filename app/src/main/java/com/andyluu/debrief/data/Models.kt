@@ -10,6 +10,7 @@ enum class RecordingStatus { NEW, QUEUED, TRANSCRIBING, READY, FAILED }
 enum class AiPassStatus { NOT_RUN, RUNNING, READY, FAILED, SKIPPED }
 enum class RepairRunStatus { QUEUED, RUNNING, READY, FAILED, PARTIAL }
 enum class RepairRunMode { AUTO, SELECTION }
+enum class TranscriptQualityStatus { GOOD, CHECK, ISSUE }
 
 @Entity(tableName = "recordings")
 data class RecordingEntity(
@@ -238,6 +239,34 @@ data class RepairEntity(
     val applied: Boolean = true,
     val reverted: Boolean = false,
     val clipUri: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
+@Entity(
+    tableName = "transcript_quality_reports",
+    foreignKeys = [ForeignKey(
+        entity = RecordingEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["recordingId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index("recordingId")],
+)
+data class TranscriptQualityReportEntity(
+    @PrimaryKey val recordingId: String,
+    val status: TranscriptQualityStatus,
+    val provider: String,
+    val uploadMode: String,
+    val audioDurationMs: Long,
+    val transcriptStartMs: Long?,
+    val transcriptEndMs: Long?,
+    val segmentCount: Int,
+    val wordCount: Int,
+    val speakerCount: Int,
+    val wordsPerMinute: Double,
+    val warningCount: Int,
+    val warningsText: String = "",
+    val recommendation: String = "",
     val createdAt: Long = System.currentTimeMillis(),
 )
 

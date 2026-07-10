@@ -35,9 +35,10 @@ data class AppSettings(
     val folderUri: String? = null,
     val allowMobileData: Boolean = false,
     val keyterms: String = "",
-    val provider: String = "deepgram",
+    val provider: String = "assemblyai",
     val transcriptionAudioQuality: TranscriptionAudioQuality = TranscriptionAudioQuality.ORIGINAL,
     val aiProvider: String = "gemini",
+    val aiEnhanceEnabled: Boolean = false,
     val aiAutoRun: Boolean = false,
     val aiAudioRelisten: Boolean = true,
     val aiGapMinutes: Int = 3,
@@ -54,6 +55,7 @@ class SettingsStore(private val context: Context) {
         val provider = stringPreferencesKey("provider")
         val transcriptionAudioQuality = stringPreferencesKey("transcription_audio_quality")
         val aiProvider = stringPreferencesKey("ai_provider")
+        val aiEnhanceEnabled = booleanPreferencesKey("ai_enhance_enabled")
         val aiAutoRun = booleanPreferencesKey("ai_auto_run")
         val aiAudioRelisten = booleanPreferencesKey("ai_audio_relisten")
         val aiGapMinutes = intPreferencesKey("ai_gap_minutes")
@@ -67,9 +69,10 @@ class SettingsStore(private val context: Context) {
             folderUri = prefs[Keys.folderUri],
             allowMobileData = prefs[Keys.mobileData] ?: false,
             keyterms = prefs[Keys.keyterms] ?: "",
-            provider = prefs[Keys.provider] ?: "deepgram",
+            provider = prefs[Keys.provider] ?: "assemblyai",
             transcriptionAudioQuality = TranscriptionAudioQuality.fromStoredValue(prefs[Keys.transcriptionAudioQuality]),
             aiProvider = prefs[Keys.aiProvider] ?: "gemini",
+            aiEnhanceEnabled = prefs[Keys.aiEnhanceEnabled] ?: false,
             aiAutoRun = prefs[Keys.aiAutoRun] ?: false,
             aiAudioRelisten = prefs[Keys.aiAudioRelisten] ?: true,
             aiGapMinutes = (prefs[Keys.aiGapMinutes] ?: 3).coerceIn(1, 10),
@@ -87,6 +90,7 @@ class SettingsStore(private val context: Context) {
         it[Keys.transcriptionAudioQuality] = value.storedValue
     }
     suspend fun setAiProvider(value: String) = context.dataStore.edit { it[Keys.aiProvider] = value }
+    suspend fun setAiEnhanceEnabled(value: Boolean) = context.dataStore.edit { it[Keys.aiEnhanceEnabled] = value }
     suspend fun setAiAutoRun(value: Boolean) = context.dataStore.edit { it[Keys.aiAutoRun] = value }
     suspend fun setAiAudioRelisten(value: Boolean) = context.dataStore.edit { it[Keys.aiAudioRelisten] = value }
     suspend fun setAiGapMinutes(value: Int) = context.dataStore.edit { it[Keys.aiGapMinutes] = value.coerceIn(1, 10) }

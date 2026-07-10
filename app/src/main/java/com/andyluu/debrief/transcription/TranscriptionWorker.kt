@@ -65,6 +65,16 @@ class TranscriptionWorker(
                 keyterms = settings.keyterms.lines().flatMap { it.split(',') }.map(String::trim).filter(String::isNotBlank),
             )
             dao.replaceTranscript(recordingId, result.segments, result.words)
+            dao.upsertQualityReport(
+                TranscriptQualityAnalyzer.analyze(
+                    recordingId = recordingId,
+                    provider = providerName,
+                    uploadQuality = settings.transcriptionAudioQuality,
+                    audioDurationMs = recording.durationMs,
+                    segments = result.segments,
+                    words = result.words,
+                )
+            )
             dao.replaceSuspectSpans(
                 recordingId,
                 SuspectSpanDetector.detect(recordingId, result.words, recording.durationMs),
@@ -75,7 +85,7 @@ class TranscriptionWorker(
             settings.folderUri?.let { uri ->
                 DocumentFile.fromTreeUri(applicationContext, Uri.parse(uri))?.let { services.sidecars.write(it, recordingId) }
             }
-            if (settings.aiAutoRun) {
+            if (settings.aiEnhanceEnabled && settings.aiAutoRun) {
                 AiEnhanceWorker.enqueueAuto(applicationContext, recordingId, settings.allowMobileData)
             }
             Result.success()
@@ -114,7 +124,7 @@ class TranscriptionWorker(
         const val KEY_RECORDING_ID = "recording_id"
         private const val CHANNEL_ID = "debrief_transcription"
 
-        fun enqueue(context: Context, recordingId: String, allowMobileData: Boolean) {
+        fun enqueue(context: Context, recordingId: String, allowMobileData: Boolean, replaceExisting: Boolean = false) {
             val network = if (allowMobileData) NetworkType.CONNECTED else NetworkType.UNMETERED
             val request = OneTimeWorkRequestBuilder<TranscriptionWorker>()
                 .setInputData(Data.Builder().putString(KEY_RECORDING_ID, recordingId).build())
@@ -123,7 +133,7 @@ class TranscriptionWorker(
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(
                 "transcribe-$recordingId",
-                ExistingWorkPolicy.KEEP,
+                if (replaceExisting) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP,
                 request,
             )
         }

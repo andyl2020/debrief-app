@@ -74,6 +74,21 @@ interface DebriefDao {
     @Query("SELECT * FROM repair_runs ORDER BY recordingId, createdAt DESC")
     fun observeAllRepairRuns(): Flow<List<RepairRunEntity>>
 
+    @Query("SELECT * FROM transcript_quality_reports")
+    fun observeQualityReports(): Flow<List<TranscriptQualityReportEntity>>
+
+    @Query("SELECT * FROM transcript_quality_reports WHERE recordingId = :recordingId")
+    fun observeQualityReport(recordingId: String): Flow<TranscriptQualityReportEntity?>
+
+    @Query("SELECT * FROM transcript_quality_reports WHERE recordingId = :recordingId")
+    suspend fun getQualityReport(recordingId: String): TranscriptQualityReportEntity?
+
+    @Upsert
+    suspend fun upsertQualityReport(report: TranscriptQualityReportEntity)
+
+    @Query("SELECT * FROM recordings WHERE status = :status ORDER BY lastModified DESC")
+    suspend fun getRecordingsByStatus(status: RecordingStatus): List<RecordingEntity>
+
     @Query("SELECT * FROM repair_runs WHERE recordingId = :recordingId ORDER BY createdAt DESC LIMIT 1")
     suspend fun getLatestRepairRun(recordingId: String): RepairRunEntity?
 

@@ -8,9 +8,11 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 
 - Link a phone folder from the Library screen. Debrief scans MP3, M4A, WAV, and AAC files in place; it does not copy or upload them until you explicitly transcribe.
 - Press and hold recordings to enter multi-select, check the recordings you want, then tap **Transcribe**. Batch transcription is disabled until at least one eligible recording is selected.
-- Choose Deepgram or AssemblyAI in Settings and save the matching API key. Missing or invalid configuration is reported in the UI instead of crashing the app.
+- Choose AssemblyAI or Deepgram in Settings and save the matching API key. AssemblyAI is the recommended default for noisy field recordings; Deepgram remains available as a fallback. Missing or invalid configuration is reported in the UI instead of crashing the app.
 - Choose an upload-quality mode in Settings. **Original** streams the linked file unchanged and is the default for best transcription accuracy; **Balanced** creates a temporary 96 kbps mono AAC copy; **Data saver** creates a temporary 64 kbps mono AAC copy. Original recordings are never modified.
 - Deepgram uses Nova-3 diarization, punctuation, utterances, and word timestamps. Long timelines are rebuilt from complete provider word data so gaps in provider utterance grouping do not discard speech.
+- Every successful transcription stores a **Transcript Quality** report. The Library shows a compact quality chip, and the Review screen shows a dismissible card with details for suspicious outputs such as missing timestamps, large transcript gaps, early truncation, very low transcript density, and diarization issues.
+- If a recording was stuck in **Queued** because it was started while mobile data was disabled and no unmetered Wi-Fi work actually ran, Debrief re-enqueues queued transcriptions with the current network setting when the app starts or when the mobile-data toggle changes.
 
 ### Review and playback
 
@@ -21,13 +23,14 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 
 ### AI Enhance
 
-- Tap the sparkle button beside transcript reload to run **AI Enhance**. The old organize/summarize pass moved to the top-right overflow menu as **Organize Recording**.
+- AI Enhance is now an **Advanced / Experimental** tool. Enable **Settings → Advanced / Experimental → Show AI Enhance tools** to show the sparkle button, rough-spot cards, scrubber heat ticks, Cleaned view, and Enhance Selection.
+- When enabled, tap the sparkle button beside transcript reload to run **AI Enhance**. The old organize/summarize pass remains in the top-right overflow menu as **Organize Recording**.
 - Debrief flags low-confidence transcript spans locally after transcription. Rough spots appear as amber transcript cards, amber scrubber heat ticks, and a count badge on the Enhance button.
 - Auto Enhance uses Gemini as a targeted second opinion. It first asks for conservative text-only repair diffs, then optionally sends only short extracted audio clips to Gemini for re-listening. Full source recordings are never sent to Gemini.
 - Long-press a transcript card to start a selection, long-press another card to end the selection, then tap **Enhance Selection**. Selection mode is capped at 15 minutes per run and chunks audio into short clips.
 - Raw transcripts are immutable. Cleaned view is derived from versioned repair diffs and can be toggled on/off after repairs land.
 - Tap **Review** on a green repaired span to compare original vs repaired text, accept a suggested repair, revert an applied repair, and loop any saved clip at 0.75Ã—.
-- Settings includes **Send short clips to Gemini**. Turning it off keeps text repair but disables audio re-listen. **Run automatically** is off by default and, when enabled, runs AI Enhance after transcription.
+- Settings includes **Send short clips to Gemini** only while AI Enhance tools are enabled. Turning it off keeps text repair but disables audio re-listen. **Run automatically** is off by default and is ignored unless the Advanced AI Enhance toggle is enabled.
 - Library recording cards and the player show Enhance status, determinate progress, partial-failure/error copy, and resume controls.
 
 ### Chapters and Organize Recording
@@ -60,6 +63,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Split is enabled only when playback is inside a detected set and at least one second from either boundary. The final set cannot merge forward.
 - Comments are durable user data and are not removed by rerunning AI. A comment and set at the same timestamp both appear, with the set first.
 - High playback speeds preserve position but may reduce intelligibility and can expose decoder limitations in damaged or unusual audio files.
+- Transcript Quality checks are mechanical integrity checks, not a guarantee that every word is correct. A green result means no obvious missing chunks, broken timestamps, or suspicious truncation were detected.
 - Provider usage totals depend on API-key permissions and provider availability. Local usage remains visible when provider billing endpoints are unavailable.
 - AI Enhance can make plausible wrong fixes. High-confidence repairs auto-apply to Cleaned view; medium/low repairs remain suggestions until accepted. Revert any bad fix from the review dialog.
 - Audio re-listen clips are short derived cache files, not original recordings. They may be cleared by Android cache cleanup, and they are not written to sidecars.
@@ -69,6 +73,20 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.7.0 - Provider-first reliability cleanup (2026-07-10)
+
+- Made AssemblyAI the recommended default transcription provider for fresh installs, based on real noisy-field results beating Fireflies with Original upload. Existing installs keep their saved provider.
+- Kept Original upload as the default quality path and clarified Settings copy around AssemblyAI + Original for noisy field recordings.
+- Added deterministic Transcript Quality reports after successful transcription. Reports store provider, upload mode, audio duration, transcript coverage, segment/word/speaker counts, words per minute, warnings, and recommended action.
+- Added Library quality chips: **Quality good**, **Check transcript**, and **Possible issue**.
+- Added a dismissible Review-screen quality card and details dialog for warnings such as large timestamp gaps, invalid/missing timestamps, low transcript density, early truncation, missing word timings, one-speaker diarization, and low provider confidence when available.
+- Demoted AI Enhance to **Advanced / Experimental**. Its UI is hidden by default, but the v1.6.0 database tables and code paths remain for upgrade safety and optional use.
+- Preserved the shipped AI Enhance state in Git branch `archive/ai-enhance-v1.6.0`.
+- Fixed stale queued transcriptions by re-enqueuing `QUEUED` recordings with current network constraints when the app starts and when the mobile-data toggle changes. Explicit transcription queueing now replaces stale unique WorkManager jobs.
+- Added unit coverage for Transcript Quality analysis, including a regression for a large missing transcript gap.
+- Verification: unit tests, debug lint/build, release lint/R8, production signing, ARM64/x86-64 16 KB native alignment, Android 11 instrumentation, Android 15 PS16K instrumentation, and signed v1.6.0 -> v1.7.0 upgrades passed.
+- APK: 9,069,287 bytes; SHA-256 `D54F7117E7898440C6851DFB94865D86A1A988176B77BE09F4A2779344F21F98`.
 
 ### v1.6.0 - AI Enhance clarity release (2026-07-09)
 

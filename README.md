@@ -1,6 +1,6 @@
 # Debrief
 
-Debrief is a local-first Android app for reviewing long field recordings. It links to a folder on the phone, transcribes recordings with speaker labels and word timestamps, and provides synced playback, AI Enhance repair diffs, AI-assisted conversation chapters, full-text search, timestamped comments, speaker naming, Markdown export, and reinstall-safe JSON sidecars.
+Debrief is a local-first Android app for reviewing long field recordings. It links to a folder on the phone, transcribes recordings with speaker labels and word timestamps, and provides synced playback, Transcript Quality reports, AI-assisted conversation chapters, full-text search, timestamped comments, speaker naming, optional AI Enhance repair diffs, Markdown export, and reinstall-safe JSON sidecars.
 
 ## What works
 
@@ -8,12 +8,12 @@ Debrief is a local-first Android app for reviewing long field recordings. It lin
 - MP3, M4A, WAV, and AAC library with new/queued/transcribing/ready/failed states
 - WorkManager transcription queue with unmetered Wi-Fi by default and automatic retry
 - Long-press multi-select with explicit checkbox-based batch transcription
+- AssemblyAI transcription is the recommended default for noisy field recordings, with Deepgram Nova-3 still available as a fallback
 - Selectable transcription upload quality: unchanged original audio by default, balanced 96 kbps mono AAC, or 64 kbps data saver
-- Deepgram Nova-3 batch transcription with the latest batch diarizer, utterances, punctuation, keyterms, and word timestamps
-- Pluggable AssemblyAI fallback using upload, submit, and polling APIs
+- Transcript Quality reports that flag suspicious outputs such as missing timestamps, large transcript gaps, truncation, low density, and diarization issues
 - Per-key local usage tracking plus Deepgram provider usage, spend, and balance when the key has read scopes
 - Gemini, OpenAI-compatible, or Claude post-transcription AI pass for conversation sets, summaries, speaker suggestions, and intelligent physical rename with undo
-- AI Enhance with low-confidence rough-spot detection, conservative Gemini text repair, optional short-clip audio re-listen, selection enhancement, versioned repair runs, Cleaned view, and accept/revert review
+- Optional Advanced/Experimental AI Enhance with low-confidence rough-spot detection, conservative Gemini text repair, optional short-clip audio re-listen, selection enhancement, versioned repair runs, Cleaned view, and accept/revert review
 - Per-recording AI privacy skip, automatic/re-run controls, configurable silence gap, manual set merge/split, and local per-key AI usage
 - Side-opening Chapters table of contents combining AI-detected conversation sets and timestamped comments, with tap-to-jump navigation
 - Media3 playback with immediate 1×/1.2×/1.5×/2×/3×/4× speed control, saved position, transcript follow/highlight, tap-to-seek, and transcript reload
@@ -50,7 +50,7 @@ Signing material and local tooling are ignored by Git.
 
 ## Install
 
-Download the latest APK from GitHub Releases, allow your browser to install unknown apps if Android asks, and open the downloaded APK. On first launch, link the folder containing recordings and save the Deepgram key in Settings. Add a Gemini key under AI Enhance to enable transcript repair and optional short-clip re-listening.
+Download the latest APK from GitHub Releases, allow your browser to install unknown apps if Android asks, and open the downloaded APK. On first launch, link the folder containing recordings and save the AssemblyAI key in Settings for the recommended noisy-field transcription path. Deepgram remains available as a fallback. Add a Gemini key only if you want optional AI tools such as Organize Recording or Advanced/Experimental AI Enhance.
 
 GitHub-hosted APKs are sideloaded rather than installed through Google Play, so Play Protect may show an unknown-developer warning. Only continue when the APK came from this repository's release page.
 

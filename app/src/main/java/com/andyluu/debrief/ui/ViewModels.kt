@@ -23,6 +23,7 @@ import com.andyluu.debrief.data.SpeakerAliasEntity
 import com.andyluu.debrief.data.SpeakerSuggestionEntity
 import com.andyluu.debrief.data.SuspectSpanEntity
 import com.andyluu.debrief.data.LocalApiUsage
+import com.andyluu.debrief.data.TranscriptQualityReportEntity
 import com.andyluu.debrief.data.TranscriptSegmentEntity
 import com.andyluu.debrief.data.TranscriptionAudioQuality
 import com.andyluu.debrief.transcription.TranscriptionWorker
@@ -61,6 +62,7 @@ data class ReviewState(
     val suspectSpans: List<SuspectSpanEntity> = emptyList(),
     val repairRun: RepairRunEntity? = null,
     val repairs: List<RepairEntity> = emptyList(),
+    val qualityReport: TranscriptQualityReportEntity? = null,
 )
 
 data class UsageUiState(
@@ -91,6 +93,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val repairRuns: StateFlow<List<RepairRunEntity>> = dao.observeAllRepairRuns()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val qualityReports: StateFlow<List<TranscriptQualityReportEntity>> = dao.observeQualityReports()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     private val _usage = MutableStateFlow(UsageUiState())
     val usage = _usage.asStateFlow()
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
@@ -105,6 +109,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         _messages.emit(userMessage("Couldn't refresh the recordings folder.", it))
                     }
             }
+        }
+        viewModelScope.launch {
+            recoverQueuedTranscriptions()
         }
     }
 
@@ -147,7 +154,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             eligible.forEach { recording ->
                 try {
                     dao.updateStatus(recording.id, RecordingStatus.QUEUED)
-                    TranscriptionWorker.enqueue(app, recording.id, settings.value.allowMobileData)
+                    TranscriptionWorker.enqueue(app, recording.id, settings.value.allowMobileData, replaceExisting = true)
                 } catch (error: Throwable) {
                     dao.updateStatus(recording.id, RecordingStatus.FAILED, "Could not queue transcription")
                     throw error
@@ -191,7 +198,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val key = services.secrets.get(secretName) ?: return null
         return services.usage.get("ai_" + provider, key)
     }
-    fun setMobileData(value: Boolean) = launchHandled("Couldn't update mobile-data settings.") { services.settings.setAllowMobileData(value) }
+    fun setMobileData(value: Boolean) = launchHandled("Couldn't update mobile-data settings.") {
+        services.settings.setAllowMobileData(value)
+        recoverQueuedTranscriptions()
+    }
     fun setKeyterms(value: String) = launchHandled("Couldn't save keyterms.") {
         services.settings.setKeyterms(value)
         _messages.emit("Keyterms saved.")
@@ -205,6 +215,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _messages.emit("Transcription audio quality set to ${audioQualityLabel(value)}.")
     }
     fun setAiProvider(value: String) = launchHandled("Couldn't change AI provider.") { services.settings.setAiProvider(value) }
+    fun setAiEnhanceEnabled(value: Boolean) = launchHandled("Couldn't update AI Enhance visibility.") {
+        services.settings.setAiEnhanceEnabled(value)
+        _messages.emit(if (value) "AI Enhance tools enabled." else "AI Enhance tools hidden.")
+    }
     fun setAiAutoRun(value: Boolean) = launchHandled("Couldn't update automatic AI settings.") { services.settings.setAiAutoRun(value) }
     fun setAiAudioRelisten(value: Boolean) = launchHandled("Couldn't update audio re-listen settings.") { services.settings.setAiAudioRelisten(value) }
     fun setAiGapMinutes(value: Int) = launchHandled("Couldn't update the silence gap.") { services.settings.setAiGapMinutes(value) }
@@ -275,6 +289,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _messages.emit(userMessage(fallback, error))
         }
     }
+
+    private suspend fun recoverQueuedTranscriptions() {
+        val settings = services.settings.settings.first()
+        val queued = dao.getRecordingsByStatus(RecordingStatus.QUEUED)
+        queued.forEach { recording ->
+            TranscriptionWorker.enqueue(app, recording.id, settings.allowMobileData, replaceExisting = true)
+        }
+        if (queued.isNotEmpty()) {
+            _messages.emit(
+                queued.size.toString() + " queued " +
+                    if (queued.size == 1) "recording was recovered." else "recordings were recovered."
+            )
+        }
+    }
 }
 
 class ReviewViewModel(
@@ -284,6 +312,8 @@ class ReviewViewModel(
     private val app = application as DebriefApplication
     private val services = app.services
     private val dao = services.database.dao()
+    val settings: StateFlow<AppSettings> = services.settings.settings
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
     private val _reloadVersion = MutableStateFlow(0)
     val reloadVersion = _reloadVersion.asStateFlow()
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
@@ -326,7 +356,8 @@ class ReviewViewModel(
         dao.observeConversationSets(recordingId),
         dao.observeSpeakerSuggestions(recordingId),
         enhanceState,
-    ) { core, sets, suggestions, enhance ->
+        dao.observeQualityReport(recordingId),
+    ) { core, sets, suggestions, enhance, qualityReport ->
         ReviewState(
             core.recording,
             core.segments,
@@ -338,6 +369,7 @@ class ReviewViewModel(
             enhance.suspectSpans,
             enhance.repairRun,
             enhance.repairs,
+            qualityReport,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReviewState())
 

@@ -21,6 +21,8 @@ class Converters {
     @TypeConverter fun toRepairRunStatus(value: String): RepairRunStatus = RepairRunStatus.valueOf(value)
     @TypeConverter fun fromRepairRunMode(value: RepairRunMode): String = value.name
     @TypeConverter fun toRepairRunMode(value: String): RepairRunMode = RepairRunMode.valueOf(value)
+    @TypeConverter fun fromTranscriptQualityStatus(value: TranscriptQualityStatus): String = value.name
+    @TypeConverter fun toTranscriptQualityStatus(value: String): TranscriptQualityStatus = TranscriptQualityStatus.valueOf(value)
 }
 
 @Database(
@@ -36,8 +38,9 @@ class Converters {
         SuspectSpanEntity::class,
         RepairRunEntity::class,
         RepairEntity::class,
+        TranscriptQualityReportEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -61,7 +64,7 @@ abstract class DebriefDatabase : RoomDatabase() {
                 DebriefDatabase::class.java,
                 "debrief.db",
             ).openHelperFactory(SupportOpenHelperFactory(passphrase, null, false))
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .addCallback(object : Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
@@ -199,6 +202,33 @@ abstract class DebriefDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_repairs_runId` ON `repairs` (`runId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_repairs_recordingId` ON `repairs` (`recordingId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_repairs_recordingId_startMs` ON `repairs` (`recordingId`, `startMs`)")
+            }
+        }
+
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `transcript_quality_reports` (
+                        `recordingId` TEXT NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `provider` TEXT NOT NULL,
+                        `uploadMode` TEXT NOT NULL,
+                        `audioDurationMs` INTEGER NOT NULL,
+                        `transcriptStartMs` INTEGER,
+                        `transcriptEndMs` INTEGER,
+                        `segmentCount` INTEGER NOT NULL,
+                        `wordCount` INTEGER NOT NULL,
+                        `speakerCount` INTEGER NOT NULL,
+                        `wordsPerMinute` REAL NOT NULL,
+                        `warningCount` INTEGER NOT NULL,
+                        `warningsText` TEXT NOT NULL,
+                        `recommendation` TEXT NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`recordingId`),
+                        FOREIGN KEY(`recordingId`) REFERENCES `recordings`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )""".trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transcript_quality_reports_recordingId` ON `transcript_quality_reports` (`recordingId`)")
             }
         }
     }
