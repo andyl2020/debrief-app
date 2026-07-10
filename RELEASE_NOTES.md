@@ -81,8 +81,8 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Added repair review: original vs repaired text, source, confidence, reason, accept/revert, and 0.75Ã— clip loop playback when a clip exists.
 - Added Settings controls for manual-first auto-run and whether short audio clips may be sent to Gemini.
 - Added local validation gates for model diffs: edit-only output, word-ratio bounds, supported proper nouns, confidence handling, and `[inaudible]` fallback.
-- Verification: pending final signed build checks.
-- APK: pending; SHA-256 pending.
+- Verification: unit tests, debug lint, debug build, release lint/R8, production signing, ARM64/x86-64 16 KB native alignment, Android 11 instrumentation, Android 15 PS16K instrumentation, and signed v1.5.0 -> v1.6.0 upgrades passed.
+- APK: 9,039,347 bytes; SHA-256 `C68C007DFED7B19E0378CFD2C2EE4ADE5BE7B7562EE996F79E84640B4A301548`.
 
 ### v1.5.0 — Original-quality transcription uploads (2026-07-08)
 
