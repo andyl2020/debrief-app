@@ -17,6 +17,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 ### Review and playback
 
 - Tap a recording to open its synchronized transcript. Tap any transcript segment, search result, chapter, or comment chapter to seek to that time.
+- Tap the circular skip buttons beside Play/Pause to jump backward or forward. The default is **-5 seconds** and **+5 seconds**; long-press either skip button to cycle the interval through **1 second**, **3 seconds**, and **5 seconds**.
 - Tap the speed label beside Play/Pause to choose **1×, 1.2×, 1.5×, 2×, 3×, or 4×**. Changes take effect during playback without restarting or losing position.
 - Use the refresh icon beside search to reload transcript state and recover a saved sidecar when local transcript rows are absent.
 - Search within a recording from the review search field, or search all recordings from the Library search action.

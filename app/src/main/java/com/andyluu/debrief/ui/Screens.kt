@@ -39,7 +39,9 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Forward5
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Replay5
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -841,6 +843,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
     var duration by remember { mutableLongStateOf(1) }
     var playing by remember { mutableStateOf(false) }
     var playbackSpeed by rememberSaveable { mutableFloatStateOf(1f) }
+    var skipIntervalMs by rememberSaveable { mutableLongStateOf(DEFAULT_PLAYBACK_SKIP_MS) }
     var follow by remember { mutableStateOf(true) }
     var query by remember { mutableStateOf("") }
     var localResults by remember { mutableStateOf(emptyList<SearchHit>()) }
@@ -908,6 +911,16 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
     LaunchedEffect(query) {
         delay(250)
         localResults = if (query.isBlank()) emptyList() else viewModel.search(query)
+    }
+    fun seekBy(deltaMs: Long) {
+        val target = (position + deltaMs).coerceIn(0L, duration.coerceAtLeast(1L))
+        position = target
+        player?.seekTo(target)
+        follow = true
+    }
+    fun cycleSkipInterval() {
+        skipIntervalMs = nextPlaybackSkipInterval(skipIntervalMs)
+        scope.launch { snackbar.showSnackbar("Skip interval: ${formatPlaybackSkipInterval(skipIntervalMs)}") }
     }
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -1006,9 +1019,21 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                                 .onFailure { scope.launch { snackbar.showSnackbar("Couldn't change playback speed.") } }
                         },
                     )
+                    PlaybackSkipButton(
+                        forward = false,
+                        intervalMs = skipIntervalMs,
+                        onClick = { seekBy(-skipIntervalMs) },
+                        onLongClick = { cycleSkipInterval() },
+                    )
                     IconButton(onClick = { player?.let { if (it.isPlaying) it.pause() else it.play() } }) {
                         Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, if (playing) "Pause" else "Play", Modifier.size(36.dp))
                     }
+                    PlaybackSkipButton(
+                        forward = true,
+                        intervalMs = skipIntervalMs,
+                        onClick = { seekBy(skipIntervalMs) },
+                        onLongClick = { cycleSkipInterval() },
+                    )
                     Spacer(Modifier.weight(1f))
                     Text(formatTimestamp(duration), style = MaterialTheme.typography.labelMedium)
                 }
@@ -1170,6 +1195,8 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
 }
 
 internal val PLAYBACK_SPEED_OPTIONS = listOf(1f, 1.2f, 1.5f, 2f, 3f, 4f)
+internal val PLAYBACK_SKIP_INTERVALS_MS = listOf(5_000L, 1_000L, 3_000L)
+internal const val DEFAULT_PLAYBACK_SKIP_MS = 5_000L
 
 internal fun formatPlaybackSpeed(speed: Float): String = when (speed) {
     1f -> "1×"
@@ -1179,6 +1206,53 @@ internal fun formatPlaybackSpeed(speed: Float): String = when (speed) {
     3f -> "3×"
     4f -> "4×"
     else -> "${speed}×"
+}
+
+internal fun nextPlaybackSkipInterval(currentMs: Long): Long {
+    val index = PLAYBACK_SKIP_INTERVALS_MS.indexOf(currentMs)
+    return PLAYBACK_SKIP_INTERVALS_MS[(index + 1).floorMod(PLAYBACK_SKIP_INTERVALS_MS.size)]
+}
+
+internal fun formatPlaybackSkipInterval(milliseconds: Long): String {
+    val seconds = (milliseconds / 1_000).coerceAtLeast(1)
+    return "$seconds " + if (seconds == 1L) "second" else "seconds"
+}
+
+private fun skipIntervalNumber(milliseconds: Long): String = ((milliseconds / 1_000).coerceAtLeast(1)).toString()
+
+private fun Int.floorMod(other: Int): Int = ((this % other) + other) % other
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun PlaybackSkipButton(
+    forward: Boolean,
+    intervalMs: Long,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    val label = formatPlaybackSkipInterval(intervalMs)
+    val direction = if (forward) "forward" else "back"
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .semantics { contentDescription = "Skip $direction $label. Long press to change skip interval." },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = if (forward) Icons.Default.Forward5 else Icons.Default.Replay5,
+            contentDescription = null,
+            modifier = Modifier.size(34.dp),
+        )
+        Text(
+            skipIntervalNumber(intervalMs),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(99.dp))
+                .padding(horizontal = 2.dp),
+        )
+    }
 }
 
 @Composable

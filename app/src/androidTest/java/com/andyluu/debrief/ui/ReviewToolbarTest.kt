@@ -1,5 +1,6 @@
 package com.andyluu.debrief.ui
 
+import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsDisplayed
@@ -8,6 +9,8 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.longClick
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -102,5 +105,40 @@ class ReviewToolbarTest {
         compose.onNodeWithText("3×").performClick()
 
         compose.runOnIdle { assertEquals(3f, selectedSpeed) }
+    }
+
+    @Test
+    fun playbackSkipButtonsTapAndLongPress() {
+        var backClicks = 0
+        var forwardClicks = 0
+        var interval = DEFAULT_PLAYBACK_SKIP_MS
+        compose.setContent {
+            DebriefTheme {
+                Row {
+                    PlaybackSkipButton(
+                        forward = false,
+                        intervalMs = interval,
+                        onClick = { backClicks++ },
+                        onLongClick = { interval = nextPlaybackSkipInterval(interval) },
+                    )
+                    PlaybackSkipButton(
+                        forward = true,
+                        intervalMs = interval,
+                        onClick = { forwardClicks++ },
+                        onLongClick = { interval = nextPlaybackSkipInterval(interval) },
+                    )
+                }
+            }
+        }
+
+        compose.onNodeWithContentDescription("Skip back 5 seconds. Long press to change skip interval.").performClick()
+        compose.onNodeWithContentDescription("Skip forward 5 seconds. Long press to change skip interval.").performClick()
+        compose.onNodeWithContentDescription("Skip forward 5 seconds. Long press to change skip interval.").performTouchInput { longClick() }
+
+        compose.runOnIdle {
+            assertEquals(1, backClicks)
+            assertEquals(1, forwardClicks)
+            assertEquals(1_000L, interval)
+        }
     }
 }
