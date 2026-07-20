@@ -41,7 +41,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Manual set markers work like durable comments: **Set start** creates an open colored region, **Set end** closes it, and the next set uses the next alternating color. Transcript cards inside a set and the set entry in Chapters share the same color.
 - Tap any entry to seek to its timestamp and close the drawer. The set containing the current playback position is highlighted.
 - The drawer is the canonical place for sets. The old expandable Library set list and large in-transcript set panel were removed to avoid duplicate, inconsistent navigation.
-- Use **Merge with next** on a set or **Split active set** at the current playback position to correct manual boundaries.
+- Use **Edit** on a set to change its title, start time, or end time. Use **Delete** to remove the marker without deleting audio, transcript text, or comments. Use **Merge next** on a set or **Split active set** at the current playback position to correct manual boundaries.
 - The compact **AI analysis** card in Chapters shows status, summary, errors, speaker-name suggestions, Skip AI state, and recording-rename undo. Use **Organize Recording** in the player overflow menu to run or rerun this dormant organize pass. Organize Recording no longer creates or overwrites sets.
 - Supported AI providers are Gemini, OpenAI-compatible endpoints, and Claude/Anthropic. The transcript text—not audio—is sent to the selected AI provider.
 
@@ -77,6 +77,15 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.7.2 - Manual set CRUD (2026-07-20)
+
+- Added full manual set update/delete support from Chapters.
+- Set rows now expose **Edit** and **Delete** actions.
+- Edit supports title, start time, and end time changes using `m:ss` or `h:mm:ss` timestamp input. Leaving end time blank keeps a set open.
+- Delete removes only the set marker; transcript text, comments, and audio remain untouched.
+- New manually created sets avoid reusing deleted `Set N` names.
+- Added test coverage for set edit/delete actions, timestamp parsing, and set numbering.
 
 ### v1.7.1 - Manual set markers and player polish (2026-07-19)
 

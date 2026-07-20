@@ -14,6 +14,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -121,6 +123,8 @@ internal fun ChaptersDrawerContent(
     onUndoRename: () -> Unit,
     onConfirmSuggestion: (SpeakerSuggestionEntity) -> Unit,
     onSeek: (Long) -> Unit,
+    onEditSet: (ConversationSetEntity) -> Unit,
+    onDeleteSet: (ConversationSetEntity) -> Unit,
     onMerge: (String) -> Unit,
     onSplit: (String, Long) -> Unit,
 ) {
@@ -186,6 +190,8 @@ internal fun ChaptersDrawerContent(
                     active = set?.id == activeSet?.id,
                     canMerge = set != null && setIndex in 0 until sets.lastIndex,
                     onSeek = onSeek,
+                    onEditSet = { set?.let(onEditSet) },
+                    onDeleteSet = { set?.let(onDeleteSet) },
                     onMerge = { set?.let { onMerge(it.id) } },
                 )
             }
@@ -267,6 +273,8 @@ private fun ChapterEntryCard(
     active: Boolean,
     canMerge: Boolean,
     onSeek: (Long) -> Unit,
+    onEditSet: () -> Unit,
+    onDeleteSet: () -> Unit,
     onMerge: () -> Unit,
 ) {
     val entryLabel = if (entry.type == ChapterEntryType.SET) "set" else "comment"
@@ -309,7 +317,31 @@ private fun ChapterEntryCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (canMerge) TextButton(onClick = onMerge) { Text("Merge with next") }
+            if (entry.type == ChapterEntryType.SET) {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(
+                        onClick = onEditSet,
+                        modifier = Modifier.semantics { contentDescription = "Edit set ${entry.title}" },
+                    ) {
+                        Icon(Icons.Default.Edit, null)
+                        Spacer(Modifier.width(4.dp))
+                        Text("Edit")
+                    }
+                    TextButton(
+                        onClick = onDeleteSet,
+                        modifier = Modifier.semantics { contentDescription = "Delete set ${entry.title}" },
+                    ) {
+                        Icon(Icons.Default.Delete, null)
+                        Spacer(Modifier.width(4.dp))
+                        Text("Delete")
+                    }
+                    if (canMerge) TextButton(onClick = onMerge) { Text("Merge next") }
+                }
+            }
         }
     }
 }

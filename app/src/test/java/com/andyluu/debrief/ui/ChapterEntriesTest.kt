@@ -17,6 +17,26 @@ class ChapterEntriesTest {
         assertEquals("Set 1", entries.last().title)
     }
 
+    @Test
+    fun timestampInputSupportsReviewTimeFormats() {
+        assertEquals(83_000L, parseTimestampInput("1:23"))
+        assertEquals(3_723_000L, parseTimestampInput("1:02:03"))
+        assertEquals(45_000L, parseTimestampInput("45"))
+        assertEquals(null, parseTimestampInput("1:99"))
+        assertEquals(null, parseTimestampInput("1:02:99"))
+        assertEquals(null, parseTimestampInput("bad"))
+    }
+
+    @Test
+    fun nextSetNumberAvoidsReusingDeletedSetNames() {
+        val sets = listOf(
+            set("one", 1_000, "Set 1"),
+            set("three", 3_000, "Set 3"),
+        )
+
+        assertEquals(4, nextManualSetNumber(sets))
+    }
+
     private fun set(id: String, startMs: Long, title: String) = ConversationSetEntity(
         id = id,
         recordingId = "recording",

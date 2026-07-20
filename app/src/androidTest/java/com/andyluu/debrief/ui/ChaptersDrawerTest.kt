@@ -49,6 +49,8 @@ class ChaptersDrawerTest {
                     onUndoRename = {},
                     onConfirmSuggestion = {},
                     onSeek = { soughtTo = it },
+                    onEditSet = {},
+                    onDeleteSet = {},
                     onMerge = {},
                     onSplit = { _, _ -> },
                 )
@@ -62,5 +64,50 @@ class ChaptersDrawerTest {
 
         compose.onNodeWithContentDescription("Go to comment at 0:05").performClick()
         compose.runOnIdle { assertEquals(5_000L, soughtTo) }
+    }
+
+    @Test
+    fun setRowsExposeEditAndDeleteActions() {
+        var edited: ConversationSetEntity? = null
+        var deleted: ConversationSetEntity? = null
+        val set = ConversationSetEntity(
+            id = "set-1",
+            recordingId = "recording",
+            orderIndex = 0,
+            startMs = 2_000,
+            endMs = 8_000,
+            title = "Introductions",
+        )
+
+        compose.setContent {
+            DebriefTheme {
+                ChaptersDrawerContent(
+                    recording = null,
+                    ai = null,
+                    sets = listOf(set),
+                    comments = emptyList(),
+                    suggestions = emptyList(),
+                    aliases = emptyMap(),
+                    positionMs = 3_000,
+                    onClose = {},
+                    onSkip = {},
+                    onUndoRename = {},
+                    onConfirmSuggestion = {},
+                    onSeek = {},
+                    onEditSet = { edited = it },
+                    onDeleteSet = { deleted = it },
+                    onMerge = {},
+                    onSplit = { _, _ -> },
+                )
+            }
+        }
+
+        compose.onNodeWithContentDescription("Edit set Introductions").performClick()
+        compose.onNodeWithContentDescription("Delete set Introductions").performClick()
+
+        compose.runOnIdle {
+            assertEquals(set, edited)
+            assertEquals(set, deleted)
+        }
     }
 }

@@ -859,6 +859,8 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
     var addComment by remember { mutableStateOf(false) }
     var showSetControls by rememberSaveable { mutableStateOf(false) }
     var editingComment by remember { mutableStateOf<CommentEntity?>(null) }
+    var editingSet by remember { mutableStateOf<ConversationSetEntity?>(null) }
+    var deletingSet by remember { mutableStateOf<ConversationSetEntity?>(null) }
     var renamingSpeaker by remember { mutableStateOf<String?>(null) }
     var overflowExpanded by remember { mutableStateOf(false) }
     var cleanedView by rememberSaveable { mutableStateOf(false) }
@@ -958,6 +960,8 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                         follow = true
                         scope.launch { drawerState.close() }
                     },
+                    onEditSet = { editingSet = it },
+                    onDeleteSet = { deletingSet = it },
                     onMerge = viewModel::mergeWithNext,
                     onSplit = viewModel::splitSet,
                 )
@@ -1194,6 +1198,32 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
         TextEntryDialog("Edit comment", "Save", initial = comment.text, onDismiss = { editingComment = null }) {
             viewModel.editComment(comment, it); editingComment = null
         }
+    }
+    editingSet?.let { set ->
+        SetEditDialog(
+            set = set,
+            onDismiss = { editingSet = null },
+            onConfirm = { title, startMs, endMs ->
+                viewModel.editSet(set.id, title, startMs, endMs)
+                editingSet = null
+            },
+        )
+    }
+    deletingSet?.let { set ->
+        AlertDialog(
+            onDismissRequest = { deletingSet = null },
+            title = { Text("Delete ${set.title}?") },
+            text = { Text("This removes the set marker only. Transcript text, comments, and audio are not deleted.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteSet(set.id)
+                        deletingSet = null
+                    },
+                ) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { deletingSet = null }) { Text("Cancel") } },
+        )
     }
     renamingSpeaker?.let { id ->
         TextEntryDialog("Rename $id", "Apply", initial = state.aliases[id].orEmpty(), onDismiss = { renamingSpeaker = null }) {
@@ -1779,6 +1809,73 @@ private fun TextEntryDialog(
         title = { Text(title) },
         text = { OutlinedTextField(value, { value = it }, modifier = Modifier.fillMaxWidth(), minLines = 2) },
         confirmButton = { TextButton(onClick = { onConfirm(value) }, enabled = value.isNotBlank()) { Text(confirm) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@Composable
+private fun SetEditDialog(
+    set: ConversationSetEntity,
+    onDismiss: () -> Unit,
+    onConfirm: (String, Long, Long?) -> Unit,
+) {
+    var title by remember(set.id) { mutableStateOf(set.title) }
+    var start by remember(set.id) { mutableStateOf(formatTimestamp(set.startMs)) }
+    var end by remember(set.id) { mutableStateOf(if (set.isOpenManualSet()) "" else formatTimestamp(set.endMs)) }
+    var error by remember(set.id) { mutableStateOf<String?>(null) }
+    val parsedStart = parseTimestampInput(start)
+    val parsedEnd = end.trim().takeIf(String::isNotBlank)?.let(::parseTimestampInput)
+    val valid = title.isNotBlank() && parsedStart != null && (end.isBlank() || parsedEnd != null)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit ${set.title}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Set title") },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = start,
+                    onValueChange = { start = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Start time") },
+                    supportingText = { Text("Use m:ss or h:mm:ss") },
+                    singleLine = true,
+                    isError = start.isNotBlank() && parsedStart == null,
+                )
+                OutlinedTextField(
+                    value = end,
+                    onValueChange = { end = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("End time") },
+                    supportingText = { Text("Leave blank to keep the set open") },
+                    singleLine = true,
+                    isError = end.isNotBlank() && parsedEnd == null,
+                )
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val startMs = parsedStart
+                    val endMs = end.trim().takeIf(String::isNotBlank)?.let(::parseTimestampInput)
+                    if (startMs == null || (end.isNotBlank() && endMs == null)) {
+                        error = "Enter valid timestamps."
+                    } else if (endMs != null && endMs <= startMs) {
+                        error = "End time must be after start time."
+                    } else {
+                        onConfirm(title, startMs, endMs)
+                    }
+                },
+                enabled = valid,
+            ) { Text("Save") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }

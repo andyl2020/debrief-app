@@ -433,7 +433,7 @@ class ReviewViewModel(
             return@launchHandled
         }
         val start = timestampMs.coerceAtLeast(0L)
-        val setNumber = sets.size + 1
+        val setNumber = nextManualSetNumber(sets)
         val set = ConversationSetEntity(
             id = UUID.randomUUID().toString(),
             recordingId = recordingId,
@@ -465,6 +465,60 @@ class ReviewViewModel(
         val updated = openSet.copy(endMs = end, summary = "", speakerIds = speakerIds)
         persistSets(sets.mapIndexed { index, set -> if (index == openIndex) updated else set })
         _messages.emit("${openSet.title} ended at ${formatTimestamp(end)}.")
+    }
+
+    fun editSet(setId: String, title: String, startMs: Long, endMs: Long?) = launchHandled("Couldn't update the set.") {
+        val trimmedTitle = title.trim()
+        if (trimmedTitle.isBlank()) {
+            _messages.emit("Set title can't be empty.")
+            return@launchHandled
+        }
+        val start = startMs.coerceAtLeast(0L)
+        val end = endMs ?: start
+        if (endMs != null && end <= start) {
+            _messages.emit("Set end must be after set start.")
+            return@launchHandled
+        }
+        val sets = dao.getConversationSets(recordingId)
+        val index = sets.indexOfFirst { it.id == setId }
+        if (index < 0) {
+            _messages.emit("Set no longer exists.")
+            return@launchHandled
+        }
+        val otherOpenSet = sets.any { it.id != setId && it.isOpenManualSet() }
+        if (endMs == null && otherOpenSet) {
+            _messages.emit("End the current open set before making another set open.")
+            return@launchHandled
+        }
+        val speakerIds = if (endMs == null) {
+            ""
+        } else {
+            dao.getSegments(recordingId)
+                .filter { it.endMs >= start && it.startMs <= end }
+                .map { it.speakerId }
+                .distinct()
+                .joinToString("|")
+        }
+        val updated = sets[index].copy(
+            startMs = start,
+            endMs = end,
+            title = trimmedTitle,
+            summary = if (endMs == null) "Manual set" else sets[index].summary,
+            speakerIds = speakerIds,
+        )
+        persistSets(sets.mapIndexed { setIndex, set -> if (setIndex == index) updated else set }.sortedBy { it.startMs })
+        _messages.emit("Set updated.")
+    }
+
+    fun deleteSet(setId: String) = launchHandled("Couldn't delete the set.") {
+        val sets = dao.getConversationSets(recordingId)
+        val target = sets.firstOrNull { it.id == setId }
+        if (target == null) {
+            _messages.emit("Set no longer exists.")
+            return@launchHandled
+        }
+        persistSets(sets.filterNot { it.id == setId })
+        _messages.emit("${target.title} deleted.")
     }
 
     fun renameSpeaker(speakerId: String, displayName: String) = launchHandled("Couldn't rename the speaker.") {
