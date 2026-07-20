@@ -37,14 +37,35 @@ class ChapterEntriesTest {
         assertEquals(4, nextManualSetNumber(sets))
     }
 
-    private fun set(id: String, startMs: Long, title: String) = ConversationSetEntity(
+    @Test
+    fun openSetDoesNotAutofillTranscriptRange() {
+        val open = openSet("open", 10_000, "Set 1")
+
+        assertEquals(false, open.overlapsRange(10_000, 20_000))
+        assertEquals(false, open.containsPosition(15_000))
+    }
+
+    @Test
+    fun closedSetCoversOnlyExplicitStartToEndRange() {
+        val closed = set("closed", 10_000, "Set 1", endMs = 20_000)
+
+        assertEquals(false, closed.overlapsRange(1_000, 9_999))
+        assertEquals(true, closed.overlapsRange(12_000, 14_000))
+        assertEquals(false, closed.overlapsRange(20_001, 30_000))
+        assertEquals(true, closed.containsPosition(15_000))
+        assertEquals(false, closed.containsPosition(25_000))
+    }
+
+    private fun set(id: String, startMs: Long, title: String, endMs: Long = startMs + 1_000) = ConversationSetEntity(
         id = id,
         recordingId = "recording",
         orderIndex = 0,
         startMs = startMs,
-        endMs = startMs + 1_000,
+        endMs = endMs,
         title = title,
     )
+
+    private fun openSet(id: String, startMs: Long, title: String) = set(id, startMs, title, endMs = startMs)
 
     private fun comment(id: String, timestampMs: Long) = CommentEntity(
         id = id,

@@ -1156,7 +1156,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                         val comments = commentsForSegment(state.comments, state.segments, index, duration)
                         val segmentRepairs = state.repairs.overlappingRepairs(segment.startMs, segment.endMs)
                         val segmentSuspects = state.suspectSpans.overlappingSuspects(segment.startMs, segment.endMs).filterNot { it.resolved }
-                        val segmentSet = state.sets.lastOrNull { it.overlapsRange(segment.startMs, segment.endMs, duration) }
+                        val segmentSet = state.sets.lastOrNull { it.overlapsRange(segment.startMs, segment.endMs) }
                         SegmentCard(
                             speaker = state.aliases[segment.speakerId] ?: segment.speakerId,
                             timestamp = segment.startMs,

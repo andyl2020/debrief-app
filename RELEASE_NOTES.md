@@ -38,8 +38,8 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 
 - Tap the **Chapters** list icon beside Add Comment. A drawer opens from the side with manual conversation sets and comments merged into one chronological table of contents.
 - Tap Add Comment for a normal timestamped comment. Long-press Add Comment to reveal **Set start** and **Set end** actions for the current playback position.
-- Manual set markers work like durable comments: **Set start** creates an open colored region, **Set end** closes it, and the next set uses the next alternating color. Transcript cards inside a set and the set entry in Chapters share the same color.
-- Tap any entry to seek to its timestamp and close the drawer. The set containing the current playback position is highlighted.
+- Manual set markers work like durable comments: **Set start** creates an open marker in Chapters, **Set end** closes the explicit range, and the next set uses the next alternating color. Transcript cards are colored only inside a closed start-to-end set range; blank gaps outside closed sets stay blank.
+- Tap any entry to seek to its timestamp and close the drawer. A closed set containing the current playback position is highlighted.
 - The drawer is the canonical place for sets. The old expandable Library set list and large in-transcript set panel were removed to avoid duplicate, inconsistent navigation.
 - Use **Edit** on a set to change its title, start time, or end time. Use **Delete** to remove the marker without deleting audio, transcript text, or comments. Use **Merge next** on a set or **Split active set** at the current playback position to correct manual boundaries.
 - The compact **AI analysis** card in Chapters shows status, summary, errors, speaker-name suggestions, Skip AI state, and recording-rename undo. Use **Organize Recording** in the player overflow menu to run or rerun this dormant organize pass. Organize Recording no longer creates or overwrites sets.
@@ -77,6 +77,13 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.7.3 - Explicit set ranges only (2026-07-20)
+
+- Changed transcript set display so sets no longer auto-fill blank transcript space by default.
+- Open **Set start** markers remain visible/editable in Chapters, but they do not color or label following transcript cards until **Set end** closes the range.
+- Closed sets color and label only the explicit start-to-end range; gaps before, after, or between sets remain normal transcript cards.
+- Added regression tests for open marker behavior and closed set range boundaries.
 
 ### v1.7.2 - Manual set CRUD (2026-07-20)
 

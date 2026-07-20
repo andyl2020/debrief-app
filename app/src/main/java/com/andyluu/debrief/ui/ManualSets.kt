@@ -4,11 +4,13 @@ import com.andyluu.debrief.data.ConversationSetEntity
 
 internal fun ConversationSetEntity.isOpenManualSet(): Boolean = endMs <= startMs
 
-internal fun ConversationSetEntity.effectiveEndMs(fallbackDurationMs: Long): Long =
-    if (isOpenManualSet()) fallbackDurationMs.coerceAtLeast(startMs) else endMs
+internal fun ConversationSetEntity.isClosedManualSet(): Boolean = !isOpenManualSet()
 
-internal fun ConversationSetEntity.overlapsRange(startMs: Long, endMs: Long, fallbackDurationMs: Long): Boolean =
-    this.startMs <= endMs && effectiveEndMs(fallbackDurationMs) >= startMs
+internal fun ConversationSetEntity.containsPosition(positionMs: Long): Boolean =
+    isClosedManualSet() && positionMs in startMs..endMs
+
+internal fun ConversationSetEntity.overlapsRange(startMs: Long, endMs: Long): Boolean =
+    isClosedManualSet() && this.startMs <= endMs && this.endMs >= startMs
 
 internal fun parseTimestampInput(value: String): Long? {
     val parts = value.trim().split(':')

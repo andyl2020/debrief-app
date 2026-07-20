@@ -130,7 +130,7 @@ internal fun ChaptersDrawerContent(
 ) {
     val skipped = ai?.skipAiPass == true
     val entries = buildChapterEntries(sets, comments)
-    val activeSet = sets.lastOrNull { positionMs >= it.startMs && positionMs <= it.effectiveEndMs(positionMs) }
+    val activeSet = sets.lastOrNull { it.containsPosition(positionMs) }
 
     LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
