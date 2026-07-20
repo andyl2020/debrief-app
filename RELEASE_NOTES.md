@@ -85,6 +85,9 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Added alternating set colors in transcript cards and Chapters so manually marked regions are visually distinct.
 - Changed playback skip default to 3 seconds while keeping long-press interval cycling through 1, 3, and 5 seconds.
 - Added a visible app version/code in Settings.
+- Fixed secure API-key writes to commit synchronously so saved keys are durable immediately and security-at-rest tests are deterministic.
+- Verification: unit tests, debug lint/build, release lint/R8, production signing, ARM64/x86-64 16 KB native alignment, and Android 11 instrumentation passed. Android 15 PS16K emulator was attached but skipped by Gradle as Unknown API Level.
+- APK: 9,079,617 bytes; SHA-256 `8DB552F8D2E389570189010E6205244E5D6FFBFB6ED5041AB80B244E45080A57`.
 
 ### v1.7.0 - Provider-first reliability cleanup (2026-07-10)
 
