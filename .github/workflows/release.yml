@@ -1,0 +1,105 @@
+name: Release APK
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to release, for example v1.7.2"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve release tag
+        id: release_tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release_tag.outputs.tag }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Restore release signing key
+        env:
+          DEBRIEF_KEYSTORE_BASE64: ${{ secrets.DEBRIEF_KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p .secrets
+          printf '%s' "$DEBRIEF_KEYSTORE_BASE64" | base64 --decode > .secrets/debrief-release.jks
+
+      - name: Build signed release APK
+        env:
+          DEBRIEF_KEYSTORE_PATH: ${{ github.workspace }}/.secrets/debrief-release.jks
+          DEBRIEF_KEYSTORE_PASSWORD: ${{ secrets.DEBRIEF_KEYSTORE_PASSWORD }}
+          DEBRIEF_KEY_ALIAS: ${{ secrets.DEBRIEF_KEY_ALIAS }}
+        run: ./gradlew testDebugUnitTest lintRelease assembleRelease --stacktrace
+
+      - name: Verify 16 KB native alignment
+        run: python scripts/verify_16kb_elf.py app/build/outputs/apk/release/app-release.apk
+
+      - name: Prepare release artifact
+        id: artifact
+        run: |
+          TAG="${{ steps.release_tag.outputs.tag }}"
+          APK_NAME="Debrief-${TAG}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$APK_NAME"
+          SHA256="$(sha256sum "$APK_NAME" | awk '{print $1}')"
+          SIZE="$(stat -c%s "$APK_NAME")"
+          {
+            echo "apk_name=$APK_NAME"
+            echo "sha256=$SHA256"
+            echo "size=$SIZE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release_tag.outputs.tag }}
+          APK_NAME: ${{ steps.artifact.outputs.apk_name }}
+          APK_SHA256: ${{ steps.artifact.outputs.sha256 }}
+          APK_SIZE: ${{ steps.artifact.outputs.size }}
+        run: |
+          NOTES="$(cat <<EOF
+          Debrief ${TAG}
+
+          See RELEASE_NOTES.md for the full feature guide and release history.
+
+          Verification passed in GitHub Actions:
+          - unit tests
+          - release lint/R8
+          - signed release APK build
+          - 16 KB native alignment check
+
+          APK size: ${APK_SIZE} bytes
+          APK SHA-256: ${APK_SHA256}
+          EOF
+          )"
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "Debrief ${TAG}" --notes "$NOTES" --latest
+            gh release upload "$TAG" "$APK_NAME" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "$APK_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --title "Debrief ${TAG}" --notes "$NOTES" --latest
+          fi
