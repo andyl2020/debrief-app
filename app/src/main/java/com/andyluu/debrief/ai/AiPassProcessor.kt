@@ -5,7 +5,6 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import com.andyluu.debrief.data.AiPassStatus
 import com.andyluu.debrief.data.AiRecordingEntity
-import com.andyluu.debrief.data.ConversationSetEntity
 import com.andyluu.debrief.data.DebriefDatabase
 import com.andyluu.debrief.data.RecordingStatus
 import com.andyluu.debrief.data.SearchRepository
@@ -42,20 +41,10 @@ class AiPassProcessor(
             return
         }
         val segments = dao.getSegments(recordingId)
-        val words = dao.getWords(recordingId)
         if (segments.isEmpty()) throw AiPassException("No transcript is available for the AI pass")
-        val heuristicSets = SetDetector.detect(
-            recordingId = recordingId,
-            durationMs = recording.durationMs,
-            segments = segments,
-            words = words,
-            gapMinutes = settings.aiGapMinutes,
-        )
-        val previousSets = dao.getConversationSets(recordingId)
         val previousSuggestions = dao.getSpeakerSuggestions(recordingId)
-        dao.replaceAiAnalysis(
+        dao.replaceAiMetadata(
             existing.copy(status = AiPassStatus.RUNNING, errorMessage = null, provider = settings.aiProvider),
-            previousSets.ifEmpty { heuristicSets },
             previousSuggestions,
         )
         var latestAi = existing
@@ -73,11 +62,10 @@ class AiPassProcessor(
                 else -> GeminiAiProvider()
             }
             val response = provider.analyze(
-                AiPassRequest(buildPrompt(recording.displayName, recording.lastModified, segments, heuristicSets)),
+                AiPassRequest(buildPrompt(recording.displayName, recording.lastModified, segments)),
                 key,
             )
             usage.recordSuccess("ai_" + settings.aiProvider, key, recording.durationMs)
-            val normalizedSets = normalizeSets(recordingId, recording.durationMs, response, segments, heuristicSets)
             val aliases = dao.getAliases(recordingId).associate { it.speakerId to it.displayName }
             val knownSpeakerIds = segments.mapTo(mutableSetOf()) { it.speakerId }
             val explicitSpeakers = response.speakers.filter {
@@ -91,10 +79,6 @@ class AiPassProcessor(
             val explicitNames = explicitSpeakers.associate { it.speakerId to it.name.trim() }
             val andyCandidate = response.andySpeakerId
                 ?.takeIf { it in knownSpeakerIds }
-                ?: normalizedSets.map { it.speakerIds.split('|').filter(String::isNotBlank).toSet() }
-                    .takeIf { it.size > 1 }
-                    ?.reduceOrNull(Set<String>::intersect)
-                    ?.singleOrNull()
             val andySpeaker = andyCandidate?.takeIf {
                 explicitNames[it].isNullOrBlank() || explicitNames[it].equals("Andy", ignoreCase = true)
             }
@@ -119,7 +103,7 @@ class AiPassProcessor(
                 lastRunAt = System.currentTimeMillis(),
             )
             latestAi = completed
-            dao.replaceAiAnalysis(completed, normalizedSets, suggestions)
+            dao.replaceAiMetadata(completed, suggestions)
             search.rebuild(recordingId)
             if (response.suggestedFilename.isNotBlank()) {
                 renamer.rename(recordingId, response.suggestedFilename)
@@ -155,55 +139,19 @@ class AiPassProcessor(
         filename: String,
         lastModified: Long,
         segments: List<com.andyluu.debrief.data.TranscriptSegmentEntity>,
-        candidates: List<ConversationSetEntity>,
     ) = buildString {
         appendLine("Analyze this transcript only. Never claim to inspect audio.")
-        appendLine("Return one structured result that detects conversation sets, identifies speakers, summarizes, and proposes a filename.")
+        appendLine("Return one structured result that identifies speakers, summarizes, and proposes a filename.")
+        appendLine("Do not detect or create conversation sets. Manual set markers are user-owned. Return sets as an empty array for compatibility.")
         appendLine("Use explicit names with confidence=explicit. Use confidence=inferred when uncertain; use none with an empty name when unsupported.")
-        appendLine("Identify Andy only when evidence or cross-set speaker continuity supports it; otherwise return andySpeakerId=null.")
-        appendLine("Keep every transcript moment covered by exactly one chronological set. Summaries must be one or two lines.")
-        appendLine("Filename must be filesystem-safe, concise, and follow: YYYY-MM-DD - N sets - key people or moments. Do not include an extension.")
+        appendLine("Identify Andy only when evidence supports it; otherwise return andySpeakerId=null.")
+        appendLine("Summary must be concise and useful for later review.")
+        appendLine("Filename must be filesystem-safe, concise, and follow: YYYY-MM-DD - key people or moments. Do not include an extension.")
         appendLine("Current filename: " + filename)
         appendLine("Recording date: " + SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(lastModified)))
-        appendLine("Deterministic silence-gap candidates:")
-        candidates.forEach { appendLine("- " + it.startMs + ".." + it.endMs) }
         appendLine("Transcript:")
         segments.forEach {
             appendLine("[" + it.startMs + "-" + it.endMs + "] " + it.speakerId + ": " + it.text)
-        }
-    }
-
-    private fun normalizeSets(
-        recordingId: String,
-        durationMs: Long,
-        response: AiPassResponse,
-        segments: List<com.andyluu.debrief.data.TranscriptSegmentEntity>,
-        fallback: List<ConversationSetEntity>,
-    ): List<ConversationSetEntity> {
-        if (response.sets.isEmpty()) return fallback
-        val endOfRecording = maxOf(durationMs, segments.maxOfOrNull { it.endMs } ?: 1L)
-        val sorted = response.sets
-            .filter { it.endMs > it.startMs }
-            .sortedBy { it.startMs }
-            .distinctBy { it.startMs.coerceIn(0, endOfRecording - 1) }
-        if (sorted.isEmpty()) return fallback
-        return sorted.mapIndexed { index, result ->
-            val start = if (index == 0) 0 else result.startMs.coerceIn(0, endOfRecording - 1)
-            val end = (sorted.getOrNull(index + 1)?.startMs?.minus(1) ?: endOfRecording)
-                .coerceIn(start + 1, endOfRecording)
-            val speakerIds = result.speakerIds.filter(String::isNotBlank).ifEmpty {
-                segments.filter { it.endMs >= start && it.startMs <= end }.map { it.speakerId }.distinct()
-            }
-            ConversationSetEntity(
-                id = recordingId + "-set-" + (index + 1) + "-" + start,
-                recordingId = recordingId,
-                orderIndex = index,
-                startMs = start,
-                endMs = end,
-                title = result.title.trim().ifBlank { "Set " + (index + 1) },
-                summary = result.summary.trim(),
-                speakerIds = speakerIds.joinToString("|"),
-            )
         }
     }
 

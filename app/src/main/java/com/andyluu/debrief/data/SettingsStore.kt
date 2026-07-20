@@ -126,7 +126,7 @@ class SecureSecretStore(context: Context) {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, secretKey())
         val payload = Base64.encodeToString(cipher.iv + cipher.doFinal(value.toByteArray()), Base64.NO_WRAP)
-        prefs.edit().putString(name, payload).apply()
+        check(prefs.edit().putString(name, payload).commit()) { "Could not save the API key securely." }
     }
 
     fun get(name: String): String? = runCatching {

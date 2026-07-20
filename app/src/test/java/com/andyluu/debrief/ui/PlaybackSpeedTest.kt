@@ -14,12 +14,12 @@ class PlaybackSpeedTest {
         assertEquals(listOf("1×", "1.2×", "1.5×", "2×", "3×", "4×"), PLAYBACK_SPEED_OPTIONS.map(::formatPlaybackSpeed))
     }
     @Test
-    fun skipIntervalsDefaultToFiveAndCycleThroughRequestedOptions() {
-        assertEquals(5_000L, DEFAULT_PLAYBACK_SKIP_MS)
-        assertEquals(listOf(5_000L, 1_000L, 3_000L), PLAYBACK_SKIP_INTERVALS_MS)
-        assertEquals(1_000L, nextPlaybackSkipInterval(5_000L))
-        assertEquals(3_000L, nextPlaybackSkipInterval(1_000L))
-        assertEquals(5_000L, nextPlaybackSkipInterval(3_000L))
+    fun skipIntervalsDefaultToThreeAndCycleThroughRequestedOptions() {
+        assertEquals(3_000L, DEFAULT_PLAYBACK_SKIP_MS)
+        assertEquals(listOf(3_000L, 1_000L, 5_000L), PLAYBACK_SKIP_INTERVALS_MS)
+        assertEquals(1_000L, nextPlaybackSkipInterval(3_000L))
+        assertEquals(5_000L, nextPlaybackSkipInterval(1_000L))
+        assertEquals(3_000L, nextPlaybackSkipInterval(5_000L))
     }
 
     @Test

@@ -31,6 +31,7 @@ class ReviewToolbarTest {
                     onReload = {},
                     onRunEnhance = { enhanceClicks++ },
                     onAddComment = {},
+                    onCommentLongPress = {},
                     onOpenChapters = {},
                 )
             }
@@ -60,6 +61,7 @@ class ReviewToolbarTest {
                     onReload = {},
                     onRunEnhance = {},
                     onAddComment = {},
+                    onCommentLongPress = {},
                     onOpenChapters = {},
                 )
             }
@@ -79,6 +81,7 @@ class ReviewToolbarTest {
                     onReload = {},
                     onRunEnhance = {},
                     onAddComment = {},
+                    onCommentLongPress = {},
                     onOpenChapters = {},
                 )
             }
@@ -87,6 +90,34 @@ class ReviewToolbarTest {
         assertEquals(0, compose.onAllNodesWithContentDescription("Run AI Enhance").fetchSemanticsNodes().size)
         compose.onNodeWithContentDescription("Reload transcript").assertIsDisplayed()
         compose.onNodeWithContentDescription("Add comment").assertIsDisplayed()
+    }
+
+    @Test
+    fun commentButtonTapAndLongPressAreSeparateActions() {
+        var commentClicks = 0
+        var setControlOpens = 0
+        compose.setContent {
+            DebriefTheme {
+                ReviewToolbarActions(
+                    showEnhance = false,
+                    enhanceRunning = false,
+                    suspectCount = 0,
+                    onReload = {},
+                    onRunEnhance = {},
+                    onAddComment = { commentClicks++ },
+                    onCommentLongPress = { setControlOpens++ },
+                    onOpenChapters = {},
+                )
+            }
+        }
+
+        compose.onNodeWithContentDescription("Add comment").performClick()
+        compose.onNodeWithContentDescription("Add comment").performTouchInput { longClick() }
+
+        compose.runOnIdle {
+            assertEquals(1, commentClicks)
+            assertEquals(1, setControlOpens)
+        }
     }
 
     @Test
@@ -131,9 +162,9 @@ class ReviewToolbarTest {
             }
         }
 
-        compose.onNodeWithContentDescription("Skip back 5 seconds. Long press to change skip interval.").performClick()
-        compose.onNodeWithContentDescription("Skip forward 5 seconds. Long press to change skip interval.").performClick()
-        compose.onNodeWithContentDescription("Skip forward 5 seconds. Long press to change skip interval.").performTouchInput { longClick() }
+        compose.onNodeWithContentDescription("Skip back 3 seconds. Long press to change skip interval.").performClick()
+        compose.onNodeWithContentDescription("Skip forward 3 seconds. Long press to change skip interval.").performClick()
+        compose.onNodeWithContentDescription("Skip forward 3 seconds. Long press to change skip interval.").performTouchInput { longClick() }
 
         compose.runOnIdle {
             assertEquals(1, backClicks)

@@ -27,6 +27,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -47,6 +48,8 @@ internal data class ChapterEntry(
     val type: ChapterEntryType,
     val title: String,
     val detail: String = "",
+    val endMs: Long? = null,
+    val colorIndex: Int? = null,
 )
 
 internal fun buildChapterEntries(
@@ -58,8 +61,17 @@ internal fun buildChapterEntries(
             id = "set:${set.id}",
             timestampMs = set.startMs,
             type = ChapterEntryType.SET,
-            title = set.title.ifBlank { "Untitled chapter" },
-            detail = set.summary,
+            title = set.title.ifBlank { "Set ${set.orderIndex + 1}" },
+            detail = if (set.isOpenManualSet()) {
+                "Open set. Mark an end point when this section finishes."
+            } else {
+                listOf(
+                    "${formatTimestamp(set.startMs)} to ${formatTimestamp(set.endMs)}",
+                    set.summary,
+                ).filter(String::isNotBlank).joinToString(" · ")
+            },
+            endMs = set.endMs,
+            colorIndex = set.orderIndex,
         )
     } + comments.map { comment ->
         ChapterEntry(
@@ -70,6 +82,30 @@ internal fun buildChapterEntries(
         )
     }
 ).sortedWith(compareBy<ChapterEntry> { it.timestampMs }.thenBy { it.type.ordinal })
+
+private val manualSetContainerColors = listOf(
+    Color(0xFFE8F5E9),
+    Color(0xFFE3F2FD),
+    Color(0xFFFFF3E0),
+    Color(0xFFF3E5F5),
+    Color(0xFFE0F2F1),
+)
+
+private val manualSetAccentColors = listOf(
+    Color(0xFF2E7D32),
+    Color(0xFF1565C0),
+    Color(0xFFEF6C00),
+    Color(0xFF6A1B9A),
+    Color(0xFF00695C),
+)
+
+internal fun manualSetContainerColor(index: Int): Color =
+    manualSetContainerColors[index.floorMod(manualSetContainerColors.size)]
+
+internal fun manualSetAccentColor(index: Int): Color =
+    manualSetAccentColors[index.floorMod(manualSetAccentColors.size)]
+
+private fun Int.floorMod(other: Int): Int = ((this % other) + other) % other
 
 @Composable
 internal fun ChaptersDrawerContent(
@@ -90,7 +126,7 @@ internal fun ChaptersDrawerContent(
 ) {
     val skipped = ai?.skipAiPass == true
     val entries = buildChapterEntries(sets, comments)
-    val activeSet = sets.lastOrNull { positionMs >= it.startMs && positionMs <= it.endMs }
+    val activeSet = sets.lastOrNull { positionMs >= it.startMs && positionMs <= it.effectiveEndMs(positionMs) }
 
     LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
@@ -124,8 +160,7 @@ internal fun ChaptersDrawerContent(
         if (sets.isEmpty()) {
             item {
                 Text(
-                    if (skipped) "AI chapter detection is skipped for this recording."
-                    else "No detected sets yet. Tap the sparkle button to run the AI analysis.",
+                    "No manual sets yet. Long-press Add Comment, then use Set start and Set end.",
                     Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -135,7 +170,7 @@ internal fun ChaptersDrawerContent(
         if (entries.isEmpty()) {
             item {
                 Text(
-                    "Add a comment or run AI analysis to create chapter entries.",
+                    "Add a comment or manual set marker to create chapter entries.",
                     Modifier.padding(20.dp),
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -235,20 +270,23 @@ private fun ChapterEntryCard(
     onMerge: () -> Unit,
 ) {
     val entryLabel = if (entry.type == ChapterEntryType.SET) "set" else "comment"
+    val containerColor = when {
+        active -> MaterialTheme.colorScheme.primaryContainer
+        entry.type == ChapterEntryType.SET && entry.colorIndex != null -> manualSetContainerColor(entry.colorIndex)
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             .semantics { contentDescription = "Go to $entryLabel at ${formatTimestamp(entry.timestampMs)}" }
             .clickable { onSeek(entry.timestampMs) },
-        colors = CardDefaults.cardColors(
-            containerColor = if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-        ),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
     ) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     if (entry.type == ChapterEntryType.SET) "SET" else "COMMENT",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = if (entry.type == ChapterEntryType.SET && entry.colorIndex != null) manualSetAccentColor(entry.colorIndex) else MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.width(8.dp))

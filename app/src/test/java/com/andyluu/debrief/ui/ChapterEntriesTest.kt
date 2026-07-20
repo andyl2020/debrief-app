@@ -14,7 +14,7 @@ class ChapterEntriesTest {
         )
 
         assertEquals(listOf("set:first", "comment:same-time", "comment:middle", "set:later"), entries.map { it.id })
-        assertEquals("Untitled chapter", entries.last().title)
+        assertEquals("Set 1", entries.last().title)
     }
 
     private fun set(id: String, startMs: Long, title: String) = ConversationSetEntity(

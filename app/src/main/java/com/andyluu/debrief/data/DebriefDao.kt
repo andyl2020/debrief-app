@@ -233,4 +233,23 @@ interface DebriefDao {
         if (sets.isNotEmpty()) insertConversationSets(sets)
         if (suggestions.isNotEmpty()) insertSpeakerSuggestions(suggestions)
     }
+
+    @Transaction
+    suspend fun replaceAiMetadata(
+        aiRecording: AiRecordingEntity,
+        suggestions: List<SpeakerSuggestionEntity>,
+    ) {
+        upsertAiRecording(aiRecording)
+        deleteSpeakerSuggestions(aiRecording.recordingId)
+        if (suggestions.isNotEmpty()) insertSpeakerSuggestions(suggestions)
+    }
+
+    @Transaction
+    suspend fun replaceConversationSets(
+        recordingId: String,
+        sets: List<ConversationSetEntity>,
+    ) {
+        deleteConversationSets(recordingId)
+        if (sets.isNotEmpty()) insertConversationSets(sets)
+    }
 }

@@ -1,6 +1,6 @@
 # Debrief
 
-Debrief is a local-first Android app for reviewing long field recordings. It links to a folder on the phone, transcribes recordings with speaker labels and word timestamps, and provides synced playback, Transcript Quality reports, AI-assisted conversation chapters, full-text search, timestamped comments, speaker naming, optional AI Enhance repair diffs, Markdown export, and reinstall-safe JSON sidecars.
+Debrief is a local-first Android app for reviewing long field recordings. It links to a folder on the phone, transcribes recordings with speaker labels and word timestamps, and provides synced playback, Transcript Quality reports, manual conversation sets, full-text search, timestamped comments, speaker naming, optional AI Enhance repair diffs, Markdown export, and reinstall-safe JSON sidecars.
 
 ## What works
 
@@ -12,11 +12,11 @@ Debrief is a local-first Android app for reviewing long field recordings. It lin
 - Selectable transcription upload quality: unchanged original audio by default, balanced 96 kbps mono AAC, or 64 kbps data saver
 - Transcript Quality reports that flag suspicious outputs such as missing timestamps, large transcript gaps, truncation, low density, and diarization issues
 - Per-key local usage tracking plus Deepgram provider usage, spend, and balance when the key has read scopes
-- Gemini, OpenAI-compatible, or Claude post-transcription AI pass for conversation sets, summaries, speaker suggestions, and intelligent physical rename with undo
+- Gemini, OpenAI-compatible, or Claude post-transcription AI pass for summaries, speaker suggestions, and intelligent physical rename with undo
 - Optional Advanced/Experimental AI Enhance with low-confidence rough-spot detection, conservative Gemini text repair, optional short-clip audio re-listen, selection enhancement, versioned repair runs, Cleaned view, and accept/revert review
-- Per-recording AI privacy skip, automatic/re-run controls, configurable silence gap, manual set merge/split, and local per-key AI usage
-- Side-opening Chapters table of contents combining AI-detected conversation sets and timestamped comments, with tap-to-jump navigation
-- Media3 playback with circular ± skip controls, immediate 1×/1.2×/1.5×/2×/3×/4× speed control, saved position, transcript follow/highlight, tap-to-seek, and transcript reload
+- Per-recording AI privacy skip, automatic/re-run controls, manual set start/end/merge/split, and local per-key AI usage
+- Side-opening Chapters table of contents combining manual conversation sets and timestamped comments, with tap-to-jump navigation
+- Media3 playback with circular ± 3-second skip controls, long-press skip interval cycling, immediate 1×/1.2×/1.5×/2×/3×/4× speed control, saved position, transcript follow/highlight, tap-to-seek, and transcript reload
 - SQLCipher-encrypted Room database with transcript-only in-player search and broad Library FTS5 search across filenames, transcripts, summaries, and comments
 - Timestamped comment create/edit/delete and recording-wide speaker aliases
 - Markdown share-sheet export

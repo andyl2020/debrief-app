@@ -425,6 +425,48 @@ class ReviewViewModel(
         _messages.emit("Comment deleted.")
     }
 
+    fun markSetStart(timestampMs: Long) = launchHandled("Couldn't mark the set start.") {
+        val sets = dao.getConversationSets(recordingId)
+        val openSet = sets.lastOrNull { it.isOpenManualSet() }
+        if (openSet != null) {
+            _messages.emit("End ${openSet.title} before starting another set.")
+            return@launchHandled
+        }
+        val start = timestampMs.coerceAtLeast(0L)
+        val setNumber = sets.size + 1
+        val set = ConversationSetEntity(
+            id = UUID.randomUUID().toString(),
+            recordingId = recordingId,
+            orderIndex = sets.size,
+            startMs = start,
+            endMs = start,
+            title = "Set $setNumber",
+            summary = "Manual set",
+        )
+        dao.upsertConversationSet(set)
+        refreshDerivedData()
+        _messages.emit("Set $setNumber started at ${formatTimestamp(start)}.")
+    }
+
+    fun markSetEnd(timestampMs: Long) = launchHandled("Couldn't mark the set end.") {
+        val sets = dao.getConversationSets(recordingId)
+        val openIndex = sets.indexOfLast { it.isOpenManualSet() }
+        if (openIndex < 0) {
+            _messages.emit("Start a set before marking its end.")
+            return@launchHandled
+        }
+        val openSet = sets[openIndex]
+        val end = timestampMs.coerceAtLeast(openSet.startMs + 1_000L)
+        val speakerIds = dao.getSegments(recordingId)
+            .filter { it.endMs >= openSet.startMs && it.startMs <= end }
+            .map { it.speakerId }
+            .distinct()
+            .joinToString("|")
+        val updated = openSet.copy(endMs = end, summary = "", speakerIds = speakerIds)
+        persistSets(sets.mapIndexed { index, set -> if (index == openIndex) updated else set })
+        _messages.emit("${openSet.title} ended at ${formatTimestamp(end)}.")
+    }
+
     fun renameSpeaker(speakerId: String, displayName: String) = launchHandled("Couldn't rename the speaker.") {
         val trimmed = displayName.trim()
         if (trimmed.isBlank()) {
@@ -616,13 +658,7 @@ class ReviewViewModel(
     }
 
     private suspend fun persistSets(sets: List<ConversationSetEntity>) {
-        val ai = dao.getAiRecording(recordingId) ?: AiRecordingEntity(recordingId)
-        val suggestions = dao.getSpeakerSuggestions(recordingId)
-        dao.replaceAiAnalysis(
-            ai,
-            sets.mapIndexed { index, set -> set.copy(orderIndex = index) },
-            suggestions,
-        )
+        dao.replaceConversationSets(recordingId, sets.mapIndexed { index, set -> set.copy(orderIndex = index) })
         refreshDerivedData()
     }
 

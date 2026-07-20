@@ -17,7 +17,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 ### Review and playback
 
 - Tap a recording to open its synchronized transcript. Tap any transcript segment, search result, chapter, or comment chapter to seek to that time.
-- Tap the circular skip buttons beside Play/Pause to jump backward or forward. The default is **-5 seconds** and **+5 seconds**; long-press either skip button to cycle the interval through **1 second**, **3 seconds**, and **5 seconds**.
+- Tap the circular skip buttons beside Play/Pause to jump backward or forward. The default is **-3 seconds** and **+3 seconds**; long-press either skip button to cycle the interval through **1 second**, **3 seconds**, and **5 seconds**.
 - Tap the speed label beside Play/Pause to choose **1×, 1.2×, 1.5×, 2×, 3×, or 4×**. Changes take effect during playback without restarting or losing position.
 - Use the refresh icon beside search to reload transcript state and recover a saved sidecar when local transcript rows are absent.
 - Search within a recording from the review search field, or search all recordings from the Library search action.
@@ -34,13 +34,15 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Settings includes **Send short clips to Gemini** only while AI Enhance tools are enabled. Turning it off keeps text repair but disables audio re-listen. **Run automatically** is off by default and is ignored unless the Advanced AI Enhance toggle is enabled.
 - Library recording cards and the player show Enhance status, determinate progress, partial-failure/error copy, and resume controls.
 
-### Chapters and Organize Recording
+### Manual sets, Chapters, and Organize Recording
 
-- Tap the **Chapters** list icon beside Add Comment. A drawer opens from the side with AI-detected conversation sets and comments merged into one chronological table of contents.
+- Tap the **Chapters** list icon beside Add Comment. A drawer opens from the side with manual conversation sets and comments merged into one chronological table of contents.
+- Tap Add Comment for a normal timestamped comment. Long-press Add Comment to reveal **Set start** and **Set end** actions for the current playback position.
+- Manual set markers work like durable comments: **Set start** creates an open colored region, **Set end** closes it, and the next set uses the next alternating color. Transcript cards inside a set and the set entry in Chapters share the same color.
 - Tap any entry to seek to its timestamp and close the drawer. The set containing the current playback position is highlighted.
-- The drawer is the canonical place for detected sets. The old expandable Library set list and large in-transcript set panel were removed to avoid duplicate, inconsistent navigation.
-- Use **Merge with next** on a set or **Split active set** at the current playback position to correct chapter boundaries.
-- The compact **AI analysis** card in Chapters shows status, summary, errors, speaker-name suggestions, Skip AI state, and recording-rename undo. Use **Organize Recording** in the player overflow menu to run or rerun this dormant organize pass.
+- The drawer is the canonical place for sets. The old expandable Library set list and large in-transcript set panel were removed to avoid duplicate, inconsistent navigation.
+- Use **Merge with next** on a set or **Split active set** at the current playback position to correct manual boundaries.
+- The compact **AI analysis** card in Chapters shows status, summary, errors, speaker-name suggestions, Skip AI state, and recording-rename undo. Use **Organize Recording** in the player overflow menu to run or rerun this dormant organize pass. Organize Recording no longer creates or overwrites sets.
 - Supported AI providers are Gemini, OpenAI-compatible endpoints, and Claude/Anthropic. The transcript text—not audio—is sent to the selected AI provider.
 
 ### Comments, search, and export
@@ -52,6 +54,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 ### Usage, storage, and privacy
 
 - Settings tracks local per-key transcription and AI usage. Deepgram provider usage, spend, and balance appear when the key has the provider scopes required for those endpoints.
+- Settings shows the installed Debrief version and version code near the bottom of the screen.
 - API keys are encrypted using Android Keystore and are excluded from backup, source control, sidecars, logs, and APK resources.
 - The Room/FTS database is encrypted with SQLCipher. JSON sidecars beside recordings preserve transcript, comments, aliases, AI summary, sets, and speaker suggestions across reinstall/rescan.
 
@@ -60,8 +63,8 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Debrief is sideloaded from GitHub rather than installed from Google Play. Play Protect may warn about an unknown developer. Install only the APK attached to this repository's release.
 - Android 10 or newer is required. Universal APKs include ARM64 and are verified for 16 KB memory pages used by modern phones such as the OnePlus 13.
 - The Chapters drawer opens from its toolbar button. Closed-edge swipe is intentionally disabled so it does not interfere with Android back gestures; swipe-to-close works while the drawer is open.
-- AI-detected titles, summaries, names, and boundaries can be wrong. Review them before relying on them. Rerunning the AI analysis replaces the detected set analysis, so perform final manual merge/split corrections after the last rerun.
-- Split is enabled only when playback is inside a detected set and at least one second from either boundary. The final set cannot merge forward.
+- AI-generated summaries, speaker names, and rename suggestions can be wrong. Sets are manual-only because automatic boundaries were not reliable enough.
+- Split is enabled only when playback is inside a closed set and at least one second from either boundary. The final set cannot merge forward. An open set must be ended before another set can start.
 - Comments are durable user data and are not removed by rerunning AI. A comment and set at the same timestamp both appear, with the set first.
 - High playback speeds preserve position but may reduce intelligibility and can expose decoder limitations in damaged or unusual audio files.
 - Transcript Quality checks are mechanical integrity checks, not a guarantee that every word is correct. A green result means no obvious missing chunks, broken timestamps, or suspicious truncation were detected.
@@ -74,6 +77,14 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.7.1 - Manual set markers and player polish (2026-07-19)
+
+- Removed automatic set creation from Organize Recording. The AI pass still handles summaries, speaker suggestions, and rename ideas, but it no longer creates, replaces, or deletes conversation sets.
+- Added manual set marking from the Review toolbar: long-press Add Comment, then tap **Set start** or **Set end** at the current playback position.
+- Added alternating set colors in transcript cards and Chapters so manually marked regions are visually distinct.
+- Changed playback skip default to 3 seconds while keeping long-press interval cycling through 1, 3, and 5 seconds.
+- Added a visible app version/code in Settings.
 
 ### v1.7.0 - Provider-first reliability cleanup (2026-07-10)
 

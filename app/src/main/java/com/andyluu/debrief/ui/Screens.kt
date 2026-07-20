@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
@@ -104,6 +105,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import com.andyluu.debrief.BuildConfig
 import com.andyluu.debrief.data.CommentEntity
 import com.andyluu.debrief.data.AiPassStatus
 import com.andyluu.debrief.data.AiRecordingEntity
@@ -560,7 +562,7 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             item { Text("AI tools", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             item {
                 Text(
-                    "Organize Recording can detect chapters, summaries, speaker suggestions, and rename ideas from transcript text. AI Enhance is now an Advanced/Experimental tool because AssemblyAI + Original upload is the recommended quality path.",
+                    "Organize Recording now handles summaries, speaker suggestions, and rename ideas from transcript text. Sets are manual so AI reruns cannot overwrite your boundaries. AI Enhance is Advanced/Experimental because AssemblyAI + Original upload is the recommended quality path.",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -729,6 +731,13 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             }
             item { Button(onClick = { viewModel.setKeyterms(keyterms) }) { Text("Save keyterms") } }
             item { Text("API keys are encrypted with Android Keystore and excluded from device backups. Audio is sent only to the provider you select.", style = MaterialTheme.typography.bodySmall) }
+            item {
+                Text(
+                    "Debrief v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
@@ -848,6 +857,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
     var query by remember { mutableStateOf("") }
     var localResults by remember { mutableStateOf(emptyList<SearchHit>()) }
     var addComment by remember { mutableStateOf(false) }
+    var showSetControls by rememberSaveable { mutableStateOf(false) }
     var editingComment by remember { mutableStateOf<CommentEntity?>(null) }
     var renamingSpeaker by remember { mutableStateOf<String?>(null) }
     var overflowExpanded by remember { mutableStateOf(false) }
@@ -862,6 +872,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
     val enhanceRunning = showAiEnhance && (state.repairRun?.status == RepairRunStatus.RUNNING || state.repairRun?.status == RepairRunStatus.QUEUED)
     val unresolvedSuspects = state.suspectSpans.count { !it.resolved }
     val activeRepairs = if (showAiEnhance) state.repairs.filter { it.applied && !it.reverted } else emptyList()
+    val openManualSet = state.sets.lastOrNull { it.isOpenManualSet() }
 
     LaunchedEffect(state.repairRun?.status, state.repairs.size) {
         if (state.repairRun?.status == RepairRunStatus.READY && activeRepairs.isNotEmpty()) cleanedView = true
@@ -1053,7 +1064,22 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                     onReload = { follow = true; viewModel.reloadTranscript() },
                     onRunEnhance = viewModel::runAiEnhance,
                     onAddComment = { addComment = true },
+                    onCommentLongPress = { showSetControls = !showSetControls },
                     onOpenChapters = { scope.launch { drawerState.open() } },
+                )
+            }
+            if (showSetControls) {
+                ManualSetControlsPanel(
+                    positionMs = position,
+                    openSetTitle = openManualSet?.title,
+                    onStartSet = {
+                        viewModel.markSetStart(position)
+                        showSetControls = false
+                    },
+                    onEndSet = {
+                        viewModel.markSetEnd(position)
+                        showSetControls = false
+                    },
                 )
             }
             state.qualityReport?.takeIf { !qualityDismissed }?.let { report ->
@@ -1126,6 +1152,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                         val comments = commentsForSegment(state.comments, state.segments, index, duration)
                         val segmentRepairs = state.repairs.overlappingRepairs(segment.startMs, segment.endMs)
                         val segmentSuspects = state.suspectSpans.overlappingSuspects(segment.startMs, segment.endMs).filterNot { it.resolved }
+                        val segmentSet = state.sets.lastOrNull { it.overlapsRange(segment.startMs, segment.endMs, duration) }
                         SegmentCard(
                             speaker = state.aliases[segment.speakerId] ?: segment.speakerId,
                             timestamp = segment.startMs,
@@ -1133,6 +1160,8 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                             active = index == activeIndex,
                             suspect = showAiEnhance && segmentSuspects.isNotEmpty(),
                             repaired = showAiEnhance && segmentRepairs.any { it.applied && !it.reverted },
+                            setLabel = segmentSet?.title,
+                            setColorIndex = segmentSet?.orderIndex,
                             comments = comments,
                             onSeek = { player?.seekTo(segment.startMs); position = segment.startMs; follow = true },
                             onLongPress = {
@@ -1195,8 +1224,8 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
 }
 
 internal val PLAYBACK_SPEED_OPTIONS = listOf(1f, 1.2f, 1.5f, 2f, 3f, 4f)
-internal val PLAYBACK_SKIP_INTERVALS_MS = listOf(5_000L, 1_000L, 3_000L)
-internal const val DEFAULT_PLAYBACK_SKIP_MS = 5_000L
+internal val PLAYBACK_SKIP_INTERVALS_MS = listOf(3_000L, 1_000L, 5_000L)
+internal const val DEFAULT_PLAYBACK_SKIP_MS = 3_000L
 
 internal fun formatPlaybackSpeed(speed: Float): String = when (speed) {
     1f -> "1×"
@@ -1292,6 +1321,7 @@ internal fun ReviewToolbarActions(
     onReload: () -> Unit,
     onRunEnhance: () -> Unit,
     onAddComment: () -> Unit,
+    onCommentLongPress: () -> Unit,
     onOpenChapters: () -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1317,8 +1347,67 @@ internal fun ReviewToolbarActions(
                 }
             }
         }
-        IconButton(onClick = onAddComment) { Icon(Icons.Default.AddComment, "Add comment") }
+        CommentActionButton(onClick = onAddComment, onLongClick = onCommentLongPress)
         IconButton(onClick = onOpenChapters) { Icon(Icons.AutoMirrored.Filled.List, "Open chapters") }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CommentActionButton(
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .semantics { contentDescription = "Add comment" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(Icons.Default.AddComment, null)
+    }
+}
+
+@Composable
+internal fun ManualSetControlsPanel(
+    positionMs: Long,
+    openSetTitle: String?,
+    onStartSet: () -> Unit,
+    onEndSet: () -> Unit,
+) {
+    Card(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                if (openSetTitle == null) "Manual set marker at ${formatTimestamp(positionMs)}"
+                else "$openSetTitle is open. Mark its end at ${formatTimestamp(positionMs)}.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                FilledTonalButton(
+                    onClick = onStartSet,
+                    enabled = openSetTitle == null,
+                    modifier = Modifier.semantics { contentDescription = "Mark set start" },
+                ) {
+                    Icon(Icons.Default.Flag, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Set start")
+                }
+                OutlinedButton(
+                    onClick = onEndSet,
+                    enabled = openSetTitle != null,
+                    modifier = Modifier.semantics { contentDescription = "Mark set end" },
+                ) {
+                    Icon(Icons.Default.Close, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Set end")
+                }
+            }
+        }
     }
 }
 
@@ -1556,6 +1645,8 @@ private fun SegmentCard(
     active: Boolean,
     suspect: Boolean,
     repaired: Boolean,
+    setLabel: String?,
+    setColorIndex: Int?,
     comments: List<CommentEntity>,
     onSeek: () -> Unit,
     onLongPress: () -> Unit,
@@ -1568,6 +1659,7 @@ private fun SegmentCard(
         repaired -> Color(0xFFD5F5DF)
         suspect -> Color(0xFFFFF3CD)
         active -> MaterialTheme.colorScheme.primaryContainer
+        setColorIndex != null -> manualSetContainerColor(setColorIndex)
         else -> MaterialTheme.colorScheme.surface
     }
     Card(
@@ -1579,6 +1671,18 @@ private fun SegmentCard(
                 AssistChip(onClick = onRename, label = { Text(speaker) })
                 Spacer(Modifier.width(8.dp))
                 Text(formatTimestamp(timestamp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                if (setLabel != null && setColorIndex != null) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        setLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier
+                            .background(manualSetAccentColor(setColorIndex), RoundedCornerShape(99.dp))
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                    )
+                }
                 Spacer(Modifier.weight(1f))
                 if (repaired) TextButton(onClick = onReviewRepair) { Text("Review") }
             }
