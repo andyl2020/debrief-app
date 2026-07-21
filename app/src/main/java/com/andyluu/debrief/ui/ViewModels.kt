@@ -14,6 +14,7 @@ import com.andyluu.debrief.data.AiRecordingEntity
 import com.andyluu.debrief.data.AiPassStatus
 import com.andyluu.debrief.data.CommentEntity
 import com.andyluu.debrief.data.ConversationSetEntity
+import com.andyluu.debrief.data.RedactionEntity
 import com.andyluu.debrief.data.RecordingEntity
 import com.andyluu.debrief.data.RecordingStatus
 import com.andyluu.debrief.data.RepairEntity
@@ -25,6 +26,7 @@ import com.andyluu.debrief.data.SuspectSpanEntity
 import com.andyluu.debrief.data.LocalApiUsage
 import com.andyluu.debrief.data.TranscriptQualityReportEntity
 import com.andyluu.debrief.data.TranscriptSegmentEntity
+import com.andyluu.debrief.data.TranscriptWordEntity
 import com.andyluu.debrief.data.TranscriptionAudioQuality
 import com.andyluu.debrief.transcription.TranscriptionWorker
 import com.andyluu.debrief.transcription.ApiUsageSnapshot
@@ -54,7 +56,9 @@ import java.util.UUID
 data class ReviewState(
     val recording: RecordingEntity? = null,
     val segments: List<TranscriptSegmentEntity> = emptyList(),
+    val words: List<TranscriptWordEntity> = emptyList(),
     val comments: List<CommentEntity> = emptyList(),
+    val redactions: List<RedactionEntity> = emptyList(),
     val aliases: Map<String, String> = emptyMap(),
     val ai: AiRecordingEntity? = null,
     val sets: List<ConversationSetEntity> = emptyList(),
@@ -322,9 +326,19 @@ class ReviewViewModel(
     private data class CoreReviewState(
         val recording: RecordingEntity?,
         val segments: List<TranscriptSegmentEntity>,
+        val words: List<TranscriptWordEntity>,
         val comments: List<CommentEntity>,
+        val redactions: List<RedactionEntity>,
         val aliases: Map<String, String>,
         val ai: AiRecordingEntity?,
+    )
+
+    private data class CoreReviewRows(
+        val recording: RecordingEntity?,
+        val segments: List<TranscriptSegmentEntity>,
+        val words: List<TranscriptWordEntity>,
+        val comments: List<CommentEntity>,
+        val redactions: List<RedactionEntity>,
     )
 
     private data class EnhanceReviewState(
@@ -333,14 +347,22 @@ class ReviewViewModel(
         val repairs: List<RepairEntity>,
     )
 
-    private val coreState = combine(
+    private val coreRows = combine(
         dao.observeRecording(recordingId),
         dao.observeSegments(recordingId),
+        dao.observeWords(recordingId),
         dao.observeComments(recordingId),
+        dao.observeRedactions(recordingId),
+    ) { recording, segments, words, comments, redactions ->
+        CoreReviewRows(recording, segments, words, comments, redactions)
+    }
+
+    private val coreState = combine(
+        coreRows,
         dao.observeAliases(recordingId),
         dao.observeAiRecording(recordingId),
-    ) { recording, segments, comments, aliases, ai ->
-        CoreReviewState(recording, segments, comments, aliases.associate { it.speakerId to it.displayName }, ai)
+    ) { rows, aliases, ai ->
+        CoreReviewState(rows.recording, rows.segments, rows.words, rows.comments, rows.redactions, aliases.associate { it.speakerId to it.displayName }, ai)
     }
 
     private val enhanceState = combine(
@@ -361,7 +383,9 @@ class ReviewViewModel(
         ReviewState(
             core.recording,
             core.segments,
+            core.words,
             core.comments,
+            core.redactions,
             core.aliases,
             core.ai,
             sets,
@@ -423,6 +447,34 @@ class ReviewViewModel(
         dao.deleteComment(commentId)
         refreshDerivedData()
         _messages.emit("Comment deleted.")
+    }
+
+    fun addRedaction(startMs: Long, endMs: Long, text: String) = launchHandled("Couldn't add the redaction.") {
+        val start = minOf(startMs, endMs).coerceAtLeast(0L)
+        val end = maxOf(startMs, endMs).coerceAtLeast(start + 1)
+        dao.upsertRedaction(
+            RedactionEntity(
+                id = UUID.randomUUID().toString(),
+                recordingId = recordingId,
+                startMs = start,
+                endMs = end,
+                text = text.trim().take(500),
+            )
+        )
+        refreshDerivedData()
+        _messages.emit("Redaction added.")
+    }
+
+    fun deleteRedaction(redactionId: String) = launchHandled("Couldn't delete the redaction.") {
+        dao.deleteRedaction(redactionId)
+        refreshDerivedData()
+        _messages.emit("Redaction removed.")
+    }
+
+    fun deleteRedactionsInRange(startMs: Long, endMs: Long) = launchHandled("Couldn't delete redactions.") {
+        dao.deleteRedactionsOverlapping(recordingId, minOf(startMs, endMs), maxOf(startMs, endMs))
+        refreshDerivedData()
+        _messages.emit("Redactions removed.")
     }
 
     fun markSetStart(timestampMs: Long) = launchHandled("Couldn't mark the set start.") {

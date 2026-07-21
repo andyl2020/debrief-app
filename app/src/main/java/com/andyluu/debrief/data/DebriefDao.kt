@@ -53,6 +53,9 @@ interface DebriefDao {
     @Query("SELECT * FROM transcript_words WHERE recordingId = :recordingId ORDER BY startMs")
     suspend fun getWords(recordingId: String): List<TranscriptWordEntity>
 
+    @Query("SELECT * FROM transcript_words WHERE recordingId = :recordingId ORDER BY startMs")
+    fun observeWords(recordingId: String): Flow<List<TranscriptWordEntity>>
+
     @Query("SELECT * FROM suspect_spans WHERE recordingId = :recordingId ORDER BY startMs")
     fun observeSuspectSpans(recordingId: String): Flow<List<SuspectSpanEntity>>
 
@@ -121,6 +124,27 @@ interface DebriefDao {
 
     @Query("SELECT * FROM comments WHERE recordingId = :recordingId ORDER BY timestampMs")
     suspend fun getComments(recordingId: String): List<CommentEntity>
+
+    @Query("SELECT * FROM redactions WHERE recordingId = :recordingId ORDER BY startMs")
+    fun observeRedactions(recordingId: String): Flow<List<RedactionEntity>>
+
+    @Query("SELECT * FROM redactions WHERE recordingId = :recordingId ORDER BY startMs")
+    suspend fun getRedactions(recordingId: String): List<RedactionEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertRedaction(redaction: RedactionEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRedactions(redactions: List<RedactionEntity>)
+
+    @Query("DELETE FROM redactions WHERE id = :redactionId")
+    suspend fun deleteRedaction(redactionId: String)
+
+    @Query("DELETE FROM redactions WHERE recordingId = :recordingId AND startMs < :endMs AND endMs > :startMs")
+    suspend fun deleteRedactionsOverlapping(recordingId: String, startMs: Long, endMs: Long)
+
+    @Query("DELETE FROM redactions WHERE recordingId = :recordingId")
+    suspend fun deleteRedactions(recordingId: String)
 
     @Query("SELECT * FROM speaker_aliases WHERE recordingId = :recordingId")
     fun observeAliases(recordingId: String): Flow<List<SpeakerAliasEntity>>

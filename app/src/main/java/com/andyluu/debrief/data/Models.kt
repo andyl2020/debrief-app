@@ -85,6 +85,25 @@ data class CommentEntity(
     val updatedAt: Long = System.currentTimeMillis(),
 )
 
+@Entity(
+    tableName = "redactions",
+    foreignKeys = [ForeignKey(
+        entity = RecordingEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["recordingId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index("recordingId"), Index(value = ["recordingId", "startMs"])],
+)
+data class RedactionEntity(
+    @PrimaryKey val id: String,
+    val recordingId: String,
+    val startMs: Long,
+    val endMs: Long,
+    val text: String = "",
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
 @Entity(tableName = "speaker_aliases", primaryKeys = ["recordingId", "speakerId"])
 data class SpeakerAliasEntity(
     val recordingId: String,
@@ -289,12 +308,13 @@ data class SearchHit(
 
 @Serializable
 data class SidecarDocument(
-    val schemaVersion: Int = 2,
+    val schemaVersion: Int = 3,
     val recordingName: String,
     val recordingSizeBytes: Long,
     val transcript: List<SidecarSegment>,
     val words: List<SidecarWord>,
     val comments: List<SidecarComment>,
+    val redactions: List<SidecarRedaction> = emptyList(),
     val speakerAliases: Map<String, String>,
     val originalRecordingName: String? = null,
     val aiSummary: String = "",
@@ -326,6 +346,15 @@ data class SidecarComment(
     val text: String,
     val createdAt: Long,
     val updatedAt: Long,
+)
+
+@Serializable
+data class SidecarRedaction(
+    val id: String,
+    val startMs: Long,
+    val endMs: Long,
+    val text: String,
+    val createdAt: Long,
 )
 
 @Serializable

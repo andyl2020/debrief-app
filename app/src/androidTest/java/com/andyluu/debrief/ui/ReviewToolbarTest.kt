@@ -30,6 +30,9 @@ class ReviewToolbarTest {
                     suspectCount = 3,
                     onReload = {},
                     onRunEnhance = { enhanceClicks++ },
+                    redactionsEnabled = false,
+                    redactionCount = 2,
+                    onToggleRedactions = {},
                     onAddComment = {},
                     onCommentLongPress = {},
                     onOpenChapters = {},
@@ -40,11 +43,13 @@ class ReviewToolbarTest {
         val reloadX = compose.onNodeWithContentDescription("Reload transcript").fetchSemanticsNode().boundsInRoot.left
         val aiNode = compose.onNodeWithContentDescription("Run AI Enhance").assertIsEnabled()
         val aiX = aiNode.fetchSemanticsNode().boundsInRoot.left
+        val shieldX = compose.onNodeWithContentDescription("Turn redactions on").fetchSemanticsNode().boundsInRoot.left
         val commentX = compose.onNodeWithContentDescription("Add comment").fetchSemanticsNode().boundsInRoot.left
         val chaptersX = compose.onNodeWithContentDescription("Open chapters").fetchSemanticsNode().boundsInRoot.left
 
         assertTrue(reloadX < aiX)
-        assertTrue(aiX < commentX)
+        assertTrue(aiX < shieldX)
+        assertTrue(shieldX < commentX)
         assertTrue(commentX < chaptersX)
         aiNode.performClick()
         compose.runOnIdle { assertEquals(1, enhanceClicks) }
@@ -60,6 +65,9 @@ class ReviewToolbarTest {
                     suspectCount = 0,
                     onReload = {},
                     onRunEnhance = {},
+                    redactionsEnabled = false,
+                    redactionCount = 0,
+                    onToggleRedactions = {},
                     onAddComment = {},
                     onCommentLongPress = {},
                     onOpenChapters = {},
@@ -80,6 +88,9 @@ class ReviewToolbarTest {
                     suspectCount = 3,
                     onReload = {},
                     onRunEnhance = {},
+                    redactionsEnabled = false,
+                    redactionCount = 0,
+                    onToggleRedactions = {},
                     onAddComment = {},
                     onCommentLongPress = {},
                     onOpenChapters = {},
@@ -90,6 +101,32 @@ class ReviewToolbarTest {
         assertEquals(0, compose.onAllNodesWithContentDescription("Run AI Enhance").fetchSemanticsNodes().size)
         compose.onNodeWithContentDescription("Reload transcript").assertIsDisplayed()
         compose.onNodeWithContentDescription("Add comment").assertIsDisplayed()
+    }
+
+    @Test
+    fun redactionShieldTogglesMode() {
+        var toggles = 0
+        compose.setContent {
+            DebriefTheme {
+                ReviewToolbarActions(
+                    showEnhance = false,
+                    enhanceRunning = false,
+                    suspectCount = 0,
+                    onReload = {},
+                    onRunEnhance = {},
+                    redactionsEnabled = true,
+                    redactionCount = 1,
+                    onToggleRedactions = { toggles++ },
+                    onAddComment = {},
+                    onCommentLongPress = {},
+                    onOpenChapters = {},
+                )
+            }
+        }
+
+        compose.onNodeWithContentDescription("Turn redactions off").performClick()
+
+        compose.runOnIdle { assertEquals(1, toggles) }
     }
 
     @Test
@@ -104,6 +141,9 @@ class ReviewToolbarTest {
                     suspectCount = 0,
                     onReload = {},
                     onRunEnhance = {},
+                    redactionsEnabled = false,
+                    redactionCount = 0,
+                    onToggleRedactions = {},
                     onAddComment = { commentClicks++ },
                     onCommentLongPress = { setControlOpens++ },
                     onOpenChapters = {},

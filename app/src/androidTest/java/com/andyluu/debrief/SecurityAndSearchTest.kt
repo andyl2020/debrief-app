@@ -7,6 +7,7 @@ import com.andyluu.debrief.data.AiPassStatus
 import com.andyluu.debrief.data.AiRecordingEntity
 import com.andyluu.debrief.data.ConversationSetEntity
 import com.andyluu.debrief.data.DebriefDatabase
+import com.andyluu.debrief.data.RedactionEntity
 import com.andyluu.debrief.data.RecordingEntity
 import com.andyluu.debrief.data.SearchRepository
 import com.andyluu.debrief.data.SecureSecretStore
@@ -91,11 +92,13 @@ class SecurityAndSearchTest {
             listOf(TranscriptWordEntity(recordingId = recording.id, speakerId = "Speaker A", startMs = 100, endMs = 500, text = "Keep")),
         )
         dao.upsertComment(CommentEntity("preserved-comment", recording.id, 200, "Keep this comment"))
+        dao.upsertRedaction(RedactionEntity("preserved-redaction", recording.id, 150, 250, "secret"))
 
         dao.upsertRecording(recording.copy(displayName = "Renamed recording.mp3", lastModified = 2))
 
         assertEquals("Keep this transcript", dao.getSegments(recording.id).single().text)
         assertEquals("Keep this comment", dao.getComment("preserved-comment")?.text)
+        assertEquals("secret", dao.getRedactions(recording.id).single().text)
     }
 
     @Test

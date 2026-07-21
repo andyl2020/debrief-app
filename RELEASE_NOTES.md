@@ -21,6 +21,9 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Tap the speed label beside Play/Pause to choose **1×, 1.2×, 1.5×, 2×, 3×, or 4×**. Changes take effect during playback without restarting or losing position.
 - Use the refresh icon beside search to reload transcript state and recover a saved sidecar when local transcript rows are absent.
 - Search within a recording from the review search field, or search all recordings from the Library search action.
+- Tap the **shield** button beside the review actions to turn redactions on or off. When on, redacted transcript words display as `[redacted]` and playback volume is muted over those timestamp ranges with a small safety pad.
+- With the shield on, long-press a word to start a redaction selection, long-press another word in the same segment to extend the range, then tap the inline **Redact** button. Long-press the transcript card/header to select the whole segment. Existing redactions can be removed inline from the affected transcript card.
+- Redactions are designed for screen recording and feedback sharing. They are reversible in-app metadata; original transcript text and original audio files are not modified.
 
 ### AI Enhance
 
@@ -40,6 +43,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Tap Add Comment for a normal timestamped comment. Long-press Add Comment to reveal **Set start** and **Set end** actions for the current playback position.
 - Manual set markers work like durable comments: **Set start** creates an open marker in Chapters, **Set end** closes the explicit range, and the next set uses the next alternating color. Transcript cards are colored only inside a closed start-to-end set range; blank gaps outside closed sets stay blank.
 - Tap any entry to seek to its timestamp and close the drawer. A closed set containing the current playback position is highlighted.
+- Closed manual sets appear as colored bands on the playback scrubber. Redactions do not appear in Chapters/bookmarks; they appear only in the transcript and scrubber while the shield is on.
 - The drawer is the canonical place for sets. The old expandable Library set list and large in-transcript set panel were removed to avoid duplicate, inconsistent navigation.
 - Use **Edit** on a set to change its title, start time, or end time. Use **Delete** to remove the marker without deleting audio, transcript text, or comments. Use **Merge next** on a set or **Split active set** at the current playback position to correct manual boundaries.
 - The compact **AI analysis** card in Chapters shows status, summary, errors, speaker-name suggestions, Skip AI state, and recording-rename undo. Use **Organize Recording** in the player overflow menu to run or rerun this dormant organize pass. Organize Recording no longer creates or overwrites sets.
@@ -66,6 +70,8 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - AI-generated summaries, speaker names, and rename suggestions can be wrong. Sets are manual-only because automatic boundaries were not reliable enough.
 - Split is enabled only when playback is inside a closed set and at least one second from either boundary. The final set cannot merge forward. An open set must be ended before another set can start.
 - Comments are durable user data and are not removed by rerunning AI. A comment and set at the same timestamp both appear, with the set first.
+- Redaction mode mutes Debrief's in-app player by setting playback volume to zero during redacted ranges. This is appropriate for screen recording from Debrief, but it is not a permanent export-safe edit of the source audio file.
+- Word-level redaction needs provider word timestamps. If word timing is missing for a segment, Debrief falls back to segment-level redaction for that card.
 - High playback speeds preserve position but may reduce intelligibility and can expose decoder limitations in damaged or unusual audio files.
 - Transcript Quality checks are mechanical integrity checks, not a guarantee that every word is correct. A green result means no obvious missing chunks, broken timestamps, or suspicious truncation were detected.
 - Provider usage totals depend on API-key permissions and provider availability. Local usage remains visible when provider billing endpoints are unavailable.
@@ -77,6 +83,18 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.8.0 - Reversible redaction mode (2026-07-21)
+
+- Added a shield toggle in Review for reversible redaction mode.
+- Added inline transcript redaction creation: shield on, long-press a word, optionally long-press another word in the same segment to extend the range, then tap **Redact** inside the transcript card.
+- Added whole-segment redaction by long-pressing the transcript card/header while shield mode is on.
+- Redacted transcript text displays as `[redacted]` while the shield is on and returns to original text when the shield is off.
+- Playback now mutes automatically over redacted timestamp ranges while the shield is on, with a small safety pad to reduce audio leakage at the edges.
+- Existing redactions can be removed inline from affected transcript cards; redactions are not shown in Chapters/bookmarks.
+- Redactions are persisted in the encrypted Room database and JSON sidecars. Source audio and raw transcript data remain untouched.
+- Added colored scrubber bands for closed manual sets and black scrubber ticks for active redactions.
+- Added Room migration v5 and regression tests for redaction masking, selection, and audio mute timing.
 
 ### v1.7.3 - Explicit set ranges only (2026-07-20)
 

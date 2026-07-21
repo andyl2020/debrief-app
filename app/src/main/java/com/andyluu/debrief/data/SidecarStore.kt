@@ -30,6 +30,9 @@ class SidecarStore(
             comments = dao.getComments(recordingId).map {
                 SidecarComment(it.id, it.timestampMs, it.text, it.createdAt, it.updatedAt)
             },
+            redactions = dao.getRedactions(recordingId).map {
+                SidecarRedaction(it.id, it.startMs, it.endMs, it.text, it.createdAt)
+            },
             speakerAliases = dao.getAliases(recordingId).associate { it.speakerId to it.displayName },
             originalRecordingName = ai?.originalDisplayName,
             aiSummary = ai?.summary.orEmpty(),
@@ -83,6 +86,11 @@ class SidecarStore(
         )
         document.comments.forEach {
             dao.upsertComment(CommentEntity(it.id, recording.id, it.timestampMs, it.text, it.createdAt, it.updatedAt))
+        }
+        if (document.redactions.isNotEmpty()) {
+            dao.insertRedactions(document.redactions.map {
+                RedactionEntity(it.id, recording.id, it.startMs, it.endMs, it.text, it.createdAt)
+            })
         }
         document.speakerAliases.forEach { (id, name) -> dao.upsertAlias(SpeakerAliasEntity(recording.id, id, name)) }
         if (document.aiSummary.isNotBlank() || document.sets.isNotEmpty() || document.skipAiPass) {

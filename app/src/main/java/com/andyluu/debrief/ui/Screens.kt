@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +45,7 @@ import androidx.compose.material.icons.filled.Forward5
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay5
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
@@ -93,9 +95,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -110,6 +114,7 @@ import com.andyluu.debrief.data.CommentEntity
 import com.andyluu.debrief.data.AiPassStatus
 import com.andyluu.debrief.data.AiRecordingEntity
 import com.andyluu.debrief.data.ConversationSetEntity
+import com.andyluu.debrief.data.RedactionEntity
 import com.andyluu.debrief.data.RecordingEntity
 import com.andyluu.debrief.data.RecordingStatus
 import com.andyluu.debrief.data.RepairEntity
@@ -864,6 +869,9 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
     var renamingSpeaker by remember { mutableStateOf<String?>(null) }
     var overflowExpanded by remember { mutableStateOf(false) }
     var cleanedView by rememberSaveable { mutableStateOf(false) }
+    var redactionsEnabled by rememberSaveable(recording?.id) { mutableStateOf(false) }
+    var redactionsInitialized by remember(recording?.id) { mutableStateOf(false) }
+    var redactionSelection by remember(recording?.id) { mutableStateOf<RedactionSelection?>(null) }
     var selectionStart by remember { mutableStateOf<Long?>(null) }
     var selectionEnd by remember { mutableStateOf<Long?>(null) }
     var reviewingRepair by remember { mutableStateOf<RepairEntity?>(null) }
@@ -875,9 +883,21 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
     val unresolvedSuspects = state.suspectSpans.count { !it.resolved }
     val activeRepairs = if (showAiEnhance) state.repairs.filter { it.applied && !it.reverted } else emptyList()
     val openManualSet = state.sets.lastOrNull { it.isOpenManualSet() }
+    val activeRedactions = if (redactionsEnabled) state.redactions else emptyList()
 
     LaunchedEffect(state.repairRun?.status, state.repairs.size) {
         if (state.repairRun?.status == RepairRunStatus.READY && activeRepairs.isNotEmpty()) cleanedView = true
+    }
+
+    LaunchedEffect(recording?.id, state.redactions.isNotEmpty()) {
+        if (!redactionsInitialized && state.redactions.isNotEmpty()) {
+            redactionsEnabled = true
+            redactionsInitialized = true
+        }
+    }
+
+    LaunchedEffect(redactionsEnabled) {
+        if (!redactionsEnabled) redactionSelection = null
     }
 
     LaunchedEffect(viewModel) {
@@ -909,10 +929,18 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
             player = null
         }
     }
-    LaunchedEffect(player) {
+    LaunchedEffect(player, activeRedactions) {
+        if (activeRedactions.isEmpty()) player?.volume = 1f
         while (isActive) {
-            player?.let { position = it.currentPosition.coerceAtLeast(0); if (it.duration > 0) duration = it.duration }
-            delay(300)
+            player?.let {
+                val current = it.currentPosition.coerceAtLeast(0)
+                position = current
+                if (it.duration > 0) duration = it.duration
+                val shouldMute = redactionActiveAt(current, activeRedactions)
+                val targetVolume = if (shouldMute) 0f else 1f
+                if (it.volume != targetVolume) it.volume = targetVolume
+            }
+            delay(75)
         }
     }
     val activeIndex = state.segments.indexOfLast { position >= it.startMs }.coerceAtLeast(0)
@@ -1015,14 +1043,14 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                     onValueChange = { value -> position = value.toLong(); player?.seekTo(position) },
                     valueRange = 0f..duration.coerceAtLeast(1).toFloat(),
                 )
-                if (showAiEnhance) {
-                    ScrubberHeatTicks(
-                        suspects = state.suspectSpans,
-                        repairs = activeRepairs,
-                        durationMs = duration,
-                        modifier = Modifier.fillMaxWidth().height(8.dp),
-                    )
-                }
+                ScrubberTimelineTicks(
+                    sets = state.sets,
+                    redactions = activeRedactions,
+                    suspects = if (showAiEnhance) state.suspectSpans else emptyList(),
+                    repairs = if (showAiEnhance) activeRepairs else emptyList(),
+                    durationMs = duration,
+                    modifier = Modifier.fillMaxWidth().height(10.dp),
+                )
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(formatTimestamp(position), style = MaterialTheme.typography.labelMedium)
                     Spacer(Modifier.weight(1f))
@@ -1067,6 +1095,12 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                     suspectCount = unresolvedSuspects,
                     onReload = { follow = true; viewModel.reloadTranscript() },
                     onRunEnhance = viewModel::runAiEnhance,
+                    redactionsEnabled = redactionsEnabled,
+                    redactionCount = state.redactions.size,
+                    onToggleRedactions = {
+                        redactionsEnabled = !redactionsEnabled
+                        if (!redactionsEnabled) redactionSelection = null
+                    },
                     onAddComment = { addComment = true },
                     onCommentLongPress = { showSetControls = !showSetControls },
                     onOpenChapters = { scope.launch { drawerState.open() } },
@@ -1154,22 +1188,38 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                     items(state.segments.size) { index ->
                         val segment = state.segments[index]
                         val comments = commentsForSegment(state.comments, state.segments, index, duration)
+                        val segmentWords = wordsForSegment(state.words, segment.startMs, segment.endMs)
                         val segmentRepairs = state.repairs.overlappingRepairs(segment.startMs, segment.endMs)
                         val segmentSuspects = state.suspectSpans.overlappingSuspects(segment.startMs, segment.endMs).filterNot { it.resolved }
                         val segmentSet = state.sets.lastOrNull { it.overlapsRange(segment.startMs, segment.endMs) }
+                        val segmentRedactions = state.redactions.overlappingRedactions(segment.startMs, segment.endMs)
+                        val baseText = if (cleanedView) cleanedText(segment, segmentRepairs) else segment.text
+                        val displayText = if (redactionsEnabled) {
+                            redactedTranscriptText(baseText, segmentWords, state.redactions, segment.startMs, segment.endMs)
+                        } else {
+                            baseText
+                        }
                         SegmentCard(
                             speaker = state.aliases[segment.speakerId] ?: segment.speakerId,
                             timestamp = segment.startMs,
-                            text = if (cleanedView) cleanedText(segment, segmentRepairs) else segment.text,
+                            text = displayText,
+                            sourceText = baseText,
+                            words = segmentWords,
                             active = index == activeIndex,
                             suspect = showAiEnhance && segmentSuspects.isNotEmpty(),
                             repaired = showAiEnhance && segmentRepairs.any { it.applied && !it.reverted },
                             setLabel = segmentSet?.title,
                             setColorIndex = segmentSet?.orderIndex,
+                            redactionsEnabled = redactionsEnabled,
+                            redactionCount = segmentRedactions.size,
+                            redactionSelection = redactionSelection?.takeIf { it.segmentId == segment.id },
                             comments = comments,
                             onSeek = { player?.seekTo(segment.startMs); position = segment.startMs; follow = true },
                             onLongPress = {
-                                if (showAiEnhance) {
+                                if (redactionsEnabled) {
+                                    redactionSelection = segmentRedactionSelection(segment.id, segment.startMs, segment.endMs, baseText)
+                                    follow = false
+                                } else if (showAiEnhance) {
                                     if (selectionStart == null || selectionEnd != null) {
                                         selectionStart = segment.startMs
                                         selectionEnd = null
@@ -1177,6 +1227,29 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                                         selectionEnd = segment.endMs
                                     }
                                 }
+                            },
+                            onWordLongPress = { word ->
+                                if (redactionsEnabled) {
+                                    redactionSelection = selectionBetweenWords(
+                                        segmentId = segment.id,
+                                        first = redactionSelection?.takeIf { it.segmentId == segment.id },
+                                        target = word,
+                                        segmentWords = segmentWords,
+                                    )
+                                    follow = false
+                                }
+                            },
+                            onConfirmRedaction = {
+                                redactionSelection?.takeIf { it.segmentId == segment.id }?.let {
+                                    redactionsEnabled = true
+                                    viewModel.addRedaction(it.startMs, it.endMs, it.text)
+                                }
+                                redactionSelection = null
+                            },
+                            onCancelRedaction = { redactionSelection = null },
+                            onDeleteRedactions = {
+                                viewModel.deleteRedactionsInRange(segment.startMs, segment.endMs)
+                                redactionSelection = null
                             },
                             onRename = { renamingSpeaker = segment.speakerId },
                             onReviewRepair = { segmentRepairs.firstOrNull()?.let { reviewingRepair = it } },
@@ -1350,6 +1423,9 @@ internal fun ReviewToolbarActions(
     suspectCount: Int,
     onReload: () -> Unit,
     onRunEnhance: () -> Unit,
+    redactionsEnabled: Boolean,
+    redactionCount: Int,
+    onToggleRedactions: () -> Unit,
     onAddComment: () -> Unit,
     onCommentLongPress: () -> Unit,
     onOpenChapters: () -> Unit,
@@ -1377,8 +1453,48 @@ internal fun ReviewToolbarActions(
                 }
             }
         }
+        RedactionToggleButton(
+            enabled = redactionsEnabled,
+            count = redactionCount,
+            onClick = onToggleRedactions,
+        )
         CommentActionButton(onClick = onAddComment, onLongClick = onCommentLongPress)
         IconButton(onClick = onOpenChapters) { Icon(Icons.AutoMirrored.Filled.List, "Open chapters") }
+    }
+}
+
+@Composable
+private fun RedactionToggleButton(
+    enabled: Boolean,
+    count: Int,
+    onClick: () -> Unit,
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier.semantics {
+            contentDescription = if (enabled) "Turn redactions off" else "Turn redactions on"
+        },
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                Icons.Default.Security,
+                null,
+                tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (count > 0) {
+                Text(
+                    count.coerceAtMost(99).toString(),
+                    modifier = Modifier.align(Alignment.TopEnd)
+                        .background(
+                            if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                            RoundedCornerShape(99.dp),
+                        )
+                        .padding(horizontal = 4.dp),
+                    color = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
     }
 }
 
@@ -1460,7 +1576,9 @@ internal fun commentsForSegment(
 }
 
 @Composable
-private fun ScrubberHeatTicks(
+private fun ScrubberTimelineTicks(
+    sets: List<ConversationSetEntity>,
+    redactions: List<RedactionEntity>,
     suspects: List<SuspectSpanEntity>,
     repairs: List<RepairEntity>,
     durationMs: Long,
@@ -1468,6 +1586,16 @@ private fun ScrubberHeatTicks(
 ) {
     if (durationMs <= 0) return
     Canvas(modifier) {
+        sets.filter { it.isClosedManualSet() }.forEach { set ->
+            val startX = size.width * (set.startMs / durationMs.toFloat()).coerceIn(0f, 1f)
+            val endX = size.width * (set.endMs / durationMs.toFloat()).coerceIn(0f, 1f)
+            drawLine(
+                color = manualSetAccentColor(set.orderIndex),
+                start = Offset(startX, size.height * 0.25f),
+                end = Offset(endX.coerceAtLeast(startX + 2f), size.height * 0.25f),
+                strokeWidth = 4.dp.toPx(),
+            )
+        }
         suspects.filterNot { it.resolved }.forEach { span ->
             val x = size.width * (span.startMs / durationMs.toFloat()).coerceIn(0f, 1f)
             drawLine(
@@ -1484,6 +1612,15 @@ private fun ScrubberHeatTicks(
                 start = Offset(x, 0f),
                 end = Offset(x, size.height),
                 strokeWidth = 3.dp.toPx(),
+            )
+        }
+        redactions.forEach { redaction ->
+            val x = size.width * (redaction.startMs / durationMs.toFloat()).coerceIn(0f, 1f)
+            drawLine(
+                color = Color.Black,
+                start = Offset(x, 0f),
+                end = Offset(x, size.height),
+                strokeWidth = 4.dp.toPx(),
             )
         }
     }
@@ -1672,14 +1809,23 @@ private fun SegmentCard(
     speaker: String,
     timestamp: Long,
     text: String,
+    sourceText: String,
+    words: List<com.andyluu.debrief.data.TranscriptWordEntity>,
     active: Boolean,
     suspect: Boolean,
     repaired: Boolean,
     setLabel: String?,
     setColorIndex: Int?,
+    redactionsEnabled: Boolean,
+    redactionCount: Int,
+    redactionSelection: RedactionSelection?,
     comments: List<CommentEntity>,
     onSeek: () -> Unit,
     onLongPress: () -> Unit,
+    onWordLongPress: (TimedTextRange) -> Unit,
+    onConfirmRedaction: () -> Unit,
+    onCancelRedaction: () -> Unit,
+    onDeleteRedactions: () -> Unit,
     onRename: () -> Unit,
     onReviewRepair: () -> Unit,
     onComment: (CommentEntity) -> Unit,
@@ -1716,7 +1862,37 @@ private fun SegmentCard(
                 Spacer(Modifier.weight(1f))
                 if (repaired) TextButton(onClick = onReviewRepair) { Text("Review") }
             }
-            Text(text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 6.dp))
+            RedactableTranscriptText(
+                text = text,
+                sourceText = sourceText,
+                words = words,
+                redactionsEnabled = redactionsEnabled,
+                onWordLongPress = onWordLongPress,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            if (redactionsEnabled && redactionSelection != null) {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 8.dp)
+                        .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "${redactionSelection.wordCount} selected",
+                        Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                    TextButton(onClick = onCancelRedaction) { Text("Cancel") }
+                    FilledTonalButton(onClick = onConfirmRedaction) { Text("Redact") }
+                }
+            } else if (redactionsEnabled && redactionCount > 0) {
+                Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDeleteRedactions) {
+                        Text(if (redactionCount == 1) "Remove redaction" else "Remove redactions")
+                    }
+                }
+            }
             if (suspect && !repaired) {
                 Text("Rough spot", style = MaterialTheme.typography.labelSmall, color = Color(0xFF8A5A00), modifier = Modifier.padding(top = 4.dp))
             }
@@ -1732,6 +1908,38 @@ private fun SegmentCard(
             }
         }
     }
+}
+
+@Composable
+private fun RedactableTranscriptText(
+    text: String,
+    sourceText: String,
+    words: List<com.andyluu.debrief.data.TranscriptWordEntity>,
+    redactionsEnabled: Boolean,
+    onWordLongPress: (TimedTextRange) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var layout by remember(text) { mutableStateOf<TextLayoutResult?>(null) }
+    val canSelectWords = redactionsEnabled && text == sourceText && words.isNotEmpty()
+    Text(
+        text,
+        style = MaterialTheme.typography.bodyLarge,
+        modifier = modifier.then(
+            if (canSelectWords) {
+                Modifier.pointerInput(sourceText, words) {
+                    detectTapGestures(
+                        onLongPress = { offset ->
+                            val charOffset = layout?.getOffsetForPosition(offset) ?: return@detectTapGestures
+                            wordRangeAtOffset(sourceText, words, charOffset)?.let(onWordLongPress)
+                        },
+                    )
+                }
+            } else {
+                Modifier
+            }
+        ),
+        onTextLayout = { layout = it },
+    )
 }
 
 @Composable

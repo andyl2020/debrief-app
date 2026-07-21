@@ -31,6 +31,7 @@ class Converters {
         TranscriptSegmentEntity::class,
         TranscriptWordEntity::class,
         CommentEntity::class,
+        RedactionEntity::class,
         SpeakerAliasEntity::class,
         AiRecordingEntity::class,
         ConversationSetEntity::class,
@@ -40,7 +41,7 @@ class Converters {
         RepairEntity::class,
         TranscriptQualityReportEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -64,7 +65,7 @@ abstract class DebriefDatabase : RoomDatabase() {
                 DebriefDatabase::class.java,
                 "debrief.db",
             ).openHelperFactory(SupportOpenHelperFactory(passphrase, null, false))
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .addCallback(object : Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
@@ -229,6 +230,25 @@ abstract class DebriefDatabase : RoomDatabase() {
                     )""".trimIndent()
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_transcript_quality_reports_recordingId` ON `transcript_quality_reports` (`recordingId`)")
+            }
+        }
+
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `redactions` (
+                        `id` TEXT NOT NULL,
+                        `recordingId` TEXT NOT NULL,
+                        `startMs` INTEGER NOT NULL,
+                        `endMs` INTEGER NOT NULL,
+                        `text` TEXT NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`recordingId`) REFERENCES `recordings`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )""".trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_redactions_recordingId` ON `redactions` (`recordingId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_redactions_recordingId_startMs` ON `redactions` (`recordingId`, `startMs`)")
             }
         }
     }
