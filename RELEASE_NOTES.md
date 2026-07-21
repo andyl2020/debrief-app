@@ -21,8 +21,8 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Tap the speed label beside Play/Pause to choose **1×, 1.2×, 1.5×, 2×, 3×, or 4×**. Changes take effect during playback without restarting or losing position.
 - Use the refresh icon beside search to reload transcript state and recover a saved sidecar when local transcript rows are absent.
 - Search within a recording from the review search field, or search all recordings from the Library search action.
-- Tap the **shield** button beside the review actions to turn redactions on or off. When on, redacted transcript words display as `[redacted]` and playback volume is muted over those timestamp ranges with a small safety pad.
-- With the shield on, long-press a word to start a redaction selection, long-press another word in the same segment to extend the range, then tap the inline **Redact** button. Long-press the transcript card/header to select the whole segment. Existing redactions can be removed inline from the affected transcript card.
+- Redactions are on by default in Review. Tap the **shield** button beside the review actions to turn redactions off or back on. When on, redacted transcript cards display as `[redacted]` and playback volume is muted over those timestamp ranges with a small safety pad.
+- With the shield on, long-press a transcript card and tap the inline **Redact** button to redact the whole card. Long-press an already-redacted card and tap **Remove redaction** to restore that card's redaction metadata.
 - Redactions are designed for screen recording and feedback sharing. They are reversible in-app metadata; original transcript text and original audio files are not modified.
 
 ### AI Enhance
@@ -71,7 +71,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Split is enabled only when playback is inside a closed set and at least one second from either boundary. The final set cannot merge forward. An open set must be ended before another set can start.
 - Comments are durable user data and are not removed by rerunning AI. A comment and set at the same timestamp both appear, with the set first.
 - Redaction mode mutes Debrief's in-app player by setting playback volume to zero during redacted ranges. This is appropriate for screen recording from Debrief, but it is not a permanent export-safe edit of the source audio file.
-- Word-level redaction needs provider word timestamps. If word timing is missing for a segment, Debrief falls back to segment-level redaction for that card.
+- Redactions are card-level in the Review UI. Older partial redaction metadata is still honored if present, but new redactions redact whole transcript cards for reliability.
 - High playback speeds preserve position but may reduce intelligibility and can expose decoder limitations in damaged or unusual audio files.
 - Transcript Quality checks are mechanical integrity checks, not a guarantee that every word is correct. A green result means no obvious missing chunks, broken timestamps, or suspicious truncation were detected.
 - Provider usage totals depend on API-key permissions and provider availability. Local usage remains visible when provider billing endpoints are unavailable.
@@ -83,6 +83,15 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.8.1 - Card-level redaction UX fix (2026-07-21)
+
+- Simplified redaction creation to whole transcript cards only. Word-level long-press selection was removed because it was too fussy and unreliable on-device.
+- Redaction mode is now on by default in Review. The shield button explicitly turns it off or back on.
+- Long-pressing an unredacted transcript card shows an inline **Redact** action for the whole card.
+- Long-pressing an already-redacted transcript card shows an inline **Remove redaction** action.
+- Fixed a card-redaction masking bug where the first word could remain visible. Whole-card redactions now render the card as exactly `[redacted]`.
+- Audio muting remains toggleable with the shield and covers the full redacted card timestamp range.
 
 ### v1.8.0 - Reversible redaction mode (2026-07-21)
 

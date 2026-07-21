@@ -9,7 +9,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -95,11 +94,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -869,8 +866,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
     var renamingSpeaker by remember { mutableStateOf<String?>(null) }
     var overflowExpanded by remember { mutableStateOf(false) }
     var cleanedView by rememberSaveable { mutableStateOf(false) }
-    var redactionsEnabled by rememberSaveable(recording?.id) { mutableStateOf(false) }
-    var redactionsInitialized by remember(recording?.id) { mutableStateOf(false) }
+    var redactionsEnabled by rememberSaveable(recording?.id) { mutableStateOf(true) }
     var redactionSelection by remember(recording?.id) { mutableStateOf<RedactionSelection?>(null) }
     var selectionStart by remember { mutableStateOf<Long?>(null) }
     var selectionEnd by remember { mutableStateOf<Long?>(null) }
@@ -887,13 +883,6 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
 
     LaunchedEffect(state.repairRun?.status, state.repairs.size) {
         if (state.repairRun?.status == RepairRunStatus.READY && activeRepairs.isNotEmpty()) cleanedView = true
-    }
-
-    LaunchedEffect(recording?.id, state.redactions.isNotEmpty()) {
-        if (!redactionsInitialized && state.redactions.isNotEmpty()) {
-            redactionsEnabled = true
-            redactionsInitialized = true
-        }
     }
 
     LaunchedEffect(redactionsEnabled) {
@@ -1203,54 +1192,39 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                             speaker = state.aliases[segment.speakerId] ?: segment.speakerId,
                             timestamp = segment.startMs,
                             text = displayText,
-                            sourceText = baseText,
-                            words = segmentWords,
                             active = index == activeIndex,
                             suspect = showAiEnhance && segmentSuspects.isNotEmpty(),
                             repaired = showAiEnhance && segmentRepairs.any { it.applied && !it.reverted },
                             setLabel = segmentSet?.title,
                             setColorIndex = segmentSet?.orderIndex,
                             redactionsEnabled = redactionsEnabled,
-                            redactionCount = segmentRedactions.size,
                             redactionSelection = redactionSelection?.takeIf { it.segmentId == segment.id },
                             comments = comments,
                             onSeek = { player?.seekTo(segment.startMs); position = segment.startMs; follow = true },
                             onLongPress = {
                                 if (redactionsEnabled) {
-                                    redactionSelection = segmentRedactionSelection(segment.id, segment.startMs, segment.endMs, baseText)
-                                    follow = false
-                                } else if (showAiEnhance) {
-                                    if (selectionStart == null || selectionEnd != null) {
-                                        selectionStart = segment.startMs
-                                        selectionEnd = null
-                                    } else {
-                                        selectionEnd = segment.endMs
-                                    }
-                                }
-                            },
-                            onWordLongPress = { word ->
-                                if (redactionsEnabled) {
-                                    redactionSelection = selectionBetweenWords(
-                                        segmentId = segment.id,
-                                        first = redactionSelection?.takeIf { it.segmentId == segment.id },
-                                        target = word,
-                                        segmentWords = segmentWords,
+                                    redactionSelection = segmentRedactionSelection(
+                                        segment.id,
+                                        segment.startMs,
+                                        segment.endMs,
+                                        baseText,
+                                        hasExistingRedactions = segmentRedactions.isNotEmpty(),
                                     )
                                     follow = false
                                 }
                             },
                             onConfirmRedaction = {
                                 redactionSelection?.takeIf { it.segmentId == segment.id }?.let {
-                                    redactionsEnabled = true
-                                    viewModel.addRedaction(it.startMs, it.endMs, it.text)
+                                    if (it.hasExistingRedactions) {
+                                        viewModel.deleteRedactionsInRange(segment.startMs, segment.endMs)
+                                    } else {
+                                        redactionsEnabled = true
+                                        viewModel.addRedaction(it.startMs, it.endMs, it.text)
+                                    }
                                 }
                                 redactionSelection = null
                             },
                             onCancelRedaction = { redactionSelection = null },
-                            onDeleteRedactions = {
-                                viewModel.deleteRedactionsInRange(segment.startMs, segment.endMs)
-                                redactionSelection = null
-                            },
                             onRename = { renamingSpeaker = segment.speakerId },
                             onReviewRepair = { segmentRepairs.firstOrNull()?.let { reviewingRepair = it } },
                             onComment = { comment -> editingComment = comment },
@@ -1809,23 +1783,18 @@ private fun SegmentCard(
     speaker: String,
     timestamp: Long,
     text: String,
-    sourceText: String,
-    words: List<com.andyluu.debrief.data.TranscriptWordEntity>,
     active: Boolean,
     suspect: Boolean,
     repaired: Boolean,
     setLabel: String?,
     setColorIndex: Int?,
     redactionsEnabled: Boolean,
-    redactionCount: Int,
     redactionSelection: RedactionSelection?,
     comments: List<CommentEntity>,
     onSeek: () -> Unit,
     onLongPress: () -> Unit,
-    onWordLongPress: (TimedTextRange) -> Unit,
     onConfirmRedaction: () -> Unit,
     onCancelRedaction: () -> Unit,
-    onDeleteRedactions: () -> Unit,
     onRename: () -> Unit,
     onReviewRepair: () -> Unit,
     onComment: (CommentEntity) -> Unit,
@@ -1862,14 +1831,7 @@ private fun SegmentCard(
                 Spacer(Modifier.weight(1f))
                 if (repaired) TextButton(onClick = onReviewRepair) { Text("Review") }
             }
-            RedactableTranscriptText(
-                text = text,
-                sourceText = sourceText,
-                words = words,
-                redactionsEnabled = redactionsEnabled,
-                onWordLongPress = onWordLongPress,
-                modifier = Modifier.padding(top = 6.dp),
-            )
+            Text(text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 6.dp))
             if (redactionsEnabled && redactionSelection != null) {
                 Row(
                     Modifier.fillMaxWidth().padding(top = 8.dp)
@@ -1878,18 +1840,14 @@ private fun SegmentCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "${redactionSelection.wordCount} selected",
+                        if (redactionSelection.hasExistingRedactions) "Redacted card selected" else "Card selected",
                         Modifier.weight(1f),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
                     TextButton(onClick = onCancelRedaction) { Text("Cancel") }
-                    FilledTonalButton(onClick = onConfirmRedaction) { Text("Redact") }
-                }
-            } else if (redactionsEnabled && redactionCount > 0) {
-                Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDeleteRedactions) {
-                        Text(if (redactionCount == 1) "Remove redaction" else "Remove redactions")
+                    FilledTonalButton(onClick = onConfirmRedaction) {
+                        Text(if (redactionSelection.hasExistingRedactions) "Remove redaction" else "Redact")
                     }
                 }
             }
@@ -1908,38 +1866,6 @@ private fun SegmentCard(
             }
         }
     }
-}
-
-@Composable
-private fun RedactableTranscriptText(
-    text: String,
-    sourceText: String,
-    words: List<com.andyluu.debrief.data.TranscriptWordEntity>,
-    redactionsEnabled: Boolean,
-    onWordLongPress: (TimedTextRange) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var layout by remember(text) { mutableStateOf<TextLayoutResult?>(null) }
-    val canSelectWords = redactionsEnabled && text == sourceText && words.isNotEmpty()
-    Text(
-        text,
-        style = MaterialTheme.typography.bodyLarge,
-        modifier = modifier.then(
-            if (canSelectWords) {
-                Modifier.pointerInput(sourceText, words) {
-                    detectTapGestures(
-                        onLongPress = { offset ->
-                            val charOffset = layout?.getOffsetForPosition(offset) ?: return@detectTapGestures
-                            wordRangeAtOffset(sourceText, words, charOffset)?.let(onWordLongPress)
-                        },
-                    )
-                }
-            } else {
-                Modifier
-            }
-        ),
-        onTextLayout = { layout = it },
-    )
 }
 
 @Composable

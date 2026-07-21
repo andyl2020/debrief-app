@@ -6,22 +6,13 @@ import com.andyluu.debrief.data.TranscriptWordEntity
 internal const val REDACTION_AUDIO_PAD_MS = 150L
 internal const val REDACTION_LABEL = "[redacted]"
 
-internal data class TimedTextRange(
-    val textStart: Int,
-    val textEnd: Int,
-    val startMs: Long,
-    val endMs: Long,
-    val text: String,
-)
-
 internal data class RedactionSelection(
     val segmentId: Long,
     val startMs: Long,
     val endMs: Long,
     val text: String,
-) {
-    val wordCount: Int = text.split(Regex("\\s+")).count(String::isNotBlank).coerceAtLeast(1)
-}
+    val hasExistingRedactions: Boolean = false,
+)
 
 internal fun redactionActiveAt(
     positionMs: Long,
@@ -48,6 +39,7 @@ internal fun redactedTranscriptText(
 ): String {
     val overlapping = redactions.overlappingRedactions(segmentStartMs, segmentEndMs)
     if (overlapping.isEmpty()) return text
+    if (overlapping.any { it.startMs <= segmentStartMs && it.endMs >= segmentEndMs }) return REDACTION_LABEL
     val ranges = wordTextRanges(text, words)
     if (ranges.isEmpty()) return REDACTION_LABEL
     val redactedRanges = ranges.filter { range -> overlapping.any { it.startMs < range.endMs && it.endMs > range.startMs } }
@@ -79,30 +71,22 @@ internal fun redactedTranscriptText(
     return builder.toString().replace(Regex("""\s{2,}"""), " ").trim()
 }
 
-internal fun wordRangeAtOffset(
-    text: String,
-    words: List<TranscriptWordEntity>,
-    charOffset: Int,
-): TimedTextRange? =
-    wordTextRanges(text, words).firstOrNull { charOffset in it.textStart until it.textEnd }
-
-internal fun selectionBetweenWords(
+internal fun segmentRedactionSelection(
     segmentId: Long,
-    first: RedactionSelection?,
-    target: TimedTextRange,
-    segmentWords: List<TranscriptWordEntity>,
-): RedactionSelection {
-    val start = minOf(first?.startMs ?: target.startMs, target.startMs)
-    val end = maxOf(first?.endMs ?: target.endMs, target.endMs)
-    val selectedText = segmentWords
-        .filter { it.endMs > start && it.startMs < end }
-        .joinToString(" ") { it.text }
-        .ifBlank { target.text }
-    return RedactionSelection(segmentId, start, end, selectedText)
-}
+    startMs: Long,
+    endMs: Long,
+    text: String,
+    hasExistingRedactions: Boolean = false,
+): RedactionSelection =
+    RedactionSelection(segmentId, startMs, endMs, text, hasExistingRedactions)
 
-internal fun segmentRedactionSelection(segmentId: Long, startMs: Long, endMs: Long, text: String): RedactionSelection =
-    RedactionSelection(segmentId, startMs, endMs, text)
+private data class TimedTextRange(
+    val textStart: Int,
+    val textEnd: Int,
+    val startMs: Long,
+    val endMs: Long,
+    val text: String,
+)
 
 private fun wordTextRanges(text: String, words: List<TranscriptWordEntity>): List<TimedTextRange> {
     if (text.isBlank() || words.isEmpty()) return emptyList()

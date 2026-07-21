@@ -25,6 +25,19 @@ class RedactionsTest {
     }
 
     @Test
+    fun fullCardRedactionMasksFromTheFirstWord() {
+        val text = "First word must disappear."
+        val words = listOf(
+            word("First", 0, 100),
+            word("word", 100, 200),
+            word("must", 200, 300),
+            word("disappear.", 300, 400),
+        )
+
+        assertEquals(REDACTION_LABEL, redactedTranscriptText(text, words, listOf(redaction(0, 400)), 0, 400))
+    }
+
+    @Test
     fun wholeSegmentFallsBackWhenWordTimingIsMissing() {
         assertEquals(
             REDACTION_LABEL,
@@ -40,19 +53,6 @@ class RedactionsTest {
         assertTrue(redactionActiveAt(2_100, redactions))
         assertFalse(redactionActiveAt(800, redactions))
         assertFalse(redactionActiveAt(2_200, redactions))
-    }
-
-    @Test
-    fun secondLongPressedWordExtendsSelectionRange() {
-        val words = listOf(word("hello", 0, 100), word("private", 100, 200), word("name", 200, 300))
-        val first = RedactionSelection(segmentId = 10, startMs = 200, endMs = 300, text = "name")
-        val target = TimedTextRange(textStart = 6, textEnd = 13, startMs = 100, endMs = 200, text = "private")
-
-        val selection = selectionBetweenWords(10, first, target, words)
-
-        assertEquals(100, selection.startMs)
-        assertEquals(300, selection.endMs)
-        assertEquals("private name", selection.text)
     }
 
     private fun word(text: String, startMs: Long, endMs: Long) = TranscriptWordEntity(
