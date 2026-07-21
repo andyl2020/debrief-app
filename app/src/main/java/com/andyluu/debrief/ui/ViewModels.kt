@@ -465,6 +465,30 @@ class ReviewViewModel(
         _messages.emit("Redaction added.")
     }
 
+    internal fun replaceRedactionsForSegment(segmentStartMs: Long, segmentEndMs: Long, ranges: List<RedactionRange>) =
+        launchHandled("Couldn't update redactions.") {
+            val start = minOf(segmentStartMs, segmentEndMs).coerceAtLeast(0L)
+            val end = maxOf(segmentStartMs, segmentEndMs).coerceAtLeast(start + 1)
+            dao.deleteRedactionsOverlapping(recordingId, start, end)
+            if (ranges.isNotEmpty()) {
+                dao.insertRedactions(
+                    ranges.map { range ->
+                        val rangeStart = minOf(range.startMs, range.endMs).coerceAtLeast(0L)
+                        val rangeEnd = maxOf(range.startMs, range.endMs).coerceAtLeast(rangeStart + 1)
+                        RedactionEntity(
+                            id = UUID.randomUUID().toString(),
+                            recordingId = recordingId,
+                            startMs = rangeStart,
+                            endMs = rangeEnd,
+                            text = range.text.trim().take(500),
+                        )
+                    },
+                )
+            }
+            refreshDerivedData()
+            _messages.emit(if (ranges.isEmpty()) "Redactions removed." else "Redactions updated.")
+        }
+
     fun deleteRedaction(redactionId: String) = launchHandled("Couldn't delete the redaction.") {
         dao.deleteRedaction(redactionId)
         refreshDerivedData()

@@ -22,7 +22,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Use the refresh icon beside search to reload transcript state and recover a saved sidecar when local transcript rows are absent.
 - Search within a recording from the review search field, or search all recordings from the Library search action.
 - Redactions are on by default in Review. Tap the **shield** button beside the review actions to turn redactions off or back on. When on, redacted transcript cards display as `[redacted]` and playback volume is muted over those timestamp ranges with a small safety pad.
-- With the shield on, long-press a transcript card and tap the inline **Redact** button to redact the whole card. Long-press an already-redacted card and tap **Remove redaction** to restore that card's redaction metadata.
+- With the shield on, long-press a transcript card and tap the inline **Redact** button to redact the whole card. Redacted cards show an **N selected** chip; tap it to cancel the redaction for a specific word number, or long-press the card and tap **Remove redaction** to restore the whole card.
 - Redactions are designed for screen recording and feedback sharing. They are reversible in-app metadata; original transcript text and original audio files are not modified.
 
 ### AI Enhance
@@ -71,7 +71,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Split is enabled only when playback is inside a closed set and at least one second from either boundary. The final set cannot merge forward. An open set must be ended before another set can start.
 - Comments are durable user data and are not removed by rerunning AI. A comment and set at the same timestamp both appear, with the set first.
 - Redaction mode mutes Debrief's in-app player by setting playback volume to zero during redacted ranges. This is appropriate for screen recording from Debrief, but it is not a permanent export-safe edit of the source audio file.
-- Redactions are card-level in the Review UI. Older partial redaction metadata is still honored if present, but new redactions redact whole transcript cards for reliability.
+- Redaction creation is card-level in the Review UI. When word timestamps exist, Debrief stores card redactions as word-level ranges so individual words can be unredacted from the **N selected** chip. If word timing is missing, Debrief falls back to whole-card redaction/removal.
 - High playback speeds preserve position but may reduce intelligibility and can expose decoder limitations in damaged or unusual audio files.
 - Transcript Quality checks are mechanical integrity checks, not a guarantee that every word is correct. A green result means no obvious missing chunks, broken timestamps, or suspicious truncation were detected.
 - Provider usage totals depend on API-key permissions and provider availability. Local usage remains visible when provider billing endpoints are unavailable.
@@ -83,6 +83,14 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.8.2 - Selective redaction undo (2026-07-21)
+
+- Kept the simple whole-card redaction creation flow: shield on, long-press a transcript card, tap **Redact**.
+- Added an **N selected** chip on redacted cards. Tap it to choose **Cancel redaction 1**, **Cancel redaction 2**, and so on for the redacted words in that card.
+- New card redactions are stored as word-level timestamp ranges when provider word timing is available, while still rendering as one clean `[redacted]` pill when the whole card is redacted.
+- Existing v1.8.1 full-card redactions can be selectively unredacted too; Debrief converts the card into individual word redactions and removes only the selected word.
+- If a transcript card has no word timestamps, selective word undo is unavailable and Debrief keeps the reliable whole-card redaction fallback.
 
 ### v1.8.1 - Card-level redaction UX fix (2026-07-21)
 

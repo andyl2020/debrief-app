@@ -14,6 +14,18 @@ internal data class RedactionSelection(
     val hasExistingRedactions: Boolean = false,
 )
 
+internal data class RedactionRange(
+    val startMs: Long,
+    val endMs: Long,
+    val text: String,
+)
+
+internal data class RedactedWordChoice(
+    val index: Int,
+    val startMs: Long,
+    val endMs: Long,
+)
+
 internal fun redactionActiveAt(
     positionMs: Long,
     redactions: List<RedactionEntity>,
@@ -44,6 +56,7 @@ internal fun redactedTranscriptText(
     if (ranges.isEmpty()) return REDACTION_LABEL
     val redactedRanges = ranges.filter { range -> overlapping.any { it.startMs < range.endMs && it.endMs > range.startMs } }
     if (redactedRanges.isEmpty()) return text
+    if (redactedRanges.size == ranges.size) return REDACTION_LABEL
 
     val builder = StringBuilder()
     var cursor = 0
@@ -79,6 +92,52 @@ internal fun segmentRedactionSelection(
     hasExistingRedactions: Boolean = false,
 ): RedactionSelection =
     RedactionSelection(segmentId, startMs, endMs, text, hasExistingRedactions)
+
+internal fun redactionRangesForWholeSegment(
+    words: List<TranscriptWordEntity>,
+    segmentStartMs: Long,
+    segmentEndMs: Long,
+    fallbackText: String,
+): List<RedactionRange> {
+    val segmentWords = wordsForSegment(words, segmentStartMs, segmentEndMs)
+    if (segmentWords.isEmpty()) return listOf(RedactionRange(segmentStartMs, segmentEndMs, fallbackText))
+    return segmentWords.map { word -> RedactionRange(word.startMs, word.endMs, word.text) }
+}
+
+internal fun redactedWordChoices(
+    words: List<TranscriptWordEntity>,
+    redactions: List<RedactionEntity>,
+    segmentStartMs: Long,
+    segmentEndMs: Long,
+): List<RedactedWordChoice> {
+    val overlapping = redactions.overlappingRedactions(segmentStartMs, segmentEndMs)
+    if (overlapping.isEmpty()) return emptyList()
+    val segmentWords = wordsForSegment(words, segmentStartMs, segmentEndMs)
+    if (segmentWords.isEmpty()) return emptyList()
+    val wholeSegmentRedacted = overlapping.any { it.startMs <= segmentStartMs && it.endMs >= segmentEndMs }
+    return segmentWords.mapIndexedNotNull { index, word ->
+        val wordRedacted = wholeSegmentRedacted || overlapping.any { it.startMs < word.endMs && it.endMs > word.startMs }
+        if (wordRedacted) RedactedWordChoice(index + 1, word.startMs, word.endMs) else null
+    }
+}
+
+internal fun redactionRangesAfterRemovingWord(
+    words: List<TranscriptWordEntity>,
+    redactions: List<RedactionEntity>,
+    segmentStartMs: Long,
+    segmentEndMs: Long,
+    removedWord: RedactedWordChoice,
+): List<RedactionRange> {
+    val overlapping = redactions.overlappingRedactions(segmentStartMs, segmentEndMs)
+    if (overlapping.isEmpty()) return emptyList()
+    val segmentWords = wordsForSegment(words, segmentStartMs, segmentEndMs)
+    if (segmentWords.isEmpty()) return emptyList()
+    val wholeSegmentRedacted = overlapping.any { it.startMs <= segmentStartMs && it.endMs >= segmentEndMs }
+    return segmentWords
+        .filterNot { it.startMs == removedWord.startMs && it.endMs == removedWord.endMs }
+        .filter { word -> wholeSegmentRedacted || overlapping.any { it.startMs < word.endMs && it.endMs > word.startMs } }
+        .map { word -> RedactionRange(word.startMs, word.endMs, word.text) }
+}
 
 private data class TimedTextRange(
     val textStart: Int,

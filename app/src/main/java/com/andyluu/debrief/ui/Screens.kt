@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -1182,6 +1183,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                         val segmentSuspects = state.suspectSpans.overlappingSuspects(segment.startMs, segment.endMs).filterNot { it.resolved }
                         val segmentSet = state.sets.lastOrNull { it.overlapsRange(segment.startMs, segment.endMs) }
                         val segmentRedactions = state.redactions.overlappingRedactions(segment.startMs, segment.endMs)
+                        val segmentRedactedWords = redactedWordChoices(segmentWords, state.redactions, segment.startMs, segment.endMs)
                         val baseText = if (cleanedView) cleanedText(segment, segmentRepairs) else segment.text
                         val displayText = if (redactionsEnabled) {
                             redactedTranscriptText(baseText, segmentWords, state.redactions, segment.startMs, segment.endMs)
@@ -1198,6 +1200,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                             setLabel = segmentSet?.title,
                             setColorIndex = segmentSet?.orderIndex,
                             redactionsEnabled = redactionsEnabled,
+                            redactedWords = segmentRedactedWords,
                             redactionSelection = redactionSelection?.takeIf { it.segmentId == segment.id },
                             comments = comments,
                             onSeek = { player?.seekTo(segment.startMs); position = segment.startMs; follow = true },
@@ -1216,15 +1219,33 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                             onConfirmRedaction = {
                                 redactionSelection?.takeIf { it.segmentId == segment.id }?.let {
                                     if (it.hasExistingRedactions) {
-                                        viewModel.deleteRedactionsInRange(segment.startMs, segment.endMs)
+                                        viewModel.replaceRedactionsForSegment(segment.startMs, segment.endMs, emptyList())
                                     } else {
                                         redactionsEnabled = true
-                                        viewModel.addRedaction(it.startMs, it.endMs, it.text)
+                                        viewModel.replaceRedactionsForSegment(
+                                            segment.startMs,
+                                            segment.endMs,
+                                            redactionRangesForWholeSegment(segmentWords, segment.startMs, segment.endMs, baseText),
+                                        )
                                     }
                                 }
                                 redactionSelection = null
                             },
                             onCancelRedaction = { redactionSelection = null },
+                            onRemoveRedactedWord = { word ->
+                                viewModel.replaceRedactionsForSegment(
+                                    segment.startMs,
+                                    segment.endMs,
+                                    redactionRangesAfterRemovingWord(
+                                        words = segmentWords,
+                                        redactions = state.redactions,
+                                        segmentStartMs = segment.startMs,
+                                        segmentEndMs = segment.endMs,
+                                        removedWord = word,
+                                    ),
+                                )
+                                redactionSelection = null
+                            },
                             onRename = { renamingSpeaker = segment.speakerId },
                             onReviewRepair = { segmentRepairs.firstOrNull()?.let { reviewingRepair = it } },
                             onComment = { comment -> editingComment = comment },
@@ -1789,17 +1810,20 @@ private fun SegmentCard(
     setLabel: String?,
     setColorIndex: Int?,
     redactionsEnabled: Boolean,
+    redactedWords: List<RedactedWordChoice>,
     redactionSelection: RedactionSelection?,
     comments: List<CommentEntity>,
     onSeek: () -> Unit,
     onLongPress: () -> Unit,
     onConfirmRedaction: () -> Unit,
     onCancelRedaction: () -> Unit,
+    onRemoveRedactedWord: (RedactedWordChoice) -> Unit,
     onRename: () -> Unit,
     onReviewRepair: () -> Unit,
     onComment: (CommentEntity) -> Unit,
     onDeleteComment: (String) -> Unit,
 ) {
+    var redactedWordsMenuExpanded by remember { mutableStateOf(false) }
     val baseColor = when {
         repaired -> Color(0xFFD5F5DF)
         suspect -> Color(0xFFFFF3CD)
@@ -1832,6 +1856,29 @@ private fun SegmentCard(
                 if (repaired) TextButton(onClick = onReviewRepair) { Text("Review") }
             }
             Text(text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 6.dp))
+            if (redactionsEnabled && redactedWords.isNotEmpty()) {
+                Box(Modifier.padding(top = 8.dp)) {
+                    AssistChip(
+                        onClick = { redactedWordsMenuExpanded = true },
+                        label = { Text("${redactedWords.size} selected") },
+                    )
+                    DropdownMenu(
+                        expanded = redactedWordsMenuExpanded,
+                        onDismissRequest = { redactedWordsMenuExpanded = false },
+                        modifier = Modifier.heightIn(max = 320.dp),
+                    ) {
+                        redactedWords.forEach { word ->
+                            DropdownMenuItem(
+                                text = { Text("Cancel redaction ${word.index}") },
+                                onClick = {
+                                    redactedWordsMenuExpanded = false
+                                    onRemoveRedactedWord(word)
+                                },
+                            )
+                        }
+                    }
+                }
+            }
             if (redactionsEnabled && redactionSelection != null) {
                 Row(
                     Modifier.fillMaxWidth().padding(top = 8.dp)
@@ -1839,12 +1886,20 @@ private fun SegmentCard(
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        if (redactionSelection.hasExistingRedactions) "Redacted card selected" else "Card selected",
-                        Modifier.weight(1f),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
+                    if (redactionSelection.hasExistingRedactions && redactedWords.isNotEmpty()) {
+                        Box(Modifier.weight(1f)) {
+                            TextButton(onClick = { redactedWordsMenuExpanded = true }) {
+                                Text("${redactedWords.size} selected")
+                            }
+                        }
+                    } else {
+                        Text(
+                            "Card selected",
+                            Modifier.weight(1f),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
                     TextButton(onClick = onCancelRedaction) { Text("Cancel") }
                     FilledTonalButton(onClick = onConfirmRedaction) {
                         Text(if (redactionSelection.hasExistingRedactions) "Remove redaction" else "Redact")

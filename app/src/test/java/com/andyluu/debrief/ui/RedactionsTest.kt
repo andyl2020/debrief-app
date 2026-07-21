@@ -38,6 +38,53 @@ class RedactionsTest {
     }
 
     @Test
+    fun allWordRedactionsStillLookLikeOneRedactedCard() {
+        val text = "One two three four five extra-cleaned-token."
+        val words = listOf(
+            word("One", 0, 100),
+            word("two", 100, 200),
+            word("three", 200, 300),
+            word("four", 300, 400),
+            word("five.", 400, 500),
+        )
+        val redactions = words.map { redaction(it.startMs, it.endMs) }
+
+        assertEquals(REDACTION_LABEL, redactedTranscriptText(text, words, redactions, 0, 500))
+    }
+
+    @Test
+    fun removingFifthWordFromCardRedactionKeepsOtherWordsRedacted() {
+        val text = "One two three four five six."
+        val words = listOf(
+            word("One", 0, 100),
+            word("two", 100, 200),
+            word("three", 200, 300),
+            word("four", 300, 400),
+            word("five", 400, 500),
+            word("six.", 500, 600),
+        )
+        val fullCardRedaction = listOf(redaction(0, 600))
+        val fifth = redactedWordChoices(words, fullCardRedaction, 0, 600).single { it.index == 5 }
+
+        val remaining = redactionRangesAfterRemovingWord(words, fullCardRedaction, 0, 600, fifth)
+            .map { redaction(it.startMs, it.endMs) }
+
+        assertEquals("[redacted] five [redacted]", redactedTranscriptText(text, words, remaining, 0, 600))
+        assertEquals(listOf(1, 2, 3, 4, 6), redactedWordChoices(words, remaining, 0, 600).map { it.index })
+    }
+
+    @Test
+    fun fullCardRedactionChoicesIncludeTheFirstWord() {
+        val words = listOf(
+            word("First", 0, 100),
+            word("second", 100, 200),
+            word("third", 200, 300),
+        )
+
+        assertEquals(listOf(1, 2, 3), redactedWordChoices(words, listOf(redaction(0, 300)), 0, 300).map { it.index })
+    }
+
+    @Test
     fun wholeSegmentFallsBackWhenWordTimingIsMissing() {
         assertEquals(
             REDACTION_LABEL,
