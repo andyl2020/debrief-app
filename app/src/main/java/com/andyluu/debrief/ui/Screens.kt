@@ -1869,7 +1869,7 @@ private fun SegmentCard(
                     ) {
                         redactedWords.forEach { word ->
                             DropdownMenuItem(
-                                text = { Text("Cancel redaction ${word.index}") },
+                                text = { Text("Cancel redaction ${word.index}: ${word.text}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 onClick = {
                                     redactedWordsMenuExpanded = false
                                     onRemoveRedactedWord(word)

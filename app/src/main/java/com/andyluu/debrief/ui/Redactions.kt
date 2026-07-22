@@ -24,6 +24,7 @@ internal data class RedactedWordChoice(
     val index: Int,
     val startMs: Long,
     val endMs: Long,
+    val text: String,
 )
 
 internal fun redactionActiveAt(
@@ -117,7 +118,7 @@ internal fun redactedWordChoices(
     val wholeSegmentRedacted = overlapping.any { it.startMs <= segmentStartMs && it.endMs >= segmentEndMs }
     return segmentWords.mapIndexedNotNull { index, word ->
         val wordRedacted = wholeSegmentRedacted || overlapping.any { it.startMs < word.endMs && it.endMs > word.startMs }
-        if (wordRedacted) RedactedWordChoice(index + 1, word.startMs, word.endMs) else null
+        if (wordRedacted) RedactedWordChoice(index + 1, word.startMs, word.endMs, word.text) else null
     }
 }
 

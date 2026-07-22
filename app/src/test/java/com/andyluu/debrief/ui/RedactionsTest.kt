@@ -74,6 +74,18 @@ class RedactionsTest {
     }
 
     @Test
+    fun redactedWordChoicesIncludeVisibleWordTextForUndoMenu() {
+        val words = listOf(
+            word("Andy", 0, 100),
+            word("Vancouver", 100, 200),
+        )
+
+        val choices = redactedWordChoices(words, listOf(redaction(0, 200)), 0, 200)
+
+        assertEquals(listOf("Andy", "Vancouver"), choices.map { it.text })
+    }
+
+    @Test
     fun fullCardRedactionChoicesIncludeTheFirstWord() {
         val words = listOf(
             word("First", 0, 100),

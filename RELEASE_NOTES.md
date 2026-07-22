@@ -22,7 +22,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Use the refresh icon beside search to reload transcript state and recover a saved sidecar when local transcript rows are absent.
 - Search within a recording from the review search field, or search all recordings from the Library search action.
 - Redactions are on by default in Review. Tap the **shield** button beside the review actions to turn redactions off or back on. When on, redacted transcript cards display as `[redacted]` and playback volume is muted over those timestamp ranges with a small safety pad.
-- With the shield on, long-press a transcript card and tap the inline **Redact** button to redact the whole card. Redacted cards show an **N selected** chip; tap it to cancel the redaction for a specific word number, or long-press the card and tap **Remove redaction** to restore the whole card.
+- With the shield on, long-press a transcript card and tap the inline **Redact** button to redact the whole card. Redacted cards show an **N selected** chip; tap it to cancel the redaction for a specific word, or long-press the card and tap **Remove redaction** to restore the whole card.
 - Redactions are designed for screen recording and feedback sharing. They are reversible in-app metadata; original transcript text and original audio files are not modified.
 
 ### AI Enhance
@@ -83,6 +83,12 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.8.3 - Readable selective redaction undo (2026-07-21)
+
+- Updated the **N selected** redaction undo menu to show the actual word beside each cancel action, for example **Cancel redaction 5: Vancouver**.
+- Kept the word number in the label so repeated words remain distinguishable.
+- Added regression coverage so redacted-word choices always include visible word text for the undo menu.
 
 ### v1.8.2 - Selective redaction undo (2026-07-21)
 
