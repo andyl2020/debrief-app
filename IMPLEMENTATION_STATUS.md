@@ -25,8 +25,10 @@ Implement and release Debrief v1.9.0 with reliable, completely offline long-sess
 - `local-testing/` is fully gitignored. The opt-in real Deepgram fixture test accepts private audio from that folder, validates transcript/word timing, and writes its output locally.
 - Verification so far: unit tests, debug lint/build, release lint/R8, 23 Android 11 tests, 23 Android 15 16 KB tests, actual microphone capture/pause/resume, forced export failure recovery, M4A part joining, on-device UI inspection, and empty post-test crash buffers passed.
 - The Android 11 suite exposed and verified a fix for stale provider/mobile-data StateFlow reads during immediate transcription queueing.
-- Local release packaging stopped only at the expected production-signing step because desktop policy blocked the credential helper; GitHub Actions owns the same established production signing path and remains the artifact source.
-- Source checkpoint `38815c0` is pushed. Release documentation, production build/signature checks, 16 KB verification, tag, and public APK verification remain.
+- GitHub Actions built, tested, R8-optimized, production-signed, 16 KB-verified, and published v1.9.0 from release checkpoint `7f6b7bf`.
+- GitHub Release v1.9.0 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.9.0
+- The independently downloaded public APK is 9,191,636 bytes with SHA-256 `52E46E7ABC8A6DB73E3770433E3764443FCF82CC393182812B80ADD44AC273EF`.
+- Public-artifact verification passed: package `com.andyluu.debrief`, version code 21/name 1.9.0, production RSA-4096 certificate SHA-256 `32BB05383EBD2FE29B70306D607842F1AAED8066C193C720A35EA5B8B8F60FE0`, APK Signature Scheme v3, and ARM64/x86-64 16 KB ELF alignment.
 
 - The Claude artifact is saved as `debrief-ai-features-prd-addendum.md`.
 - AI persistence/migration, deterministic set detection, Gemini/OpenAI-compatible/Claude structured-output clients, retry worker, summary search indexing, sidecar v2, and SAF rename support are implemented.
@@ -129,7 +131,7 @@ Implement and release Debrief v1.9.0 with reliable, completely offline long-sess
 - [x] Implement offline foreground-service recording and Recorder tab.
 - [x] Add interruption, storage, part rollover, folder-save, and recovery handling.
 - [x] Add private gitignored real-audio test fixtures and opt-in Deepgram smoke test.
-- [ ] Fully verify and publish GitHub Release v1.9.0.
+- [x] Fully verify and publish GitHub Release v1.9.0.
 - [ ] Phase 2: optional enhanced-audio playback.
 - [ ] Phase 3: safe retranscription and recovery controls.
 

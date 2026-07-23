@@ -113,7 +113,9 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Added real device regression coverage for actual microphone capture, pause/resume, forced folder-save failure, playable local recovery, M4A joining, and expanded Recorder Compose states.
 - Added fully gitignored `local-testing` fixtures with an opt-in real Deepgram test and local transcript output. Private audio, keys, and results are excluded from Git, normal CI, APK resources, and releases.
 - See `docs/RECORDING_ARCHITECTURE.md` for the reliability contract and `docs/LOCAL_AUDIO_TESTING.md` for private fixture setup.
-- Verification and final APK size/SHA-256 are recorded in the GitHub release after the production artifact is built and independently downloaded.
+- Verification passed for the JVM unit suite, debug and release lint/build/R8, 23 Android 11 instrumentation tests, 23 Android 15 16 KB instrumentation tests, real microphone/pause/resume/recovery/join checks, production signing, and ARM64/x86-64 16 KB native alignment.
+- GitHub Release: https://github.com/andyl2020/debrief-app/releases/tag/v1.9.0
+- Independently verified public APK: 9,191,636 bytes; SHA-256 `52E46E7ABC8A6DB73E3770433E3764443FCF82CC393182812B80ADD44AC273EF`.
 
 ### v1.8.3 - Readable selective redaction undo (2026-07-21)
 

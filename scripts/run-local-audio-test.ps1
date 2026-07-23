@@ -7,7 +7,8 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $localRoot = Join-Path $repoRoot "local-testing"
 $audioRoot = Join-Path $localRoot "audio"
 
-if (-not (Test-Path -LiteralPath (Join-Path $localRoot "secrets.properties"))) {
+$secretsPath = Join-Path $localRoot "secrets.properties"
+if (-not (Test-Path -LiteralPath $secretsPath)) {
     throw "Missing local-testing\secrets.properties. Add DEEPGRAM_API_KEY=your_key."
 }
 
@@ -36,6 +37,15 @@ if ($ffprobe) {
     & $ffprobe.Source -v error -show_entries "format=duration,size,bit_rate:stream=codec_name,sample_rate,channels" `
         -of "default=noprint_wrappers=1" $selectedAudio.FullName
     if ($LASTEXITCODE -ne 0) { throw "The selected local audio fixture could not be decoded." }
+}
+
+$keyLine = Get-Content -LiteralPath $secretsPath |
+    Where-Object { $_ -match "^\s*DEEPGRAM_API_KEY\s*=" } |
+    Select-Object -First 1
+$keyValue = if ($keyLine) { ($keyLine -split "=", 2)[1].Trim() } else { "" }
+if ([string]::IsNullOrWhiteSpace($keyValue) -or
+    $keyValue -match "^(paste_key_here|your_key|replace_me)$") {
+    throw "The sample audio is readable, but no Deepgram key is configured. Put DEEPGRAM_API_KEY=your_actual_key in local-testing\secrets.properties, then run this command again."
 }
 
 $env:DEBRIEF_RUN_LOCAL_AUDIO_TEST = "1"

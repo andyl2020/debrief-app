@@ -25,13 +25,16 @@ DEEPGRAM_API_KEY=paste_key_here
 Run the opt-in real-provider test from PowerShell:
 
 ```powershell
-.\scripts\run-local-audio-test.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-local-audio-test.ps1
 ```
+
+`-ExecutionPolicy Bypass` applies only to this process and does not change the
+computer's PowerShell policy.
 
 Or copy a fixture into the private directory and run it in one command:
 
 ```powershell
-.\scripts\run-local-audio-test.ps1 -AudioFile "C:\path\to\sample.m4a"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-local-audio-test.ps1 -AudioFile "C:\path\to\sample.m4a"
 ```
 
 The runner checks that the selected fixture is decodable with `ffprobe` when it
