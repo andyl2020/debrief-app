@@ -39,4 +39,25 @@ class RecordingModelsTest {
         assertEquals("Debrief 2026-07-23 14.05.09.m4a", name)
         assertEquals("rec-123-part-0007.m4a", RecordingNames.partFileName("rec-123", 7))
     }
+
+    @Test
+    fun recordingNamesAreSanitizedAndKeepTheRealAudioExtension() {
+        assertEquals(
+            "Run club - Granville.m4a",
+            RecordingNames.normalizeDisplayName(""" Run club / Granville.mp3 """),
+        )
+        assertEquals(
+            "Conversation.v2.wav",
+            RecordingNames.normalizeDisplayName("Conversation.v2", "wav"),
+        )
+        assertEquals(
+            "Conversation",
+            RecordingNames.editableBase("Conversation.m4a"),
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun emptyRecordingNameIsRejected() {
+        RecordingNames.normalizeDisplayName("   ")
+    }
 }

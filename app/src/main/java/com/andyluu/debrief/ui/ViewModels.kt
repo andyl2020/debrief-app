@@ -142,6 +142,48 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun renameRecording(recordingId: String, requestedName: String) {
+        viewModelScope.launch {
+            val previous = dao.getRecording(recordingId)
+            if (previous == null) {
+                _messages.emit("That recording is no longer available.")
+                return@launch
+            }
+            runCatching {
+                services.renamer.rename(recordingId, requestedName)
+            }.onSuccess { renamed ->
+                var metadataWarning = false
+                runCatching { services.search.rebuild(recordingId) }
+                    .onFailure {
+                        metadataWarning = true
+                        Log.e("DebriefRename", "Search refresh after rename failed", it)
+                    }
+                services.settings.settings.first().folderUri?.let { folderUri ->
+                    runCatching {
+                        DocumentFile.fromTreeUri(app, Uri.parse(folderUri))
+                            ?.let { services.sidecars.writeAfterRename(it, recordingId, previous.displayName) }
+                    }.onFailure {
+                        metadataWarning = true
+                        Log.e("DebriefRename", "Sidecar refresh after rename failed", it)
+                    }
+                }
+                _messages.emit(
+                    if (metadataWarning) {
+                        "Renamed to $renamed. Reopen the folder if search or backup metadata looks stale."
+                    } else {
+                        "Renamed to $renamed."
+                    }
+                )
+            }.onFailure { error ->
+                Log.e("DebriefRename", "Recording rename failed", error)
+                _messages.emit(
+                    error.message?.takeIf(String::isNotBlank)?.take(180)
+                        ?: "Android couldn't rename that recording."
+                )
+            }
+        }
+    }
+
     fun transcribe(recordingIds: Collection<String>) {
         launchHandled("Couldn't queue transcription.") {
             val eligible = recordingIds.distinct().mapNotNull { dao.getRecording(it) }

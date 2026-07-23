@@ -151,6 +151,7 @@ fun LibraryScreen(
         viewModel.messages.collect { snackbar.showSnackbar(it) }
     }
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var renamingRecording by remember { mutableStateOf<RecordingEntity?>(null) }
     val selectableIds = recordings.filter { it.isTranscribable() }.mapTo(mutableSetOf()) { it.id }
     LaunchedEffect(selectableIds) { selectedIds = selectedIds.intersect(selectableIds) }
     val selectionMode = selectedIds.isNotEmpty()
@@ -248,12 +249,24 @@ fun LibraryScreen(
                                         selectedIds = if (recording.id in selectedIds) selectedIds - recording.id else selectedIds + recording.id
                                     }
                                 },
+                                onRename = { renamingRecording = recording },
                             )
                         }
                         item { Spacer(Modifier.height(20.dp)) }
                     }
                 }
             }
+        }
+    }
+    renamingRecording?.let { recording ->
+        TextEntryDialog(
+            title = "Rename recording",
+            confirm = "Rename",
+            initial = recording.displayName,
+            onDismiss = { renamingRecording = null },
+        ) { requestedName ->
+            viewModel.renameRecording(recording.id, requestedName)
+            renamingRecording = null
         }
     }
 }
@@ -269,6 +282,7 @@ internal fun RecordingCard(
     selected: Boolean,
     onOpen: () -> Unit,
     onToggleSelection: () -> Unit,
+    onRename: () -> Unit = {},
 ) {
     val selectable = recording.isTranscribable()
     ElevatedCard(
@@ -297,6 +311,16 @@ internal fun RecordingCard(
                     )
                 }
                 StatusChip(recording.status)
+                if (!selectionMode) {
+                    IconButton(
+                        onClick = onRename,
+                        modifier = Modifier.semantics {
+                            contentDescription = "Rename ${recording.displayName}"
+                        },
+                    ) {
+                        Icon(Icons.Default.Edit, null)
+                    }
+                }
             }
             if (recording.status == RecordingStatus.READY && quality != null) {
                 QualityChip(quality, modifier = Modifier.padding(top = 10.dp))

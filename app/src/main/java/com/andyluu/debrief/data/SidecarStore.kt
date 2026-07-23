@@ -53,6 +53,20 @@ class SidecarStore(
         } ?: error("Could not write sidecar file")
     }
 
+    suspend fun writeAfterRename(
+        root: DocumentFile,
+        recordingId: String,
+        previousRecordingName: String,
+    ) {
+        write(root, recordingId)
+        withContext(Dispatchers.IO) {
+            val recording = dao.getRecording(recordingId) ?: return@withContext
+            if (recording.displayName == previousRecordingName) return@withContext
+            val directory = findContainingDirectory(root, recording.documentUri) ?: return@withContext
+            directory.findFile(sidecarName(previousRecordingName))?.delete()
+        }
+    }
+
     suspend fun restoreIfPresent(root: DocumentFile, recording: RecordingEntity) = withContext(Dispatchers.IO) {
         val directory = findContainingDirectory(root, recording.documentUri) ?: return@withContext
         val file = directory.findFile(sidecarName(recording.displayName)) ?: return@withContext

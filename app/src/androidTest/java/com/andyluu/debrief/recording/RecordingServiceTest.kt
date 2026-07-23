@@ -1,7 +1,10 @@
 package com.andyluu.debrief.recording
 
 import android.Manifest
+import android.app.NotificationManager
+import android.content.Intent
 import android.media.MediaMetadataRetriever
+import android.os.Build
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
@@ -25,9 +28,24 @@ class RecordingServiceTest {
         val repository = application.services.recorder
         repository.update(RecordingState())
 
-        repository.start("content://com.andyluu.debrief.invalid/tree/missing")
+        repository.start(
+            "content://com.andyluu.debrief.invalid/tree/missing",
+            "Run club.m4a",
+        )
         awaitPhase(repository, RecordingPhase.RECORDING)
+        assertEquals("Run club.m4a", repository.state.value.displayName)
         delay(800)
+
+        repository.updateDisplayName("Networking follow-up.m4a")
+        assertEquals("Networking follow-up.m4a", repository.state.value.displayName)
+
+        application.startService(
+            Intent(application, RecordingService::class.java)
+                .setAction(RecordingService.ACTION_NOTIFICATION_DISMISSED)
+        )
+        awaitNotificationDismissed(repository)
+        application.getSystemService(NotificationManager::class.java)
+            .cancel(RecordingService.NOTIFICATION_ID)
 
         repository.pause()
         awaitPhase(repository, RecordingPhase.PAUSED)
@@ -37,9 +55,21 @@ class RecordingServiceTest {
         repository.resume()
         awaitPhase(repository, RecordingPhase.RECORDING)
         delay(800)
+        if (Build.VERSION.SDK_INT >= 33) {
+            assertTrue(
+                "A dismissed active-recording notification must not be reposted.",
+                application.getSystemService(NotificationManager::class.java)
+                    .activeNotifications
+                    .none { it.id == RecordingService.NOTIFICATION_ID }
+            )
+        }
 
         repository.stop()
         awaitPhase(repository, RecordingPhase.SAVE_FAILED, timeoutMs = 20_000)
+        assertEquals("Networking follow-up.m4a", repository.state.value.displayName)
+        assertTrue(repository.state.value.notificationDismissed)
+        application.getSystemService(NotificationManager::class.java)
+            .cancel(RecordingService.NOTIFICATION_ID)
         val sessionId = requireNotNull(repository.state.value.sessionId)
         val output = RecordingOutput(application)
         val playablePart = output.sessionParts(sessionId).firstOrNull(M4aConcatenator::isReadableAudio)
@@ -60,6 +90,14 @@ class RecordingServiceTest {
 
         output.cleanup(sessionId)
         repository.update(RecordingState())
+    }
+
+    private suspend fun awaitNotificationDismissed(repository: RecordingRepository) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (System.currentTimeMillis() < deadline && !repository.state.value.notificationDismissed) {
+            delay(50)
+        }
+        assertTrue(repository.state.value.notificationDismissed)
     }
 
     private suspend fun awaitPhase(

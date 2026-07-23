@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import com.andyluu.debrief.data.DebriefDao
+import com.andyluu.debrief.recording.RecordingNames
 
 class RecordingRenamer(
     private val context: Context,
@@ -14,19 +15,7 @@ class RecordingRenamer(
         val file = DocumentFile.fromSingleUri(context, Uri.parse(recording.documentUri))
             ?: throw AiPassException("The recording file is no longer available")
         val originalExtension = recording.displayName.substringAfterLast('.', "")
-        val requested = requestedName.trim()
-        val requestedExtension = requested.substringAfterLast('.', "")
-        var base = if (requestedExtension.equals(originalExtension, ignoreCase = true)) {
-            requested.substringBeforeLast('.')
-        } else {
-            requested
-        }
-            .replace(Regex("""[\\/:*?"<>|]"""), "-")
-            .replace(Regex("\\s+"), " ")
-            .trim(' ', '.', '-')
-            .take(120)
-        if (base.isBlank()) throw AiPassException("The AI provider returned an empty filename")
-        val finalName = if (originalExtension.isBlank()) base else base + "." + originalExtension
+        val finalName = RecordingNames.normalizeDisplayName(requestedName, originalExtension)
         if (finalName == recording.displayName) return finalName
         if (!file.renameTo(finalName)) throw AiPassException("Android could not rename the recording file")
         dao.updateRecordingLocation(

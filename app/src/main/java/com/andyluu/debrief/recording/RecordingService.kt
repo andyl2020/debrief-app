@@ -52,6 +52,7 @@ class RecordingService : Service() {
     private var consecutiveEncoderRestarts = 0
     private var wakeLock: PowerManager.WakeLock? = null
     private var captureSilenced = false
+    private var foregroundStarted = false
 
     private val recordingCallback = object : AudioManager.AudioRecordingCallback() {
         override fun onRecordingConfigChanged(configs: MutableList<AudioRecordingConfiguration>?) {
@@ -81,8 +82,14 @@ class RecordingService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action ?: ACTION_RECOVER
+        if (action == ACTION_NOTIFICATION_DISMISSED) {
+            repository.markNotificationDismissed()
+            return START_STICKY
+        }
         val foregroundResult = runCatching {
-            showForeground(useMicrophone = action == ACTION_START || mediaRecorder != null)
+            if (!repository.state.value.notificationDismissed || !foregroundStarted) {
+                showForeground(useMicrophone = action == ACTION_START || mediaRecorder != null)
+            }
         }
         if (foregroundResult.isFailure) {
             val message = "Android denied foreground microphone access. Saving everything captured so far."
@@ -95,7 +102,10 @@ class RecordingService : Service() {
             return START_NOT_STICKY
         }
         when (action) {
-            ACTION_START -> startRecording(intent?.getStringExtra(EXTRA_FOLDER_URI))
+            ACTION_START -> startRecording(
+                folderUri = intent?.getStringExtra(EXTRA_FOLDER_URI),
+                requestedName = intent?.getStringExtra(EXTRA_DISPLAY_NAME),
+            )
             ACTION_PAUSE -> {
                 if (mediaRecorder == null && repository.state.value.isSessionActive) recoverInterrupted()
                 else pauseInternal(RecordingPauseReason.USER)
@@ -129,7 +139,7 @@ class RecordingService : Service() {
         super.onDestroy()
     }
 
-    private fun startRecording(folderUri: String?) {
+    private fun startRecording(folderUri: String?, requestedName: String?) {
         if (!repository.state.value.canStart || mediaRecorder != null) return
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             failWithoutSession("Microphone permission is required to record.")
@@ -154,10 +164,13 @@ class RecordingService : Service() {
             RecordingState(
                 phase = RecordingPhase.PREPARING,
                 sessionId = sessionId,
-                displayName = RecordingNames.newDisplayName(),
+                displayName = runCatching {
+                    RecordingNames.normalizeDisplayName(requestedName ?: RecordingNames.newDisplayName())
+                }.getOrElse { RecordingNames.newDisplayName() },
                 folderUri = folderUri,
                 startedAtEpochMs = now,
                 statusMessage = "Preparing microphone…",
+                notificationDismissed = false,
             )
         )
 
@@ -554,6 +567,7 @@ class RecordingService : Service() {
     }
 
     private fun showForeground(useMicrophone: Boolean) {
+        if (repository.state.value.notificationDismissed && foregroundStarted) return
         val type = if (useMicrophone) {
             if (Build.VERSION.SDK_INT >= 30) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
             else 0
@@ -566,9 +580,11 @@ class RecordingService : Service() {
             buildNotification(),
             type,
         )
+        foregroundStarted = true
     }
 
     private fun updateNotification() {
+        if (repository.state.value.notificationDismissed) return
         notificationManager.notify(NOTIFICATION_ID, buildNotification())
     }
 
@@ -587,6 +603,7 @@ class RecordingService : Service() {
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(openPendingIntent)
             .setOngoing(state.isSessionActive)
+            .setDeleteIntent(servicePendingIntent(ACTION_NOTIFICATION_DISMISSED, 4))
             .setOnlyAlertOnce(true)
             .setSilent(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
@@ -628,6 +645,7 @@ class RecordingService : Service() {
 
     private fun stopForegroundAndSelf() {
         stopForeground(STOP_FOREGROUND_REMOVE)
+        foregroundStarted = false
         stopSelf()
     }
 
@@ -647,10 +665,12 @@ class RecordingService : Service() {
         const val ACTION_STOP = "com.andyluu.debrief.recording.STOP"
         const val ACTION_RETRY_SAVE = "com.andyluu.debrief.recording.RETRY_SAVE"
         const val ACTION_RECOVER = "com.andyluu.debrief.recording.RECOVER"
+        const val ACTION_NOTIFICATION_DISMISSED = "com.andyluu.debrief.recording.NOTIFICATION_DISMISSED"
         const val EXTRA_FOLDER_URI = "folder_uri"
+        const val EXTRA_DISPLAY_NAME = "display_name"
 
         private const val NOTIFICATION_CHANNEL = "debrief_recording"
-        private const val NOTIFICATION_ID = 8_120
+        internal const val NOTIFICATION_ID = 8_120
         // At 128 kbps this rolls over about every nine minutes. Android switches to the
         // queued file without stopping capture, so completed parts remain recoverable.
         private const val PART_MAX_BYTES = 8L * 1024L * 1024L

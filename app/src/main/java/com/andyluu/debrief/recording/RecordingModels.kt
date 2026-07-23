@@ -34,6 +34,7 @@ data class RecordingState(
     val statusMessage: String? = null,
     val lastSavedName: String? = null,
     val lastSavedUri: String? = null,
+    val notificationDismissed: Boolean = false,
 ) {
     val isSessionActive: Boolean
         get() = phase in setOf(
@@ -59,12 +60,44 @@ data class RecordingState(
 
 internal object RecordingNames {
     private val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm.ss")
+    private val invalidFilenameCharacters = Regex("""[\\/:*?"<>|]""")
+    private val repeatedWhitespace = Regex("\\s+")
+    private val knownAudioExtensions = setOf("mp3", "m4a", "wav", "aac", "flac", "ogg")
 
     fun newSessionId(nowMs: Long = System.currentTimeMillis()): String =
         "rec-$nowMs"
 
     fun newDisplayName(now: LocalDateTime = LocalDateTime.now()): String =
         "Debrief ${formatter.format(now)}.m4a"
+
+    fun editableBase(displayName: String): String {
+        val extension = displayName.substringAfterLast('.', "").lowercase()
+        return if (extension in knownAudioExtensions) displayName.substringBeforeLast('.') else displayName
+    }
+
+    fun sanitizeEditableBase(value: String): String =
+        value
+            .replace(invalidFilenameCharacters, "-")
+            .replace(repeatedWhitespace, " ")
+            .trimStart(' ', '.', '-')
+            .take(120)
+
+    fun normalizeDisplayName(requestedName: String, originalExtension: String = "m4a"): String {
+        val trimmed = requestedName.trim()
+        val requestedExtension = trimmed.substringAfterLast('.', "").lowercase()
+        val requestedBase = if (requestedExtension in knownAudioExtensions) {
+            trimmed.substringBeforeLast('.')
+        } else {
+            trimmed
+        }
+        val base = sanitizeEditableBase(requestedBase).trimEnd(' ', '.', '-')
+        require(base.isNotBlank()) { "Enter a recording name." }
+        val extension = originalExtension
+            .lowercase()
+            .filter(Char::isLetterOrDigit)
+            .ifBlank { "m4a" }
+        return "$base.$extension"
+    }
 
     fun partFileName(sessionId: String, index: Int): String =
         "$sessionId-part-${index.toString().padStart(4, '0')}.m4a"

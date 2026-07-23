@@ -23,11 +23,12 @@ class RecordingRepository(private val context: Context) {
         mutableState.value = mutableState.value.copy(amplitude = amplitude.coerceIn(0f, 1f))
     }
 
-    fun start(folderUri: String) {
+    fun start(folderUri: String, requestedName: String = RecordingNames.newDisplayName()) {
         if (!state.value.canStart) return
         startService(
             RecordingService.ACTION_START,
             RecordingService.EXTRA_FOLDER_URI to folderUri,
+            RecordingService.EXTRA_DISPLAY_NAME to RecordingNames.normalizeDisplayName(requestedName),
         )
     }
 
@@ -68,6 +69,24 @@ class RecordingRepository(private val context: Context) {
 
     fun clearMessage() {
         update(state.value.copy(statusMessage = null), persist = state.value.sessionId != null)
+    }
+
+    fun updateDisplayName(requestedName: String) {
+        val current = state.value
+        if (current.sessionId == null ||
+            current.phase in setOf(RecordingPhase.FINALIZING, RecordingPhase.RECOVERING)
+        ) return
+        val displayName = RecordingNames.normalizeDisplayName(requestedName)
+        if (displayName != current.displayName) {
+            update(current.copy(displayName = displayName))
+        }
+    }
+
+    internal fun markNotificationDismissed() {
+        val current = state.value
+        if (current.sessionId != null && !current.notificationDismissed) {
+            update(current.copy(notificationDismissed = true))
+        }
     }
 
     private fun startService(action: String, vararg extras: Pair<String, String>) {
@@ -112,6 +131,7 @@ private class RecordingSessionStore(context: Context) {
             statusMessage = preferences.getString("message", null),
             lastSavedName = preferences.getString("last_saved_name", null),
             lastSavedUri = preferences.getString("last_saved_uri", null),
+            notificationDismissed = preferences.getBoolean("notification_dismissed", false),
         )
     }
 
@@ -127,6 +147,7 @@ private class RecordingSessionStore(context: Context) {
             .putString("message", state.statusMessage)
             .putString("last_saved_name", state.lastSavedName)
             .putString("last_saved_uri", state.lastSavedUri)
+            .putBoolean("notification_dismissed", state.notificationDismissed)
         if (!editor.commit()) {
             Log.e("DebriefRecorder", "Could not checkpoint the recording recovery state.")
         }

@@ -9,10 +9,12 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import com.andyluu.debrief.data.RecordingEntity
 import com.andyluu.debrief.data.RecordingStatus
 import org.junit.Rule
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LibrarySelectionTest {
@@ -48,5 +50,34 @@ class LibrarySelectionTest {
 
         compose.onNodeWithText("field.mp3").performTouchInput { longClick() }
         compose.onNodeWithContentDescription("Select field.mp3").assertIsOn()
+    }
+
+    @Test
+    fun recordingCardExposesRenameOutsideSelectionMode() {
+        var renameRequested = false
+        val recording = RecordingEntity(
+            id = "recording-2",
+            documentUri = "content://recording-2",
+            displayName = "networking.m4a",
+            mimeType = "audio/mp4",
+            sizeBytes = 2_000,
+            lastModified = 2,
+            status = RecordingStatus.NEW,
+        )
+        compose.setContent {
+            DebriefTheme {
+                RecordingCard(
+                    recording = recording,
+                    selectionMode = false,
+                    selected = false,
+                    onOpen = {},
+                    onToggleSelection = {},
+                    onRename = { renameRequested = true },
+                )
+            }
+        }
+
+        compose.onNodeWithContentDescription("Rename networking.m4a").performClick()
+        compose.runOnIdle { assertTrue(renameRequested) }
     }
 }

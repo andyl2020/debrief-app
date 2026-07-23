@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -38,6 +40,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,15 +56,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.andyluu.debrief.data.AppSettings
 import com.andyluu.debrief.recording.RecordingPauseReason
+import com.andyluu.debrief.recording.RecordingNames
 import com.andyluu.debrief.recording.RecordingPhase
 import com.andyluu.debrief.recording.RecordingState
 import kotlinx.coroutines.delay
@@ -103,9 +108,12 @@ fun RecorderScreen(
     onOpenSettings: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val recordingName by viewModel.name.collectAsStateWithLifecycle()
     RecorderContent(
         state = state,
         folderLinked = settings.folderUri != null,
+        recordingName = recordingName,
+        onNameChange = viewModel::updateName,
         onStart = onStart,
         onPause = viewModel::pause,
         onResume = viewModel::resume,
@@ -122,6 +130,7 @@ fun RecorderScreen(
 internal fun RecorderContent(
     state: RecordingState,
     folderLinked: Boolean,
+    recordingName: String? = null,
     onStart: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
@@ -131,7 +140,12 @@ internal fun RecorderContent(
     onClearMessage: () -> Unit,
     onOpenLibrary: () -> Unit,
     onOpenSettings: () -> Unit,
+    onNameChange: (String) -> Unit = {},
 ) {
+    val focusManager = LocalFocusManager.current
+    val editableName = recordingName
+        ?: state.displayName?.let(RecordingNames::editableBase)
+        ?: RecordingNames.editableBase(RecordingNames.newDisplayName())
     var elapsedMs by remember(state.phase, state.elapsedBeforeRunningMs, state.runningSinceElapsedMs) {
         mutableLongStateOf(state.elapsedMs())
     }
@@ -197,15 +211,23 @@ internal fun RecorderContent(
                 fontWeight = FontWeight.Light,
                 modifier = Modifier.padding(vertical = 14.dp),
             )
-            state.displayName?.let {
-                Text(
-                    it,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            OutlinedTextField(
+                value = editableName,
+                onValueChange = onNameChange,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = state.phase !in setOf(RecordingPhase.FINALIZING, RecordingPhase.RECOVERING),
+                singleLine = true,
+                label = { Text("Recording name") },
+                suffix = { Text(".m4a") },
+                isError = editableName.isBlank(),
+                supportingText = if (editableName.isBlank()) {
+                    { Text("Enter a recording name.") }
+                } else {
+                    null
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+            )
             Spacer(Modifier.height(22.dp))
             RecorderLevel(
                 amplitude = if (state.phase == RecordingPhase.RECORDING) state.amplitude else 0f,
@@ -216,6 +238,7 @@ internal fun RecorderContent(
             when (state.phase) {
                 RecordingPhase.IDLE -> IdleRecordButton(
                     folderLinked = folderLinked,
+                    nameValid = editableName.isNotBlank(),
                     onStart = onStart,
                 )
                 RecordingPhase.RECORDING, RecordingPhase.PAUSED -> ActiveRecordingControls(
@@ -274,10 +297,11 @@ private fun FolderStatus(linked: Boolean, enabled: Boolean, onPickFolder: () -> 
 }
 
 @Composable
-private fun IdleRecordButton(folderLinked: Boolean, onStart: () -> Unit) {
+private fun IdleRecordButton(folderLinked: Boolean, nameValid: Boolean, onStart: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         FilledIconButton(
             onClick = onStart,
+            enabled = nameValid,
             modifier = Modifier.size(92.dp).semantics {
                 contentDescription = if (folderLinked) "Start recording" else "Choose folder and start recording"
             },

@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextReplacement
 import com.andyluu.debrief.recording.RecordingPauseReason
 import com.andyluu.debrief.recording.RecordingPhase
 import com.andyluu.debrief.recording.RecordingState
@@ -69,7 +70,8 @@ class RecorderScreenTest {
 
         compose.onNodeWithContentDescription("Pause recording").assertIsDisplayed().assertIsEnabled()
         compose.onNodeWithContentDescription("Stop and save recording").assertIsDisplayed().assertIsEnabled()
-        compose.onNodeWithText("Debrief test.m4a").assertIsDisplayed()
+        compose.onNodeWithText("Debrief test").assertIsDisplayed()
+        compose.onNodeWithText(".m4a").assertIsDisplayed()
     }
 
     @Test
@@ -100,5 +102,36 @@ class RecorderScreenTest {
         compose.onNodeWithText("Paused for call").assertIsDisplayed()
         compose.onNodeWithText("Paused for a call. Debrief will resume automatically.").assertIsDisplayed()
         compose.onNodeWithContentDescription("Stop and save recording").assertIsDisplayed()
+    }
+
+    @Test
+    fun recordingNameCanBeEditedWhileRecording() {
+        var editedName = ""
+        compose.setContent {
+            DebriefTheme {
+                RecorderContent(
+                    state = RecordingState(
+                        phase = RecordingPhase.RECORDING,
+                        sessionId = "rec-1",
+                        displayName = "Original.m4a",
+                    ),
+                    folderLinked = true,
+                    recordingName = "Original",
+                    onStart = {},
+                    onPause = {},
+                    onResume = {},
+                    onStop = {},
+                    onRetry = {},
+                    onPickFolder = {},
+                    onClearMessage = {},
+                    onOpenLibrary = {},
+                    onOpenSettings = {},
+                    onNameChange = { editedName = it },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Original").performTextReplacement("Networking")
+        compose.runOnIdle { assertTrue(editedName == "Networking") }
     }
 }
