@@ -12,6 +12,7 @@ import com.andyluu.debrief.transcription.UsageRepository
 import com.andyluu.debrief.ai.AiPassProcessor
 import com.andyluu.debrief.ai.RecordingRenamer
 import com.andyluu.debrief.enhance.AiEnhanceProcessor
+import com.andyluu.debrief.recording.RecordingRepository
 
 class AppServices(application: Application) {
     val database = DebriefDatabase.get(application)
@@ -25,6 +26,7 @@ class AppServices(application: Application) {
     val aiPass = AiPassProcessor(application, database, settings, secrets, search, sidecars, renamer, usage)
     val aiEnhance = AiEnhanceProcessor(application, database, settings, secrets, search, sidecars, usage)
     val folders = FolderRepository(application, database.dao(), sidecars)
+    val recorder = RecordingRepository(application)
 }
 
 class DebriefApplication : Application() {

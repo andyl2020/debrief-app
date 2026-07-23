@@ -136,6 +136,7 @@ fun LibraryScreen(
     onOpenSearch: () -> Unit,
     onOpenSettings: () -> Unit,
     onRequestTranscription: (Collection<String>) -> Unit,
+    onOpenRecorder: () -> Unit = {},
 ) {
     val recordings by viewModel.recordings.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
@@ -155,6 +156,13 @@ fun LibraryScreen(
     val selectionMode = selectedIds.isNotEmpty()
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
+        bottomBar = {
+            HomeNavigationBar(
+                selected = HomeTab.LIBRARY,
+                onLibrary = {},
+                onRecorder = onOpenRecorder,
+            )
+        },
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(if (selectionMode) "${selectedIds.size} selected" else "Debrief", fontWeight = FontWeight.Bold) },

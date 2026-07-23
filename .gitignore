@@ -21,6 +21,9 @@ release/
 *.apk
 *.aab
 
+# Private real-audio fixtures and local API credentials
+/local-testing/
+
 # OS files
 .DS_Store
 Thumbs.db

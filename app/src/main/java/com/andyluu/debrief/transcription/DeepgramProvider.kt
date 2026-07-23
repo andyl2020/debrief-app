@@ -37,6 +37,13 @@ class DeepgramProvider(
         mimeType: String,
         apiKey: String,
         keyterms: List<String>,
+    ): TranscriptionResult = transcribeAudio(recordingId, audioBody, apiKey, keyterms)
+
+    internal suspend fun transcribeAudio(
+        recordingId: String,
+        audioBody: okhttp3.RequestBody,
+        apiKey: String,
+        keyterms: List<String>,
     ): TranscriptionResult = withContext(Dispatchers.IO) {
         val url = requestUrl(keyterms)
         val request = Request.Builder()
