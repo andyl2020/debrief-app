@@ -51,16 +51,18 @@ class RecordingServiceTest {
         assertEquals("Networking follow-up.m4a", repository.state.value.displayName)
 
         val notificationManager = application.getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= 33) {
-            swipeAwayRecordingNotification()
+        val exerciseSystemSwipe = Build.VERSION.SDK_INT >= 33 &&
+            InstrumentationRegistry.getArguments().getString("debriefTestNotificationSwipe") == "1"
+        if (exerciseSystemSwipe) {
+            swipeAwayRecordingNotification(repository)
         } else {
             application.sendBroadcast(
                 Intent(application, RecordingNotificationDismissReceiver::class.java)
                     .setAction(RecordingNotificationDismissReceiver.ACTION_DISMISSED)
             )
+            awaitNotificationDismissed(repository)
         }
-        awaitNotificationDismissed(repository)
-        if (Build.VERSION.SDK_INT >= 33) assertRecordingNotificationAbsent()
+        if (exerciseSystemSwipe) assertRecordingNotificationAbsent()
 
         repository.pause()
         awaitPhase(repository, RecordingPhase.PAUSED)
@@ -70,7 +72,7 @@ class RecordingServiceTest {
         repository.resume()
         awaitPhase(repository, RecordingPhase.RECORDING)
         delay(800)
-        if (Build.VERSION.SDK_INT >= 33) assertRecordingNotificationAbsent()
+        if (exerciseSystemSwipe) assertRecordingNotificationAbsent()
 
         repository.stop()
         awaitPhase(repository, RecordingPhase.SAVE_FAILED, timeoutMs = 20_000)
@@ -107,17 +109,27 @@ class RecordingServiceTest {
         assertTrue(repository.state.value.notificationDismissed)
     }
 
-    private fun swipeAwayRecordingNotification() {
+    private suspend fun swipeAwayRecordingNotification(repository: RecordingRepository) {
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-        assertTrue("Could not open the notification shade.", device.openNotification())
-        val notification = device.findObject(UiSelector().text("Debrief is recording"))
-        assertTrue("The active recording notification was not visible.", notification.waitForExists(5_000))
-        val centerY = notification.bounds.centerY()
-        assertTrue(
-            "The recording notification could not be swiped away.",
-            device.swipe(device.displayWidth * 9 / 10, centerY, device.displayWidth / 10, centerY, 24),
-        )
-        device.pressBack()
+        repeat(3) {
+            device.pressHome()
+            assertTrue("Could not open the notification shade.", device.openNotification())
+            device.waitForIdle()
+            val notification = device.findObject(UiSelector().text("Debrief is recording"))
+            assertTrue("The active recording notification was not visible.", notification.waitForExists(5_000))
+            val centerY = notification.bounds.centerY()
+            assertTrue(
+                "The recording notification could not be swiped away.",
+                device.swipe(device.displayWidth * 9 / 10, centerY, device.displayWidth / 10, centerY, 24),
+            )
+            device.pressBack()
+            val deadline = System.currentTimeMillis() + 2_000
+            while (System.currentTimeMillis() < deadline && !repository.state.value.notificationDismissed) {
+                delay(50)
+            }
+            if (repository.state.value.notificationDismissed) return
+        }
+        assertTrue("Android did not deliver the notification dismissal.", repository.state.value.notificationDismissed)
     }
 
     private fun assertRecordingNotificationAbsent() {
