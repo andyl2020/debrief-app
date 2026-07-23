@@ -2,6 +2,7 @@ package com.andyluu.debrief.recording
 
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -72,7 +73,20 @@ class RecordingRepository(private val context: Context) {
     private fun startService(action: String, vararg extras: Pair<String, String>) {
         val intent = Intent(context, RecordingService::class.java).setAction(action)
         extras.forEach { (key, value) -> intent.putExtra(key, value) }
-        ContextCompat.startForegroundService(context, intent)
+        runCatching { ContextCompat.startForegroundService(context, intent) }
+            .onFailure { error ->
+                Log.e("DebriefRecorder", "Could not deliver recorder action $action", error)
+                val current = state.value
+                update(
+                    current.copy(
+                        phase = if (action == RecordingService.ACTION_START) RecordingPhase.IDLE else current.phase,
+                        statusMessage = when (error) {
+                            is SecurityException -> "Android denied microphone/background recording access. Check Debrief permissions and try again."
+                            else -> "Android could not start the recorder service. Reopen Debrief and try again."
+                        },
+                    )
+                )
+            }
     }
 }
 
@@ -113,6 +127,8 @@ private class RecordingSessionStore(context: Context) {
             .putString("message", state.statusMessage)
             .putString("last_saved_name", state.lastSavedName)
             .putString("last_saved_uri", state.lastSavedUri)
-        check(editor.commit()) { "Could not save the recording recovery state." }
+        if (!editor.commit()) {
+            Log.e("DebriefRecorder", "Could not checkpoint the recording recovery state.")
+        }
     }
 }

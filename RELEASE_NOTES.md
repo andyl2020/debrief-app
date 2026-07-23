@@ -14,6 +14,18 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Every successful transcription stores a **Transcript Quality** report. The Library shows a compact quality chip, and the Review screen shows a dismissible card with details for suspicious outputs such as missing timestamps, large transcript gaps, early truncation, very low transcript density, and diarization issues.
 - If a recording was stuck in **Queued** because it was started while mobile data was disabled and no unmetered Wi-Fi work actually ran, Debrief re-enqueues queued transcriptions with the current network setting when the app starts or when the mobile-data toggle changes.
 
+### Offline Recorder
+
+- Use the bottom **Record** tab to capture a new recording completely offline. If a recordings folder is already linked, the large record button starts after microphone permission is granted. If no folder is linked, Debrief opens the folder picker first.
+- The Recorder shows a live timer, microphone level, generated file name, pause/resume, and Stop. It continues in a foreground microphone service with an ongoing notification while the screen is off or another app is open.
+- The notification opens the Recorder and offers pause/resume. Stop and final save remain inside Debrief to reduce accidental termination of a long session.
+- Recordings use 48 kHz mono 128 kbps AAC in an M4A container, approximately 58 MB per hour.
+- Long recordings roll into protected local parts at roughly nine-minute boundaries without stopping the active `MediaRecorder`. Tapping Stop losslessly joins the parts and writes one normal M4A file into the currently linked folder.
+- Debrief checks storage before and during capture. It requires 256 MiB free to start, pauses below 32 MiB, and resumes automatically after at least 64 MiB becomes available.
+- Android call/communication mode pauses capture and resumes after the call. A user pause remains paused. If Android temporarily supplies silence because another app has higher microphone priority, Debrief shows a warning and keeps the recorder alive until microphone audio returns.
+- If the folder write fails, **Save needs attention** keeps the local recovery audio and offers **Retry save** or **Choose another folder**. An unfinished session with finalized parts is recovered on the next app open.
+- After a successful save, Debrief rescans the linked folder so the new recording appears in Library ready for playback or transcription.
+
 ### Review and playback
 
 - Tap a recording to open its synchronized transcript. Tap any transcript segment, search result, chapter, or comment chapter to seek to that time.
@@ -66,6 +78,12 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 
 - Debrief is sideloaded from GitHub rather than installed from Google Play. Play Protect may warn about an unknown developer. Install only the APK attached to this repository's release.
 - Android 10 or newer is required. Universal APKs include ARM64 and are verified for 16 KB memory pages used by modern phones such as the OnePlus 13.
+- No Android app can guarantee recording through force-stop, uninstall, reboot/power loss, revoked microphone/storage permission, full or failed storage, hardware failure, or an OEM killing the foreground service. Debrief checkpoints finalized parts, but an abruptly terminated currently open M4A part (up to roughly nine minutes) may not be recoverable.
+- Active audio is first written to app-specific device storage and copied to the linked folder only when Stop/finalization succeeds. Do not uninstall or clear Debrief data while **Save needs attention** is present; that removes the local recovery copy.
+- Normal Android apps cannot record the audio of a phone call. Debrief pauses for detected call/communication mode. Some OEM or calling apps may not expose mode changes consistently.
+- Android may give Debrief silence while a higher-priority app uses the microphone. Debrief warns when the platform reports this and continues automatically, but it cannot reconstruct speech that Android did not deliver.
+- OnePlus and other aggressive battery managers may offer an app-specific **Allow background activity** or **Unrestricted** battery option. The foreground service and wake lock are designed for screen-off capture; enabling that OEM option provides additional protection for critical multi-hour sessions.
+- Denying notification permission does not grant another app microphone access, but it can make the ongoing foreground-service notice less visible. Grant notifications for clear long-session status.
 - The Chapters drawer opens from its toolbar button. Closed-edge swipe is intentionally disabled so it does not interfere with Android back gestures; swipe-to-close works while the drawer is open.
 - AI-generated summaries, speaker names, and rename suggestions can be wrong. Sets are manual-only because automatic boundaries were not reliable enough.
 - Split is enabled only when playback is inside a closed set and at least one second from either boundary. The final set cannot merge forward. An open set must be ended before another set can start.
@@ -79,10 +97,23 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Audio re-listen clips are short derived cache files, not original recordings. They may be cleared by Android cache cleanup, and they are not written to sidecars.
 - Some noisy speech is unrecoverable. Debrief should mark `[inaudible]` rather than invent words when Gemini cannot hear the clip clearly.
 - If the Gemini key is missing, rate-limited, offline, or blocked by the **Send short clips** toggle, Enhance fails gracefully or runs only the available text stage.
-- Debrief has no cloud sync, collaboration, iOS app, video support, live recording, or live transcription. Original audio and durable app data remain on the phone.
+- Debrief has no cloud sync, collaboration, iOS app, video support, or live transcription. Original audio and durable app data remain on the phone.
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.9.0 - Reliable offline Recorder (2026-07-23)
+
+- Added a dedicated bottom-navigation Recorder with default-recorder-style timer, level meter, large record control, pause/resume, stop/save, folder status, and visible offline/format information.
+- Added Android native `MediaRecorder` capture in an exported-false foreground microphone service with persistent notification controls and a 12-hour-capped partial wake lock for screen-off reliability.
+- Added 48 kHz mono 128 kbps AAC/M4A recording with protected 8 MiB local rollover parts and a lossless `MediaExtractor`/`MediaMuxer` join at Stop.
+- Added automatic call/communication pause/resume, Android client-silence warnings for competing microphone apps, two-attempt encoder restart, proactive storage checks, and low-storage automatic pause/resume.
+- Added durable session checkpointing, next-open recovery, folder-save retry/change-folder UX, local-file retention on export failure, and immediate Library rescan after a successful save.
+- Fixed a transcription-settings race so an immediate Transcribe tap uses the latest persisted provider and mobile-data choice instead of a briefly stale in-memory value.
+- Added real device regression coverage for actual microphone capture, pause/resume, forced folder-save failure, playable local recovery, M4A joining, and expanded Recorder Compose states.
+- Added fully gitignored `local-testing` fixtures with an opt-in real Deepgram test and local transcript output. Private audio, keys, and results are excluded from Git, normal CI, APK resources, and releases.
+- See `docs/RECORDING_ARCHITECTURE.md` for the reliability contract and `docs/LOCAL_AUDIO_TESTING.md` for private fixture setup.
+- Verification and final APK size/SHA-256 are recorded in the GitHub release after the production artifact is built and independently downloaded.
 
 ### v1.8.3 - Readable selective redaction undo (2026-07-21)
 

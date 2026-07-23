@@ -16,6 +16,7 @@ if ($AudioFile) {
     $destination = Join-Path $audioRoot ([System.IO.Path]::GetFileName($source))
     New-Item -ItemType Directory -Path $audioRoot -Force | Out-Null
     Copy-Item -LiteralPath $source -Destination $destination -Force
+    $selectedAudio = Get-Item -LiteralPath $destination
 }
 
 $supported = @(
@@ -26,8 +27,19 @@ $supported = @(
 if (-not $supported) {
     throw "Put a sample audio file in local-testing or local-testing\audio first."
 }
+if (-not $selectedAudio) {
+    $selectedAudio = $supported | Sort-Object FullName | Select-Object -First 1
+}
+
+$ffprobe = Get-Command ffprobe -ErrorAction SilentlyContinue
+if ($ffprobe) {
+    & $ffprobe.Source -v error -show_entries "format=duration,size,bit_rate:stream=codec_name,sample_rate,channels" `
+        -of "default=noprint_wrappers=1" $selectedAudio.FullName
+    if ($LASTEXITCODE -ne 0) { throw "The selected local audio fixture could not be decoded." }
+}
 
 $env:DEBRIEF_RUN_LOCAL_AUDIO_TEST = "1"
+$env:DEBRIEF_LOCAL_AUDIO_FILE = $selectedAudio.FullName
 Push-Location $repoRoot
 try {
     & .\gradlew.bat testDebugUnitTest --tests "com.andyluu.debrief.transcription.LocalDeepgramAudioTest"
@@ -36,6 +48,7 @@ try {
 finally {
     Pop-Location
     Remove-Item Env:\DEBRIEF_RUN_LOCAL_AUDIO_TEST -ErrorAction SilentlyContinue
+    Remove-Item Env:\DEBRIEF_LOCAL_AUDIO_FILE -ErrorAction SilentlyContinue
 }
 
 Write-Host "Transcript written under local-testing\results."

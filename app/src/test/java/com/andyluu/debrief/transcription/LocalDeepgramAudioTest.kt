@@ -24,12 +24,16 @@ class LocalDeepgramAudioTest {
         )
         val localRoot = findLocalTestingRoot()
         val key = loadDeepgramKey(localRoot)
-        val audio = sequenceOf(localRoot, localRoot.resolve("audio"))
-            .flatMap { directory -> directory.listFiles().orEmpty().asSequence() }
-            .filter { it.isFile && it.extension.lowercase() in supportedExtensions }
-            .sortedBy { it.name }
-            .firstOrNull()
-            ?: error("Put an MP3, M4A, WAV, AAC, FLAC, or OGG file in $localRoot or ${localRoot.resolve("audio")}.")
+        val requestedAudio = System.getenv("DEBRIEF_LOCAL_AUDIO_FILE")
+            ?.takeIf(String::isNotBlank)
+            ?.let(::File)
+            ?.takeIf { it.isFile && it.extension.lowercase() in supportedExtensions }
+        val audio = requestedAudio ?: sequenceOf(localRoot, localRoot.resolve("audio"))
+                .flatMap { directory -> directory.listFiles().orEmpty().asSequence() }
+                .filter { it.isFile && it.extension.lowercase() in supportedExtensions }
+                .sortedBy { it.name }
+                .firstOrNull()
+                ?: error("Put an MP3, M4A, WAV, AAC, FLAC, or OGG file in $localRoot or ${localRoot.resolve("audio")}.")
 
         val result = DeepgramProvider().transcribeAudio(
             recordingId = "local-${audio.nameWithoutExtension}",

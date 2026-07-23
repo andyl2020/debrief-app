@@ -44,6 +44,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        (application as DebriefApplication).services.recorder.recoverInterruptedIfNeeded()
         val openRecorderOnLaunch = intent?.getBooleanExtra(EXTRA_OPEN_RECORDER, false) == true
         setContent {
             DebriefTheme {

@@ -1,10 +1,10 @@
 # Debrief implementation checkpoint
 
-Last updated: 2026-07-10
+Last updated: 2026-07-23
 
 ## Objective
 
-Implement Debrief v1.7.0 provider-first reliability cleanup: AssemblyAI recommendation/default, AI Enhance demotion, Transcript Quality reports, and stale queued-transcription recovery.
+Implement and release Debrief v1.9.0 with reliable, completely offline long-session recording, pause/resume, interruption handling, folder export, and recovery.
 
 ## Shipped checkpoint
 
@@ -14,6 +14,19 @@ Implement Debrief v1.7.0 provider-first reliability cleanup: AssemblyAI recommen
 - Verification: JVM unit tests, Android instrumentation tests on Android 11 and Android 15 16 KB, signed upgrade tests, lint, and APK alignment checks passed.
 
 ## Current checkpoint
+
+- v1.9.0 recording is implemented behind a dedicated Record tab.
+- The capture engine uses Android's maintained native `MediaRecorder` in a microphone foreground service with a partial wake lock, 48 kHz mono 128 kbps AAC/M4A, live amplitude, manual pause/resume, and app-only Stop.
+- Calls detected through Android audio mode pause and resume automatically. Concurrent microphone capture is monitored; if Android silences Debrief for a higher-priority app, the UI explains that capture remains alive and audio returns automatically.
+- Long recordings roll into protected local parts at roughly nine-minute/8 MiB boundaries using `MEDIA_RECORDER_INFO_MAX_FILESIZE_APPROACHING` and `setNextOutputFile`, then join without re-encoding through `MediaExtractor`/`MediaMuxer`.
+- Start requires 256 MiB free. Active capture pauses below 32 MiB and resumes after 64 MiB is available.
+- Folder-export failures preserve local audio and expose Retry/choose-another-folder. Interrupted sessions recover on the next app open when at least one finalized part is playable.
+- The linked folder is rescanned after save so a new recording appears in Library immediately.
+- `local-testing/` is fully gitignored. The opt-in real Deepgram fixture test accepts private audio from that folder, validates transcript/word timing, and writes its output locally.
+- Verification so far: unit tests, debug lint/build, release lint/R8, 23 Android 11 tests, 23 Android 15 16 KB tests, actual microphone capture/pause/resume, forced export failure recovery, M4A part joining, on-device UI inspection, and empty post-test crash buffers passed.
+- The Android 11 suite exposed and verified a fix for stale provider/mobile-data StateFlow reads during immediate transcription queueing.
+- Local release packaging stopped only at the expected production-signing step because desktop policy blocked the credential helper; GitHub Actions owns the same established production signing path and remains the artifact source.
+- Source checkpoint `38815c0` is pushed. Release documentation, production build/signature checks, 16 KB verification, tag, and public APK verification remain.
 
 - The Claude artifact is saved as `debrief-ai-features-prd-addendum.md`.
 - AI persistence/migration, deterministic set detection, Gemini/OpenAI-compatible/Claude structured-output clients, retry worker, summary search indexing, sidecar v2, and SAF rename support are implemented.
@@ -113,6 +126,10 @@ Implement Debrief v1.7.0 provider-first reliability cleanup: AssemblyAI recommen
 - [x] Fully verify and publish GitHub Release v1.6.0.
 - [x] Fully verify v1.7.0 provider-first reliability cleanup.
 - [x] Publish and verify GitHub Release v1.7.0.
+- [x] Implement offline foreground-service recording and Recorder tab.
+- [x] Add interruption, storage, part rollover, folder-save, and recovery handling.
+- [x] Add private gitignored real-audio test fixtures and opt-in Deepgram smoke test.
+- [ ] Fully verify and publish GitHub Release v1.9.0.
 - [ ] Phase 2: optional enhanced-audio playback.
 - [ ] Phase 3: safe retranscription and recovery controls.
 

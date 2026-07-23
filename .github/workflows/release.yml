@@ -81,25 +81,31 @@ jobs:
           APK_SHA256: ${{ steps.artifact.outputs.sha256 }}
           APK_SIZE: ${{ steps.artifact.outputs.size }}
         run: |
-          NOTES="$(cat <<EOF
-          Debrief ${TAG}
+          BODY_FILE="docs/releases/${TAG}.md"
+          NOTES_FILE="release-body-${TAG}.md"
+          if [ -f "$BODY_FILE" ]; then
+            cp "$BODY_FILE" "$NOTES_FILE"
+          else
+            printf '# Debrief %s\n\nSee `RELEASE_NOTES.md` for the full feature guide and release history.\n' "$TAG" > "$NOTES_FILE"
+          fi
+          cat >> "$NOTES_FILE" <<EOF
 
-          See RELEASE_NOTES.md for the full feature guide and release history.
+          ## Published artifact verification
 
-          Verification passed in GitHub Actions:
-          - unit tests
-          - release lint/R8
-          - signed release APK build
-          - 16 KB native alignment check
+          GitHub Actions passed:
+
+          - JVM unit tests
+          - release lint and R8
+          - production-signed release APK build
+          - ARM64/x86-64 16 KB native alignment check
 
           APK size: ${APK_SIZE} bytes
-          APK SHA-256: ${APK_SHA256}
+          APK SHA-256: \`${APK_SHA256}\`
           EOF
-          )"
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "Debrief ${TAG}" --notes "$NOTES" --latest
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "Debrief ${TAG}" --notes-file "$NOTES_FILE" --latest
             gh release upload "$TAG" "$APK_NAME" --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$TAG" "$APK_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --title "Debrief ${TAG}" --notes "$NOTES" --latest
+            gh release create "$TAG" "$APK_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --title "Debrief ${TAG}" --notes-file "$NOTES_FILE" --latest
           fi

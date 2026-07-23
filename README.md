@@ -1,10 +1,11 @@
 # Debrief
 
-Debrief is a local-first Android app for reviewing long field recordings. It links to a folder on the phone, transcribes recordings with speaker labels and word timestamps, and provides synced playback, reversible text/audio redaction mode, Transcript Quality reports, manual conversation sets, full-text search, timestamped comments, speaker naming, optional AI Enhance repair diffs, Markdown export, and reinstall-safe JSON sidecars.
+Debrief is a local-first Android app for capturing and reviewing long field recordings. It records offline into a linked phone folder, transcribes recordings with speaker labels and word timestamps, and provides synced playback, reversible text/audio redaction mode, Transcript Quality reports, manual conversation sets, full-text search, timestamped comments, speaker naming, optional AI Enhance repair diffs, Markdown export, and reinstall-safe JSON sidecars.
 
 ## What works
 
 - Persistent Android Storage Access Framework folder permission with automatic rescans
+- Dedicated offline Recorder tab with live level meter, timer, pause/resume, stop/save, screen-off foreground capture, notification controls, call interruption handling, storage safeguards, recoverable local parts, and lossless M4A joining
 - MP3, M4A, WAV, and AAC library with new/queued/transcribing/ready/failed states
 - WorkManager transcription queue with unmetered Wi-Fi by default and automatic retry
 - Long-press multi-select with explicit checkbox-based batch transcription
@@ -25,9 +26,11 @@ Debrief is a local-first Android app for reviewing long field recordings. It lin
 
 ## Privacy and secrets
 
-API keys are entered in Settings and encrypted with a non-exportable Android Keystore AES-GCM key. They are excluded from Android backup and never written to source, Gradle properties, logs, sidecars, or APK resources. The Room/FTS database is encrypted at rest with SQLCipher using a random passphrase protected by the same Keystore mechanism.
+API keys are entered in Settings and encrypted with a non-exportable Android Keystore AES-GCM key. They are excluded from Android backup and never written to source, Gradle properties, logs, sidecars, or APK resources. The Room/FTS database is encrypted at rest with SQLCipher using a random passphrase protected by the same Keystore mechanism. Private developer fixtures and provider keys under `local-testing` are gitignored and never used by normal CI.
 
 The app does not provide cloud storage. Audio is prepared in the app cache, sent directly to the selected transcription provider over HTTPS, and deleted from the cache after the request completes. AI Enhance never sends whole recordings to Gemini; when enabled, it sends only short extracted clips for targeted re-listening. The optional Organize Recording pass sends transcript text, never audio, to the AI provider selected in Settings. Redaction mode stores timestamp metadata and mutes playback in-app; it does not edit source recordings. Original recordings and all durable app data remain on the phone.
+
+Recording is completely offline. During an active session Debrief writes protected local M4A parts in app-specific device storage, then losslessly joins and copies the finished recording into the linked folder when Stop is tapped. Temporary parts are removed after a verified folder save.
 
 ## Build
 
@@ -57,6 +60,8 @@ GitHub-hosted APKs are sideloaded rather than installed through Google Play, so 
 
 See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the complete feature guide, usage instructions, release history, limitations, and known edge cases.
 
+Private real-audio transcription fixtures are opt-in and local-only. See [docs/LOCAL_AUDIO_TESTING.md](docs/LOCAL_AUDIO_TESTING.md).
+
 Release signing and APK publishing are automated through GitHub Actions. See [docs/release-process.md](docs/release-process.md).
 
 Future iOS planning is intentionally separate from current Android development. See [docs/future/ios-and-shared-contract-strategy.md](docs/future/ios-and-shared-contract-strategy.md) for the agreed Android-first/shared-contract strategy.
@@ -67,6 +72,6 @@ If Android reports a package conflict, uninstall an older Debrief build and retr
 
 ## Scope
 
-Android 10 or newer. Recording, video, live transcription, cloud sync, collaboration, and iOS are intentionally out of scope for v1.
+Android 10 or newer. Video, live transcription, cloud sync, collaboration, and iOS are intentionally out of scope for v1.
 
 The universal APK includes ARM64 libraries for devices such as the OnePlus 13. CI verifies that every ARM64 and x86-64 native load segment is aligned for Android devices using 16 KB memory pages.

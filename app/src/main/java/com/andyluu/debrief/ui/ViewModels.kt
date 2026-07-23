@@ -146,7 +146,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         launchHandled("Couldn't queue transcription.") {
             val eligible = recordingIds.distinct().mapNotNull { dao.getRecording(it) }
                 .filter { it.status == RecordingStatus.NEW || it.status == RecordingStatus.FAILED }
-            val provider = settings.value.provider
+            // Read the persisted snapshot here so a provider/network toggle followed by an
+            // immediate tap cannot queue with the StateFlow's previous value.
+            val currentSettings = services.settings.settings.first()
+            val provider = currentSettings.provider
             if (services.secrets.get(provider).isNullOrBlank()) {
                 _messages.emit("Add your " + providerName(provider) + " API key in Settings before transcribing.")
                 return@launchHandled
@@ -158,7 +161,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             eligible.forEach { recording ->
                 try {
                     dao.updateStatus(recording.id, RecordingStatus.QUEUED)
-                    TranscriptionWorker.enqueue(app, recording.id, settings.value.allowMobileData, replaceExisting = true)
+                    TranscriptionWorker.enqueue(app, recording.id, currentSettings.allowMobileData, replaceExisting = true)
                 } catch (error: Throwable) {
                     dao.updateStatus(recording.id, RecordingStatus.FAILED, "Could not queue transcription")
                     throw error

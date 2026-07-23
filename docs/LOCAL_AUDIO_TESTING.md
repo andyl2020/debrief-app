@@ -34,8 +34,9 @@ Or copy a fixture into the private directory and run it in one command:
 .\scripts\run-local-audio-test.ps1 -AudioFile "C:\path\to\sample.m4a"
 ```
 
-The test exercises Debrief's real Deepgram request/parser, asserts that transcript
-segments and chronological word timestamps are returned, and writes a readable
-transcript to `local-testing/results`. Normal unit tests and GitHub Actions skip
-this provider-billed test unless `DEBRIEF_RUN_LOCAL_AUDIO_TEST=1` is explicitly
-set.
+The runner checks that the selected fixture is decodable with `ffprobe` when it
+is installed, then exercises Debrief's real Deepgram request/parser, asserts that
+transcript segments and chronological word timestamps are returned, and writes
+a readable transcript to `local-testing/results`. Normal unit tests and GitHub
+Actions skip this provider-billed test unless
+`DEBRIEF_RUN_LOCAL_AUDIO_TEST=1` is explicitly set.

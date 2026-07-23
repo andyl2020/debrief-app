@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.media.AudioManager
+import android.media.AudioRecordingConfiguration
 import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
@@ -50,6 +51,28 @@ class RecordingService : Service() {
     private var lastEncoderRestartElapsedMs = 0L
     private var consecutiveEncoderRestarts = 0
     private var wakeLock: PowerManager.WakeLock? = null
+    private var captureSilenced = false
+
+    private val recordingCallback = object : AudioManager.AudioRecordingCallback() {
+        override fun onRecordingConfigChanged(configs: MutableList<AudioRecordingConfiguration>?) {
+            val ownConfiguration = mediaRecorder?.activeRecordingConfiguration
+                ?: configs.orEmpty().firstOrNull()
+            val silenced = ownConfiguration?.isClientSilenced == true
+            if (silenced == captureSilenced) return
+            captureSilenced = silenced
+            val current = repository.state.value
+            if (current.phase != RecordingPhase.RECORDING) return
+            repository.update(
+                current.copy(
+                    statusMessage = if (silenced) {
+                        "Another app has the microphone. Android is temporarily supplying silence; capture will return automatically."
+                    } else {
+                        null
+                    }
+                )
+            )
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -58,7 +81,19 @@ class RecordingService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action ?: ACTION_RECOVER
-        showForeground(useMicrophone = action == ACTION_START || mediaRecorder != null)
+        val foregroundResult = runCatching {
+            showForeground(useMicrophone = action == ACTION_START || mediaRecorder != null)
+        }
+        if (foregroundResult.isFailure) {
+            val message = "Android denied foreground microphone access. Saving everything captured so far."
+            if (mediaRecorder != null && repository.state.value.sessionId != null) {
+                repository.update(repository.state.value.copy(statusMessage = message))
+                finishRecording()
+            } else {
+                failWithoutSession("Android denied foreground microphone access. Check Debrief permissions and try again.")
+            }
+            return START_NOT_STICKY
+        }
         when (action) {
             ACTION_START -> startRecording(intent?.getStringExtra(EXTRA_FOLDER_URI))
             ACTION_PAUSE -> {
@@ -85,6 +120,7 @@ class RecordingService : Service() {
         handler.removeCallbacks(monitorRunnable)
         if (mediaRecorder != null && !finalizing) {
             runCatching { mediaRecorder?.stop() }
+            runCatching { mediaRecorder?.unregisterAudioRecordingCallback(recordingCallback) }
             runCatching { mediaRecorder?.release() }
             mediaRecorder = null
         }
@@ -140,6 +176,7 @@ class RecordingService : Service() {
                 handler.post(monitorRunnable)
             }
             .onFailure { error ->
+                runCatching { mediaRecorder?.unregisterAudioRecordingCallback(recordingCallback) }
                 runCatching { mediaRecorder?.release() }
                 mediaRecorder = null
                 releaseWakeLock()
@@ -164,18 +201,22 @@ class RecordingService : Service() {
         recorder.setOnErrorListener { _, what, extra -> handleRecorderError("Audio encoder error $what/$extra") }
         recorder.setOnInfoListener { _, what, _ ->
             when (what) {
+                MediaRecorder.MEDIA_RECORDER_INFO_MAX_FILESIZE_APPROACHING ->
+                    runCatching { queueNextPart(recorder) }
+                        .onFailure { handleRecorderError("Could not prepare the next long-recording part") }
                 MediaRecorder.MEDIA_RECORDER_INFO_NEXT_OUTPUT_FILE_STARTED -> handleNextPartStarted()
                 MediaRecorder.MEDIA_RECORDER_INFO_MAX_FILESIZE_REACHED ->
                     handleRecorderError("The recorder reached its local part limit before rollover")
             }
         }
         recorder.prepare()
-        recorder.start()
+        recorder.registerAudioRecordingCallback(ContextCompat.getMainExecutor(this), recordingCallback)
         mediaRecorder = recorder
-        queueNextPart(recorder)
+        recorder.start()
     }
 
     private fun queueNextPart(recorder: MediaRecorder) {
+        if (pendingNextPart != null) return
         val next = output.partFile(requireNotNull(sessionId), currentPartIndex + 1)
         if (next.exists()) runCatching { next.delete() }
         recorder.setNextOutputFile(next)
@@ -185,8 +226,6 @@ class RecordingService : Service() {
     private fun handleNextPartStarted() {
         currentPartIndex += 1
         pendingNextPart = null
-        runCatching { mediaRecorder?.let(::queueNextPart) }
-            .onFailure { handleRecorderError("Could not prepare the next long-recording part") }
         repository.update(
             repository.state.value.copy(statusMessage = "Long recording secured in $currentPartIndex local parts.")
         )
@@ -260,6 +299,7 @@ class RecordingService : Service() {
         handler.removeCallbacks(monitorRunnable)
         val elapsed = current.elapsedMs()
         runCatching { mediaRecorder?.stop() }
+        runCatching { mediaRecorder?.unregisterAudioRecordingCallback(recordingCallback) }
         runCatching { mediaRecorder?.release() }
         mediaRecorder = null
         pendingNextPart = null
@@ -297,6 +337,17 @@ class RecordingService : Service() {
         val current = repository.state.value
         val id = current.sessionId
         if (id == null) {
+            stopForegroundAndSelf()
+            return
+        }
+        if (output.sessionParts(id).none(M4aConcatenator::isReadableAudio)) {
+            output.cleanup(id)
+            repository.update(
+                RecordingState(
+                    phase = RecordingPhase.IDLE,
+                    statusMessage = "Android interrupted capture before a playable recovery part was finalized.",
+                )
+            )
             stopForegroundAndSelf()
             return
         }
@@ -373,6 +424,7 @@ class RecordingService : Service() {
         val current = repository.state.value
         val elapsed = current.elapsedMs()
         runCatching { mediaRecorder?.stop() }
+        runCatching { mediaRecorder?.unregisterAudioRecordingCallback(recordingCallback) }
         runCatching { mediaRecorder?.release() }
         mediaRecorder = null
         pendingNextPart?.let { if (it.length() == 0L) runCatching { it.delete() } }
