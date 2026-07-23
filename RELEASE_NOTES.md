@@ -114,6 +114,8 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Fixed active-recording notifications repeatedly returning after the user swiped them away. Android 13+ dismissal is now remembered for the current session while capture continues normally.
 - Added filename sanitization/extension-preservation unit coverage, Recorder and Library Compose coverage, foreground-service rename persistence checks, deterministic dismissal-state coverage, and a real Android 15 system-notification swipe test.
 - Verification before tagging: JVM unit tests, debug lint/build, 25 Android 11 instrumentation tests, 25 Android 15/16 KB instrumentation tests, a separate physical notification-shade swipe test, real microphone pause/resume/recovery checks, and clean app crash buffers passed. Production signing, release R8, published APK size/hash, and final 16 KB artifact verification are completed by the release workflow.
+- GitHub Release: https://github.com/andyl2020/debrief-app/releases/tag/v1.9.1
+- Independently verified public APK: 9,200,363 bytes; SHA-256 `AF4030A673E7902EA40B423A8452F2ED571A40B852E5F3A7139D2F405774A30A`. Production signature, version code 22/name 1.9.1, ARM64/x86-64 16 KB alignment, clean launch, and signed v1.9.0 → v1.9.1 upgrade passed.
 
 ### v1.9.0 - Reliable offline Recorder (2026-07-23)
 

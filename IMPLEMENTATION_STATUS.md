@@ -18,7 +18,11 @@ Implement and release Debrief v1.9.1 with editable recording filenames, Library 
 - v1.9.1 adds an editable Recorder filename before/during capture, a Library pencil rename action, shared filename sanitization/extension preservation, search/sidecar refresh, and a persisted per-session notification-dismissed state.
 - Android 13+ notification dismissal uses an exported-false broadcast receiver. Once the system reports the user's swipe, timer and pause/resume notification updates are suppressed while the foreground microphone service and recording continue.
 - Verification so far: unit tests, debug lint/build, 25 Android 11 tests, 25 Android 15 16 KB tests, a separate real Android 15 notification-shade swipe test, real microphone pause/resume/save-failure recovery, Recorder/Library UI tests, visual Recorder inspection, and empty final app crash buffers passed.
-- Source checkpoints `8703956`, `60a6458`, and `a16f096` are pushed. Versioning, release documentation, release R8/signing, tag, publication, and independent public APK verification remain.
+- Source checkpoints `8703956`, `60a6458`, and `a16f096` plus release checkpoint `51a4c7d` are pushed.
+- GitHub Actions run 30023447851 passed unit tests, release lint/R8, production signing, 16 KB alignment, artifact preparation, and publication from annotated tag `v1.9.1`.
+- GitHub Release v1.9.1 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.9.1
+- The independently downloaded public APK is 9,200,363 bytes with SHA-256 `AF4030A673E7902EA40B423A8452F2ED571A40B852E5F3A7139D2F405774A30A`.
+- Public-artifact verification passed: package `com.andyluu.debrief`, version code 22/name 1.9.1, production certificate SHA-256 `32BB05383EBD2FE29B70306D607842F1AAED8066C193C720A35EA5B8B8F60FE0`, APK Signature Scheme v3, ARM64/x86-64 16 KB ELF alignment, clean launch, and signed v1.9.0 → v1.9.1 upgrade.
 - v1.9.0 recording is implemented behind a dedicated Record tab.
 - The capture engine uses Android's maintained native `MediaRecorder` in a microphone foreground service with a partial wake lock, 48 kHz mono 128 kbps AAC/M4A, live amplitude, manual pause/resume, and app-only Stop.
 - Calls detected through Android audio mode pause and resume automatically. Concurrent microphone capture is monitored; if Android silences Debrief for a higher-priority app, the UI explains that capture remains alive and audio returns automatically.
@@ -138,7 +142,7 @@ Implement and release Debrief v1.9.1 with editable recording filenames, Library 
 - [x] Fully verify and publish GitHub Release v1.9.0.
 - [x] Implement and device-test editable Recorder and Library filenames.
 - [x] Fix and physically test Android 15 recording-notification dismissal.
-- [ ] Fully verify and publish GitHub Release v1.9.1.
+- [x] Fully verify and publish GitHub Release v1.9.1.
 - [ ] Phase 2: optional enhanced-audio playback.
 - [ ] Phase 3: safe retranscription and recovery controls.
 
