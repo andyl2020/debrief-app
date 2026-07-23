@@ -117,6 +117,8 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Late/stale discard actions are ignored after final saving begins so deletion cannot race a normal Stop/save.
 - Added Compose tests for button presence, tap confirmation, and direct hold behavior plus a real microphone-service test that proves all private session parts are deleted.
 - Verification before tagging: JVM unit tests, debug/release lint, debug build, and release R8 passed; 28 Android 11 instrumentation tests passed with an empty crash buffer; 28 Android 15/true-16 KB tests passed, followed by a clean eight-test v1.9.2 recorder/service slice with an empty crash buffer. Production signing, exact artifact verification, and upgrade testing are completed below after publication.
+- GitHub Release: https://github.com/andyl2020/debrief-app/releases/tag/v1.9.2
+- Independently verified public APK: 9,206,641 bytes; SHA-256 `AE0DD2A34DE61B6616DF40BE75392F5734D4E5B6A7BDE0871E963D512576787E`. Package/version, production RSA-4096 certificate, APK Signature Scheme v3, ARM64/x86-64 16 KB alignment, clean launch, app-data retention, and signed v1.9.1 → v1.9.2 upgrade passed.
 
 ### v1.9.1 - Recording names and notification control (2026-07-23)
 
