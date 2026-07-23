@@ -4,7 +4,7 @@ Last updated: 2026-07-23
 
 ## Objective
 
-Implement and release Debrief v1.9.2 with a safe active-recording trash action: confirmed tap or haptic press-and-hold discard, complete private-part cleanup, and no destination export.
+Implement and release Debrief v1.9.3 so redacted audio is muted before the first audible phoneme, including at 3×/4× playback and immediately after Play/seek.
 
 ## Shipped checkpoint
 
@@ -15,6 +15,11 @@ Implement and release Debrief v1.9.2 with a safe active-recording trash action: 
 
 ## Current checkpoint
 
+- v1.9.3 replaces the old 150 ms symmetric redaction pad with a 750 ms leading/250 ms trailing privacy window, clamps at file start, normalizes bounds, and merges overlapping windows.
+- Review precomputes mute windows only when redactions change. Playback polling, Play, skip, scrubber, chapter/comment, search-result, and transcript-card seeks all use the same redaction-aware volume decision.
+- Exact boundary, recording-start clamp, overlap merging, and outside-window volume tests pass. The full 28-test instrumentation suite passed on Android 11 and Android 15 true-16 KB emulators with empty crash buffers.
+- JVM tests, debug/release lint, debug packaging, and release R8 pass. Local release packaging stops only at the intentionally absent local keystore; GitHub Actions owns production signing.
+- Source checkpoint `6981143` is pushed. Version/release documentation, tagged production signing, public APK verification, and signed upgrade verification are in progress.
 - v1.9.2 adds a dedicated trash control during recording and pause. Tap opens a permanent-delete confirmation; press-and-hold changes the icon, gives haptic feedback, and discards immediately.
 - Discard is isolated from Stop/save: it stops and releases `MediaRecorder`, removes callbacks and the wake lock, deletes all app-private session parts, clears recovery state, and stops the service without calling folder export. Stale actions are ignored once finalization begins.
 - Verification so far: JVM tests, debug/release lint, debug build, release R8, 28 Android 11 instrumentation tests with an empty crash buffer, 28 Android 15 true-16 KB tests, and a clean eight-test v1.9.2 Android 15 recorder/service slice with an empty crash buffer passed.

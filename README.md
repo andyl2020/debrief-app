@@ -17,7 +17,7 @@ Debrief is a local-first Android app for capturing and reviewing long field reco
 - Optional Advanced/Experimental AI Enhance with low-confidence rough-spot detection, conservative Gemini text repair, optional short-clip audio re-listen, selection enhancement, versioned repair runs, Cleaned view, and accept/revert review
 - Per-recording AI privacy skip, automatic/re-run controls, manual set start/end/edit/delete/merge/split, and local per-key AI usage
 - Side-opening Chapters table of contents combining manual conversation sets and timestamped comments, with tap-to-jump navigation
-- Reversible redaction mode for screen recording/sharing: mask transcript text as `[redacted]` and mute playback over redacted timestamp ranges without modifying source audio
+- Reversible redaction mode for screen recording/sharing: mask transcript text as `[redacted]` and proactively mute playback before redacted timestamp ranges without modifying source audio
 - Media3 playback with circular ± 3-second skip controls, long-press skip interval cycling, immediate 1×/1.2×/1.5×/2×/3×/4× speed control, saved position, transcript follow/highlight, tap-to-seek, and transcript reload
 - SQLCipher-encrypted Room database with transcript-only in-player search and broad Library FTS5 search across filenames, transcripts, summaries, and comments
 - Timestamped comment create/edit/delete and recording-wide speaker aliases

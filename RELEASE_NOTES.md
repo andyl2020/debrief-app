@@ -37,7 +37,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Tap the speed label beside Play/Pause to choose **1×, 1.2×, 1.5×, 2×, 3×, or 4×**. Changes take effect during playback without restarting or losing position.
 - Use the refresh icon beside search to reload transcript state and recover a saved sidecar when local transcript rows are absent.
 - Search within a recording from the review search field, or search all recordings from the Library search action.
-- Redactions are on by default in Review. Tap the **shield** button beside the review actions to turn redactions off or back on. When on, redacted transcript cards display as `[redacted]` and playback volume is muted over those timestamp ranges with a small safety pad.
+- Redactions are on by default in Review. Tap the **shield** button beside the review actions to turn redactions off or back on. When on, redacted transcript cards display as `[redacted]`. Playback mutes 750 ms before and 250 ms after stored redaction timestamps, and applies the target volume before Play or a seek into a protected range.
 - With the shield on, long-press a transcript card and tap the inline **Redact** button to redact the whole card. Redacted cards show an **N selected** chip; tap it to cancel the redaction for a specific word, or long-press the card and tap **Remove redaction** to restore the whole card.
 - Redactions are designed for screen recording and feedback sharing. They are reversible in-app metadata; original transcript text and original audio files are not modified.
 
@@ -96,6 +96,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Split is enabled only when playback is inside a closed set and at least one second from either boundary. The final set cannot merge forward. An open set must be ended before another set can start.
 - Comments are durable user data and are not removed by rerunning AI. A comment and set at the same timestamp both appear, with the set first.
 - Redaction mode mutes Debrief's in-app player by setting playback volume to zero during redacted ranges. This is appropriate for screen recording from Debrief, but it is not a permanent export-safe edit of the source audio file.
+- The privacy-first audio buffer can also mute part of an immediately preceding word or nearby speech: up to 750 ms before a redaction and 250 ms after it. This deliberate tradeoff prevents timestamp imprecision and 3×/4× playback polling from exposing the start of a private word.
 - Redaction creation is card-level in the Review UI. When word timestamps exist, Debrief stores card redactions as word-level ranges so individual words can be unredacted from the **N selected** chip. If word timing is missing, Debrief falls back to whole-card redaction/removal.
 - High playback speeds preserve position but may reduce intelligibility and can expose decoder limitations in damaged or unusual audio files.
 - Transcript Quality checks are mechanical integrity checks, not a guarantee that every word is correct. A green result means no obvious missing chunks, broken timestamps, or suspicious truncation were detected.
@@ -108,6 +109,15 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.9.3 - Redaction leading-edge privacy fix (2026-07-23)
+
+- Fixed the first phoneme or leading part of a redacted word sometimes remaining audible.
+- Replaced the old symmetric 150 ms pad with a privacy-first 750 ms leading buffer and 250 ms trailing buffer. The leading margin covers provider timestamp drift and the distance playback can advance between volume checks at 4× speed.
+- Redaction mute windows now clamp safely at the start of the file, normalize malformed bounds, merge overlaps, and are precomputed only when redactions change.
+- Play and all Review seek paths now set the redaction-aware target volume immediately instead of waiting for the next 75 ms player poll.
+- Added exact boundary, recording-start clamp, overlap-merge, and outside-range volume regression tests.
+- Verification before tagging: JVM unit tests, debug/release lint, debug build, and release R8 passed; all 28 Android 11 and all 28 Android 15/true-16 KB instrumentation tests passed with empty crash buffers. Production signing, artifact verification, and signed upgrade testing are completed below after publication.
 
 ### v1.9.2 - Active recording discard (2026-07-23)
 
