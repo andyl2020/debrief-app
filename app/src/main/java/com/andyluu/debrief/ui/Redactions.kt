@@ -3,7 +3,11 @@ package com.andyluu.debrief.ui
 import com.andyluu.debrief.data.RedactionEntity
 import com.andyluu.debrief.data.TranscriptWordEntity
 
-internal const val REDACTION_AUDIO_PAD_MS = 150L
+// Provider word starts can land slightly after the audible consonant, and at 4x
+// playback the player advances about 300 ms during one 75 ms volume poll. Favor
+// privacy by muting well before the stored start while keeping a smaller tail.
+internal const val REDACTION_AUDIO_LEAD_PAD_MS = 750L
+internal const val REDACTION_AUDIO_TRAIL_PAD_MS = 250L
 internal const val REDACTION_LABEL = "[redacted]"
 
 internal data class RedactionSelection(
@@ -27,11 +31,62 @@ internal data class RedactedWordChoice(
     val text: String,
 )
 
+internal data class RedactionMuteRange(
+    val startMs: Long,
+    val endMs: Long,
+)
+
+internal fun redactionMuteRanges(
+    redactions: List<RedactionEntity>,
+    leadPadMs: Long = REDACTION_AUDIO_LEAD_PAD_MS,
+    trailPadMs: Long = REDACTION_AUDIO_TRAIL_PAD_MS,
+): List<RedactionMuteRange> {
+    val padded = redactions
+        .map {
+            val start = minOf(it.startMs, it.endMs)
+            val end = maxOf(it.startMs, it.endMs)
+            RedactionMuteRange(
+                startMs = (start - leadPadMs.coerceAtLeast(0)).coerceAtLeast(0),
+                endMs = end + trailPadMs.coerceAtLeast(0),
+            )
+        }
+        .sortedBy(RedactionMuteRange::startMs)
+    if (padded.isEmpty()) return emptyList()
+
+    val merged = mutableListOf(padded.first())
+    padded.drop(1).forEach { next ->
+        val current = merged.last()
+        if (next.startMs <= current.endMs) {
+            merged[merged.lastIndex] = current.copy(endMs = maxOf(current.endMs, next.endMs))
+        } else {
+            merged += next
+        }
+    }
+    return merged
+}
+
 internal fun redactionActiveAt(
     positionMs: Long,
     redactions: List<RedactionEntity>,
-    padMs: Long = REDACTION_AUDIO_PAD_MS,
-): Boolean = redactions.any { positionMs in (it.startMs - padMs)..(it.endMs + padMs) }
+    leadPadMs: Long = REDACTION_AUDIO_LEAD_PAD_MS,
+    trailPadMs: Long = REDACTION_AUDIO_TRAIL_PAD_MS,
+): Boolean = redactionMuteRanges(redactions, leadPadMs, trailPadMs)
+    .let { redactionMuteActiveAt(positionMs, it) }
+
+internal fun redactionPlaybackVolumeAt(
+    positionMs: Long,
+    redactions: List<RedactionEntity>,
+): Float = redactionPlaybackVolumeForRanges(positionMs, redactionMuteRanges(redactions))
+
+internal fun redactionMuteActiveAt(
+    positionMs: Long,
+    muteRanges: List<RedactionMuteRange>,
+): Boolean = muteRanges.any { positionMs in it.startMs..it.endMs }
+
+internal fun redactionPlaybackVolumeForRanges(
+    positionMs: Long,
+    muteRanges: List<RedactionMuteRange>,
+): Float = if (redactionMuteActiveAt(positionMs, muteRanges)) 0f else 1f
 
 internal fun List<RedactionEntity>.overlappingRedactions(startMs: Long, endMs: Long): List<RedactionEntity> =
     filter { it.startMs < endMs && it.endMs > startMs }

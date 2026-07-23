@@ -913,6 +913,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
     val activeRepairs = if (showAiEnhance) state.repairs.filter { it.applied && !it.reverted } else emptyList()
     val openManualSet = state.sets.lastOrNull { it.isOpenManualSet() }
     val activeRedactions = if (redactionsEnabled) state.redactions else emptyList()
+    val activeMuteRanges = remember(activeRedactions) { redactionMuteRanges(activeRedactions) }
 
     LaunchedEffect(state.repairRun?.status, state.repairs.size) {
         if (state.repairRun?.status == RepairRunStatus.READY && activeRepairs.isNotEmpty()) cleanedView = true
@@ -951,15 +952,14 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
             player = null
         }
     }
-    LaunchedEffect(player, activeRedactions) {
-        if (activeRedactions.isEmpty()) player?.volume = 1f
+    LaunchedEffect(player, activeMuteRanges) {
+        if (activeMuteRanges.isEmpty()) player?.volume = 1f
         while (isActive) {
             player?.let {
                 val current = it.currentPosition.coerceAtLeast(0)
                 position = current
                 if (it.duration > 0) duration = it.duration
-                val shouldMute = redactionActiveAt(current, activeRedactions)
-                val targetVolume = if (shouldMute) 0f else 1f
+                val targetVolume = redactionPlaybackVolumeForRanges(current, activeMuteRanges)
                 if (it.volume != targetVolume) it.volume = targetVolume
             }
             delay(75)
@@ -975,10 +975,30 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
         delay(250)
         localResults = if (query.isBlank()) emptyList() else viewModel.search(query)
     }
+    fun seekPlayerTo(targetMs: Long) {
+        player?.let {
+            val targetVolume = redactionPlaybackVolumeForRanges(targetMs, activeMuteRanges)
+            // Mute before entering a protected range so an asynchronous seek cannot
+            // briefly play the first phoneme at the previous volume.
+            if (targetVolume == 0f && it.volume != 0f) it.volume = 0f
+            it.seekTo(targetMs)
+            if (targetVolume == 1f && it.volume != 1f) it.volume = 1f
+        }
+    }
+    fun togglePlayback() {
+        player?.let {
+            if (it.isPlaying) {
+                it.pause()
+            } else {
+                it.volume = redactionPlaybackVolumeForRanges(it.currentPosition.coerceAtLeast(0), activeMuteRanges)
+                it.play()
+            }
+        }
+    }
     fun seekBy(deltaMs: Long) {
         val target = (position + deltaMs).coerceIn(0L, duration.coerceAtLeast(1L))
         position = target
-        player?.seekTo(target)
+        seekPlayerTo(target)
         follow = true
     }
     fun cycleSkipInterval() {
@@ -1005,7 +1025,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                     onUndoRename = viewModel::undoRename,
                     onConfirmSuggestion = viewModel::confirmSuggestion,
                     onSeek = { timestamp ->
-                        player?.seekTo(timestamp)
+                        seekPlayerTo(timestamp)
                         position = timestamp
                         follow = true
                         scope.launch { drawerState.close() }
@@ -1062,7 +1082,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
             Column(Modifier.background(MaterialTheme.colorScheme.surface).padding(horizontal = 14.dp, vertical = 8.dp)) {
                 Slider(
                     value = position.coerceAtMost(duration).toFloat(),
-                    onValueChange = { value -> position = value.toLong(); player?.seekTo(position) },
+                    onValueChange = { value -> position = value.toLong(); seekPlayerTo(position) },
                     valueRange = 0f..duration.coerceAtLeast(1).toFloat(),
                 )
                 ScrubberTimelineTicks(
@@ -1090,7 +1110,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                         onClick = { seekBy(-skipIntervalMs) },
                         onLongClick = { cycleSkipInterval() },
                     )
-                    IconButton(onClick = { player?.let { if (it.isPlaying) it.pause() else it.play() } }) {
+                    IconButton(onClick = { togglePlayback() }) {
                         Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, if (playing) "Pause" else "Play", Modifier.size(36.dp))
                     }
                     PlaybackSkipButton(
@@ -1188,7 +1208,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
             }
             if (query.isNotBlank()) {
                 LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(localResults) { hit -> SearchHitCard(hit) { player?.seekTo(hit.timestampMs); position = hit.timestampMs; query = ""; follow = true } }
+                    items(localResults) { hit -> SearchHitCard(hit) { seekPlayerTo(hit.timestampMs); position = hit.timestampMs; query = ""; follow = true } }
                 }
             } else if (recording?.status != RecordingStatus.READY) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1201,7 +1221,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                         item {
                             StandaloneCommentsCard(
                                 comments = leadingComments,
-                                onSeek = { timestamp -> player?.seekTo(timestamp); position = timestamp; follow = true },
+                                onSeek = { timestamp -> seekPlayerTo(timestamp); position = timestamp; follow = true },
                                 onComment = { editingComment = it },
                                 onDeleteComment = viewModel::deleteComment,
                             )
@@ -1235,7 +1255,7 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                             redactedWords = segmentRedactedWords,
                             redactionSelection = redactionSelection?.takeIf { it.segmentId == segment.id },
                             comments = comments,
-                            onSeek = { player?.seekTo(segment.startMs); position = segment.startMs; follow = true },
+                            onSeek = { seekPlayerTo(segment.startMs); position = segment.startMs; follow = true },
                             onLongPress = {
                                 if (redactionsEnabled) {
                                     redactionSelection = segmentRedactionSelection(

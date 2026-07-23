@@ -105,13 +105,42 @@ class RedactionsTest {
     }
 
     @Test
-    fun audioMuteUsesSafetyPadding() {
+    fun audioMuteUsesLargerLeadingPrivacyBuffer() {
         val redactions = listOf(redaction(1_000, 2_000))
 
-        assertTrue(redactionActiveAt(900, redactions))
-        assertTrue(redactionActiveAt(2_100, redactions))
-        assertFalse(redactionActiveAt(800, redactions))
-        assertFalse(redactionActiveAt(2_200, redactions))
+        assertTrue(redactionActiveAt(250, redactions))
+        assertTrue(redactionActiveAt(2_250, redactions))
+        assertFalse(redactionActiveAt(249, redactions))
+        assertFalse(redactionActiveAt(2_251, redactions))
+    }
+
+    @Test
+    fun leadingBufferClampsAtRecordingStart() {
+        val ranges = redactionMuteRanges(listOf(redaction(200, 500)))
+
+        assertEquals(listOf(RedactionMuteRange(0, 750)), ranges)
+        assertEquals(0f, redactionPlaybackVolumeAt(0, listOf(redaction(200, 500))))
+    }
+
+    @Test
+    fun overlappingPaddedMuteRangesAreMerged() {
+        val ranges = redactionMuteRanges(
+            listOf(
+                redaction(1_000, 1_200),
+                redaction(1_700, 2_000),
+            )
+        )
+
+        assertEquals(listOf(RedactionMuteRange(250, 2_250)), ranges)
+        assertEquals(0f, redactionPlaybackVolumeForRanges(1_450, ranges))
+    }
+
+    @Test
+    fun playbackVolumeIsFullOutsidePrivacyBuffer() {
+        val redactions = listOf(redaction(1_000, 2_000))
+
+        assertEquals(1f, redactionPlaybackVolumeAt(249, redactions))
+        assertEquals(1f, redactionPlaybackVolumeAt(2_251, redactions))
     }
 
     private fun word(text: String, startMs: Long, endMs: Long) = TranscriptWordEntity(
