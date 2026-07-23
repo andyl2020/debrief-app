@@ -118,6 +118,8 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Play and all Review seek paths now set the redaction-aware target volume immediately instead of waiting for the next 75 ms player poll.
 - Added exact boundary, recording-start clamp, overlap-merge, and outside-range volume regression tests.
 - Verification before tagging: JVM unit tests, debug/release lint, debug build, and release R8 passed; all 28 Android 11 and all 28 Android 15/true-16 KB instrumentation tests passed with empty crash buffers. Production signing, artifact verification, and signed upgrade testing are completed below after publication.
+- GitHub Release: https://github.com/andyl2020/debrief-app/releases/tag/v1.9.3
+- Independently verified public APK: 9,208,916 bytes; SHA-256 `4EB2F1761712E62C8AB2523D039F1A8482745E00881075AB4B2CAD8651851E44`. Package/version, production RSA-4096 certificate, APK Signature Scheme v3, ARM64/x86-64 16 KB alignment, clean launch, app-data retention, and signed v1.9.2 → v1.9.3 upgrade passed.
 
 ### v1.9.2 - Active recording discard (2026-07-23)
 

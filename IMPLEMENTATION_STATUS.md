@@ -19,7 +19,12 @@ Implement and release Debrief v1.9.3 so redacted audio is muted before the first
 - Review precomputes mute windows only when redactions change. Playback polling, Play, skip, scrubber, chapter/comment, search-result, and transcript-card seeks all use the same redaction-aware volume decision.
 - Exact boundary, recording-start clamp, overlap merging, and outside-window volume tests pass. The full 28-test instrumentation suite passed on Android 11 and Android 15 true-16 KB emulators with empty crash buffers.
 - JVM tests, debug/release lint, debug packaging, and release R8 pass. Local release packaging stops only at the intentionally absent local keystore; GitHub Actions owns production signing.
-- Source checkpoint `6981143` is pushed. Version/release documentation, tagged production signing, public APK verification, and signed upgrade verification are in progress.
+- Source checkpoint `6981143` and release checkpoint `f5d64b8` are pushed; annotated tag `v1.9.3` points to the release checkpoint.
+- GitHub Actions runs 30037615009 and 30037623139 passed independent CI, unit tests, release lint/R8, production signing, ARM64/x86-64 16 KB checks, and public release publication.
+- GitHub Release v1.9.3 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.9.3
+- The independently downloaded public APK is 9,208,916 bytes with SHA-256 `4EB2F1761712E62C8AB2523D039F1A8482745E00881075AB4B2CAD8651851E44`.
+- Public-artifact verification passed: package `com.andyluu.debrief`, version code 24/name 1.9.3, production RSA-4096 certificate SHA-256 `32BB05383EBD2FE29B70306D607842F1AAED8066C193C720A35EA5B8B8F60FE0`, APK Signature Scheme v3, ARM64/x86-64 16 KB ELF alignment, clean launch, preserved app data, and signed v1.9.2 → v1.9.3 upgrade on a true 16 KB Android 15 emulator.
+- No implementation or release work remains for v1.9.3.
 - v1.9.2 adds a dedicated trash control during recording and pause. Tap opens a permanent-delete confirmation; press-and-hold changes the icon, gives haptic feedback, and discards immediately.
 - Discard is isolated from Stop/save: it stops and releases `MediaRecorder`, removes callbacks and the wake lock, deletes all app-private session parts, clears recovery state, and stops the service without calling folder export. Stale actions are ignored once finalization begins.
 - Verification so far: JVM tests, debug/release lint, debug build, release R8, 28 Android 11 instrumentation tests with an empty crash buffer, 28 Android 15 true-16 KB tests, and a clean eight-test v1.9.2 Android 15 recorder/service slice with an empty crash buffer passed.
