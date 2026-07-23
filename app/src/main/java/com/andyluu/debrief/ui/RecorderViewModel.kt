@@ -45,6 +45,7 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
     fun pause() = recorder.pause()
     fun resume() = recorder.resume()
     fun stop() = recorder.stop()
+    fun discard() = recorder.discard()
     fun retrySave(folderUri: String) = recorder.retrySave(folderUri)
     fun permissionDenied() = recorder.reportPermissionDenied()
     fun clearMessage() = recorder.clearMessage()

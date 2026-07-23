@@ -101,6 +101,36 @@ class RecordingServiceTest {
         repository.update(RecordingState())
     }
 
+    @Test
+    fun discardStopsCaptureAndDeletesEveryPrivateSessionPart() = runBlocking {
+        val application = ApplicationProvider.getApplicationContext<DebriefApplication>()
+        val repository = application.services.recorder
+        repository.update(RecordingState())
+
+        repository.start(
+            "content://com.andyluu.debrief.invalid/tree/missing",
+            "Delete this session.m4a",
+        )
+        awaitPhase(repository, RecordingPhase.RECORDING)
+        val sessionId = requireNotNull(repository.state.value.sessionId)
+        val output = RecordingOutput(application)
+        delay(800)
+        assertTrue(
+            "Active capture should have a private session part before discard.",
+            output.sessionParts(sessionId).isNotEmpty(),
+        )
+
+        repository.discard()
+        awaitPhase(repository, RecordingPhase.IDLE)
+
+        assertEquals(null, repository.state.value.sessionId)
+        assertEquals("Recording deleted.", repository.state.value.statusMessage)
+        assertTrue(
+            "Discard must delete every private session part instead of exporting it.",
+            output.sessionParts(sessionId).isEmpty(),
+        )
+    }
+
     private suspend fun awaitNotificationDismissed(repository: RecordingRepository) {
         val deadline = System.currentTimeMillis() + 5_000
         while (System.currentTimeMillis() < deadline && !repository.state.value.notificationDismissed) {

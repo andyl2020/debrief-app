@@ -5,8 +5,11 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
 import com.andyluu.debrief.recording.RecordingPauseReason
 import com.andyluu.debrief.recording.RecordingPhase
 import com.andyluu.debrief.recording.RecordingState
@@ -69,6 +72,7 @@ class RecorderScreenTest {
         }
 
         compose.onNodeWithContentDescription("Pause recording").assertIsDisplayed().assertIsEnabled()
+        compose.onNodeWithContentDescription("Delete recording").assertIsDisplayed().assertIsEnabled()
         compose.onNodeWithContentDescription("Stop and save recording").assertIsDisplayed().assertIsEnabled()
         compose.onNodeWithText("Debrief test").assertIsDisplayed()
         compose.onNodeWithText(".m4a").assertIsDisplayed()
@@ -133,5 +137,69 @@ class RecorderScreenTest {
 
         compose.onNodeWithText("Original").performTextReplacement("Networking")
         compose.runOnIdle { assertTrue(editedName == "Networking") }
+    }
+
+    @Test
+    fun tappingDeleteRequiresConfirmationBeforeDiscarding() {
+        var discarded = false
+        compose.setContent {
+            DebriefTheme {
+                RecorderContent(
+                    state = RecordingState(
+                        phase = RecordingPhase.RECORDING,
+                        sessionId = "rec-delete",
+                        displayName = "Private conversation.m4a",
+                    ),
+                    folderLinked = true,
+                    onStart = {},
+                    onPause = {},
+                    onResume = {},
+                    onStop = {},
+                    onRetry = {},
+                    onPickFolder = {},
+                    onClearMessage = {},
+                    onOpenLibrary = {},
+                    onOpenSettings = {},
+                    onDelete = { discarded = true },
+                )
+            }
+        }
+
+        compose.onNodeWithContentDescription("Delete recording").performClick()
+        compose.onNodeWithText("Delete this recording?").assertIsDisplayed()
+        compose.runOnIdle { assertTrue(!discarded) }
+        compose.onNodeWithText("Delete recording").performClick()
+        compose.runOnIdle { assertTrue(discarded) }
+    }
+
+    @Test
+    fun holdingDeleteDiscardsWithoutOpeningConfirmation() {
+        var discarded = false
+        compose.setContent {
+            DebriefTheme {
+                RecorderContent(
+                    state = RecordingState(
+                        phase = RecordingPhase.PAUSED,
+                        sessionId = "rec-hold-delete",
+                        displayName = "Discard me.m4a",
+                    ),
+                    folderLinked = true,
+                    onStart = {},
+                    onPause = {},
+                    onResume = {},
+                    onStop = {},
+                    onRetry = {},
+                    onPickFolder = {},
+                    onClearMessage = {},
+                    onOpenLibrary = {},
+                    onOpenSettings = {},
+                    onDelete = { discarded = true },
+                )
+            }
+        }
+
+        compose.onNodeWithContentDescription("Delete recording").performTouchInput { longClick() }
+        compose.runOnIdle { assertTrue(discarded) }
+        assertTrue(compose.onAllNodesWithText("Delete this recording?").fetchSemanticsNodes().isEmpty())
     }
 }

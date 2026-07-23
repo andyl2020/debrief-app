@@ -35,6 +35,10 @@ class RecordingRepository(private val context: Context) {
     fun pause() = startService(RecordingService.ACTION_PAUSE)
     fun resume() = startService(RecordingService.ACTION_RESUME)
     fun stop() = startService(RecordingService.ACTION_STOP)
+    fun discard() {
+        if (state.value.phase !in setOf(RecordingPhase.RECORDING, RecordingPhase.PAUSED)) return
+        startService(RecordingService.ACTION_DISCARD)
+    }
 
     fun retrySave(folderUri: String) {
         if (state.value.phase != RecordingPhase.SAVE_FAILED) return

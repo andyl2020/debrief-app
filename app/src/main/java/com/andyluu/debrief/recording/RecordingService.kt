@@ -88,6 +88,10 @@ class RecordingService : Service() {
             }
         }
         if (foregroundResult.isFailure) {
+            if (action == ACTION_DISCARD) {
+                discardRecording()
+                return START_NOT_STICKY
+            }
             val message = "Android denied foreground microphone access. Saving everything captured so far."
             if (mediaRecorder != null && repository.state.value.sessionId != null) {
                 repository.update(repository.state.value.copy(statusMessage = message))
@@ -113,6 +117,10 @@ class RecordingService : Service() {
             ACTION_STOP -> {
                 if (mediaRecorder == null && repository.state.value.isSessionActive) recoverInterrupted()
                 else finishRecording()
+            }
+            ACTION_DISCARD -> {
+                discardRecording()
+                return START_NOT_STICKY
             }
             ACTION_RETRY_SAVE -> retrySave(intent?.getStringExtra(EXTRA_FOLDER_URI))
             ACTION_RECOVER -> recoverInterrupted()
@@ -324,6 +332,38 @@ class RecordingService : Service() {
         )
         showForeground(useMicrophone = false)
         exportSession(current.sessionId, current.folderUri, current.displayName)
+    }
+
+    private fun discardRecording() {
+        val current = repository.state.value
+        val id = current.sessionId ?: return stopForegroundAndSelf()
+        if (current.phase !in setOf(
+                RecordingPhase.PREPARING,
+                RecordingPhase.RECORDING,
+                RecordingPhase.PAUSED,
+            ) || finalizing
+        ) return
+
+        // A discard must never enter the save/recovery pipeline. Mark finalizing first so
+        // MediaRecorder callbacks cannot restart capture while stop() is completing.
+        finalizing = true
+        handler.removeCallbacks(monitorRunnable)
+        runCatching { mediaRecorder?.stop() }
+        runCatching { mediaRecorder?.unregisterAudioRecordingCallback(recordingCallback) }
+        runCatching { mediaRecorder?.release() }
+        mediaRecorder = null
+        sessionId = null
+        pendingNextPart = null
+        releaseWakeLock()
+        output.cleanup(id)
+        repository.update(
+            RecordingState(
+                phase = RecordingPhase.IDLE,
+                statusMessage = "Recording deleted.",
+            )
+        )
+        finalizing = false
+        stopForegroundAndSelf()
     }
 
     private fun retrySave(folderOverride: String?) {
@@ -669,6 +709,7 @@ class RecordingService : Service() {
         const val ACTION_PAUSE = "com.andyluu.debrief.recording.PAUSE"
         const val ACTION_RESUME = "com.andyluu.debrief.recording.RESUME"
         const val ACTION_STOP = "com.andyluu.debrief.recording.STOP"
+        const val ACTION_DISCARD = "com.andyluu.debrief.recording.DISCARD"
         const val ACTION_RETRY_SAVE = "com.andyluu.debrief.recording.RETRY_SAVE"
         const val ACTION_RECOVER = "com.andyluu.debrief.recording.RECOVER"
         const val EXTRA_FOLDER_URI = "folder_uri"

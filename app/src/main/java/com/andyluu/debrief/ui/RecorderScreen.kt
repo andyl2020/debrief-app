@@ -1,9 +1,16 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@file:OptIn(
+    androidx.compose.material3.ExperimentalMaterial3Api::class,
+    androidx.compose.foundation.ExperimentalFoundationApi::class,
+)
 
 package com.andyluu.debrief.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +25,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Mic
@@ -28,6 +37,7 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -42,6 +52,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -57,8 +68,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -118,6 +131,7 @@ fun RecorderScreen(
         onPause = viewModel::pause,
         onResume = viewModel::resume,
         onStop = viewModel::stop,
+        onDelete = viewModel::discard,
         onRetry = { settings.folderUri?.let(viewModel::retrySave) },
         onPickFolder = onPickFolder,
         onClearMessage = viewModel::clearMessage,
@@ -141,6 +155,7 @@ internal fun RecorderContent(
     onOpenLibrary: () -> Unit,
     onOpenSettings: () -> Unit,
     onNameChange: (String) -> Unit = {},
+    onDelete: () -> Unit = {},
 ) {
     val focusManager = LocalFocusManager.current
     val editableName = recordingName
@@ -149,11 +164,43 @@ internal fun RecorderContent(
     var elapsedMs by remember(state.phase, state.elapsedBeforeRunningMs, state.runningSinceElapsedMs) {
         mutableLongStateOf(state.elapsedMs())
     }
+    var showDeleteConfirmation by remember(state.sessionId) { mutableStateOf(false) }
     LaunchedEffect(state.phase, state.elapsedBeforeRunningMs, state.runningSinceElapsedMs) {
         while (isActive) {
             elapsedMs = state.elapsedMs()
             delay(200)
         }
+    }
+    LaunchedEffect(state.phase) {
+        if (state.phase !in setOf(RecordingPhase.RECORDING, RecordingPhase.PAUSED)) {
+            showDeleteConfirmation = false
+        }
+    }
+
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text("Delete this recording?") },
+            text = {
+                Text(
+                    "This permanently discards everything recorded in this session. " +
+                        "It will not be saved to your recordings folder."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmation = false
+                        onDelete()
+                    }
+                ) {
+                    Text("Delete recording", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) { Text("Cancel") }
+            },
+        )
     }
 
     Scaffold(
@@ -247,6 +294,8 @@ internal fun RecorderContent(
                     onPause = onPause,
                     onResume = onResume,
                     onStop = onStop,
+                    onDeleteClick = { showDeleteConfirmation = true },
+                    onDeleteLongClick = onDelete,
                 )
                 RecordingPhase.SAVE_FAILED -> SaveFailureControls(
                     folderLinked = folderLinked,
@@ -327,11 +376,17 @@ private fun ActiveRecordingControls(
     onPause: () -> Unit,
     onResume: () -> Unit,
     onStop: () -> Unit,
+    onDeleteClick: () -> Unit,
+    onDeleteLongClick: () -> Unit,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(36.dp),
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
     ) {
+        DiscardRecordingButton(
+            onClick = onDeleteClick,
+            onLongClick = onDeleteLongClick,
+        )
         FilledIconButton(
             onClick = if (paused) onResume else onPause,
             enabled = pauseEnabled,
@@ -346,6 +401,53 @@ private fun ActiveRecordingControls(
             modifier = Modifier.size(78.dp).semantics { contentDescription = "Stop and save recording" },
         ) {
             Icon(Icons.Default.Stop, null, Modifier.size(38.dp), tint = Color(0xFFD93025))
+        }
+    }
+}
+
+@Composable
+private fun DiscardRecordingButton(
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val indication = LocalIndication.current
+    val haptics = LocalHapticFeedback.current
+
+    Surface(
+        modifier = Modifier
+            .size(60.dp)
+            .semantics {
+                contentDescription = if (isPressed) {
+                    "Hold to delete recording"
+                } else {
+                    "Delete recording"
+                }
+            },
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .combinedClickable(
+                    interactionSource = interactionSource,
+                    indication = indication,
+                    onClick = onClick,
+                    onLongClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onLongClick()
+                    },
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = if (isPressed) Icons.Default.DeleteForever else Icons.Default.Delete,
+                contentDescription = null,
+                modifier = Modifier.size(28.dp),
+            )
         }
     }
 }
