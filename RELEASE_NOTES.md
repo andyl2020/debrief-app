@@ -17,14 +17,17 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 ### Offline Recorder
 
 - Use the bottom **Record** tab to capture a new recording completely offline. If a recordings folder is already linked, the large record button starts after microphone permission is granted. If no folder is linked, Debrief opens the folder picker first.
-- The Recorder shows a live timer, microphone level, generated file name, pause/resume, and Stop. It continues in a foreground microphone service with an ongoing notification while the screen is off or another app is open.
+- The Recorder shows a live timer, microphone level, editable recording name, pause/resume, and Stop. The name can be changed before starting, while recording, while paused, or before retrying a failed save. Debrief preserves the `.m4a` audio extension and replaces characters Android file providers cannot safely use.
+- It continues in a foreground microphone service with a notification while the screen is off or another app is open.
 - The notification opens the Recorder and offers pause/resume. Stop and final save remain inside Debrief to reduce accidental termination of a long session.
+- On Android 13 or newer, swipe the active-recording notification away once to hide it for the rest of that recording. Capture continues, including through app switching and screen-off use. Return to Debrief for pause/resume/Stop after dismissing it.
 - Recordings use 48 kHz mono 128 kbps AAC in an M4A container, approximately 58 MB per hour.
 - Long recordings roll into protected local parts at roughly nine-minute boundaries without stopping the active `MediaRecorder`. Tapping Stop losslessly joins the parts and writes one normal M4A file into the currently linked folder.
 - Debrief checks storage before and during capture. It requires 256 MiB free to start, pauses below 32 MiB, and resumes automatically after at least 64 MiB becomes available.
 - Android call/communication mode pauses capture and resumes after the call. A user pause remains paused. If Android temporarily supplies silence because another app has higher microphone priority, Debrief shows a warning and keeps the recorder alive until microphone audio returns.
 - If the folder write fails, **Save needs attention** keeps the local recovery audio and offers **Retry save** or **Choose another folder**. An unfinished session with finalized parts is recovered on the next app open.
 - After a successful save, Debrief rescans the linked folder so the new recording appears in Library ready for playback or transcription.
+- In Library, tap the pencil beside a recording to physically rename the source file. Existing transcript/search metadata and the reinstall-safe sidecar are refreshed to the new name.
 
 ### Review and playback
 
@@ -84,6 +87,8 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Android may give Debrief silence while a higher-priority app uses the microphone. Debrief warns when the platform reports this and continues automatically, but it cannot reconstruct speech that Android did not deliver.
 - OnePlus and other aggressive battery managers may offer an app-specific **Allow background activity** or **Unrestricted** battery option. The foreground service and wake lock are designed for screen-off capture; enabling that OEM option provides additional protection for critical multi-hour sessions.
 - Denying notification permission does not grant another app microphone access, but it can make the ongoing foreground-service notice less visible. Grant notifications for clear long-session status.
+- Android 12 and older normally keep foreground-service notifications non-dismissible. On Android 13+, a dismissed recording notification stays hidden until the next recording, but Android can still list Debrief under **Active apps** because recording continues. Dismissing the notification removes its pause/resume buttons; reopen Debrief for controls.
+- Recorder and Library renames preserve the file's actual audio extension. Blank names are rejected, unsupported filename characters are replaced, and a document provider may reject a name collision; the original file remains unchanged when a rename fails.
 - The Chapters drawer opens from its toolbar button. Closed-edge swipe is intentionally disabled so it does not interfere with Android back gestures; swipe-to-close works while the drawer is open.
 - AI-generated summaries, speaker names, and rename suggestions can be wrong. Sets are manual-only because automatic boundaries were not reliable enough.
 - Split is enabled only when playback is inside a closed set and at least one second from either boundary. The final set cannot merge forward. An open set must be ended before another set can start.
@@ -101,6 +106,14 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.9.1 - Recording names and notification control (2026-07-23)
+
+- Added a clean **Recording name** field to the Recorder. Names can be edited before or during capture and remain checkpointed through pause, interruption, and save retry.
+- Added a pencil action to every Library recording for physical source-file rename, including search-index and sidecar refresh.
+- Fixed active-recording notifications repeatedly returning after the user swiped them away. Android 13+ dismissal is now remembered for the current session while capture continues normally.
+- Added filename sanitization/extension-preservation unit coverage, Recorder and Library Compose coverage, foreground-service rename persistence checks, deterministic dismissal-state coverage, and a real Android 15 system-notification swipe test.
+- Verification before tagging: JVM unit tests, debug lint/build, 25 Android 11 instrumentation tests, 25 Android 15/16 KB instrumentation tests, a separate physical notification-shade swipe test, real microphone pause/resume/recovery checks, and clean app crash buffers passed. Production signing, release R8, published APK size/hash, and final 16 KB artifact verification are completed by the release workflow.
 
 ### v1.9.0 - Reliable offline Recorder (2026-07-23)
 

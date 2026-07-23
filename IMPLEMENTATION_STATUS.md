@@ -4,7 +4,7 @@ Last updated: 2026-07-23
 
 ## Objective
 
-Implement and release Debrief v1.9.0 with reliable, completely offline long-session recording, pause/resume, interruption handling, folder export, and recovery.
+Implement and release Debrief v1.9.1 with editable recording filenames, Library physical rename, and session-persistent notification dismissal without interrupting capture.
 
 ## Shipped checkpoint
 
@@ -15,6 +15,10 @@ Implement and release Debrief v1.9.0 with reliable, completely offline long-sess
 
 ## Current checkpoint
 
+- v1.9.1 adds an editable Recorder filename before/during capture, a Library pencil rename action, shared filename sanitization/extension preservation, search/sidecar refresh, and a persisted per-session notification-dismissed state.
+- Android 13+ notification dismissal uses an exported-false broadcast receiver. Once the system reports the user's swipe, timer and pause/resume notification updates are suppressed while the foreground microphone service and recording continue.
+- Verification so far: unit tests, debug lint/build, 25 Android 11 tests, 25 Android 15 16 KB tests, a separate real Android 15 notification-shade swipe test, real microphone pause/resume/save-failure recovery, Recorder/Library UI tests, visual Recorder inspection, and empty final app crash buffers passed.
+- Source checkpoints `8703956`, `60a6458`, and `a16f096` are pushed. Versioning, release documentation, release R8/signing, tag, publication, and independent public APK verification remain.
 - v1.9.0 recording is implemented behind a dedicated Record tab.
 - The capture engine uses Android's maintained native `MediaRecorder` in a microphone foreground service with a partial wake lock, 48 kHz mono 128 kbps AAC/M4A, live amplitude, manual pause/resume, and app-only Stop.
 - Calls detected through Android audio mode pause and resume automatically. Concurrent microphone capture is monitored; if Android silences Debrief for a higher-priority app, the UI explains that capture remains alive and audio returns automatically.
@@ -132,6 +136,9 @@ Implement and release Debrief v1.9.0 with reliable, completely offline long-sess
 - [x] Add interruption, storage, part rollover, folder-save, and recovery handling.
 - [x] Add private gitignored real-audio test fixtures and opt-in Deepgram smoke test.
 - [x] Fully verify and publish GitHub Release v1.9.0.
+- [x] Implement and device-test editable Recorder and Library filenames.
+- [x] Fix and physically test Android 15 recording-notification dismissal.
+- [ ] Fully verify and publish GitHub Release v1.9.1.
 - [ ] Phase 2: optional enhanced-audio playback.
 - [ ] Phase 3: safe retranscription and recovery controls.
 

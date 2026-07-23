@@ -5,8 +5,8 @@ Debrief is a local-first Android app for capturing and reviewing long field reco
 ## What works
 
 - Persistent Android Storage Access Framework folder permission with automatic rescans
-- Dedicated offline Recorder tab with live level meter, timer, pause/resume, stop/save, screen-off foreground capture, notification controls, call interruption handling, storage safeguards, recoverable local parts, and lossless M4A joining
-- MP3, M4A, WAV, and AAC library with new/queued/transcribing/ready/failed states
+- Dedicated offline Recorder tab with an editable filename, live level meter, timer, pause/resume, stop/save, screen-off foreground capture, dismissible notification controls, call interruption handling, storage safeguards, recoverable local parts, and lossless M4A joining
+- MP3, M4A, WAV, and AAC library with new/queued/transcribing/ready/failed states and physical file rename controls
 - WorkManager transcription queue with unmetered Wi-Fi by default and automatic retry
 - Long-press multi-select with explicit checkbox-based batch transcription
 - AssemblyAI transcription is the recommended default for noisy field recordings, with Deepgram Nova-3 still available as a fallback

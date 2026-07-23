@@ -1,21 +1,26 @@
 # Offline recording architecture
 
-Status: implemented for Debrief v1.9.0  
+Status: implemented for Debrief v1.9.1
 Updated: July 23, 2026
 
 ## Product behavior
 
 The Library and Recorder are first-class bottom-navigation destinations. The
-Recorder shows the linked folder, live timer, microphone level, large record
-control, pause/resume, and stop/save. Recording does not call any network API.
+Recorder shows the linked folder, editable filename, live timer, microphone
+level, large record control, pause/resume, and stop/save. Recording does not call
+any network API. Filename edits change only the eventual destination name; local
+durability parts keep stable session identifiers throughout capture.
 
 If a folder is already linked, Record starts after Android grants microphone
 permission. If no folder is linked, the same durable Storage Access Framework
 folder picker used by Library opens first. A completed recording is copied into
 that folder and immediately discovered by the normal Library scan.
 
-The ongoing notification opens the Recorder and offers pause/resume. Stop stays
-inside the app to reduce accidental termination of a long field session.
+The foreground notification opens the Recorder and offers pause/resume. Stop
+stays inside the app to reduce accidental termination of a long field session.
+On Android 13+, a user swipe is delivered to an exported-false receiver and
+checkpointed for the session. Notification updates stop, but capture and the
+foreground service continue. A new recording resets notification visibility.
 
 ## Capture engine
 
@@ -87,8 +92,8 @@ failure from consuming the last bytes on the device.
 
 ## Recovery contract
 
-Session identity, destination, state, name, timing, and pause reason are
-synchronously checkpointed outside the audio files. If Android recreates the
+Session identity, destination, state, name, timing, pause reason, and notification
+dismissal are synchronously checkpointed outside the audio files. If Android recreates the
 service or Debrief opens with an unfinished session, the app discovers finalized
 parts, losslessly joins them, and retries the folder save.
 
@@ -104,12 +109,16 @@ not be. Uninstalling Debrief removes app-specific recovery files.
 
 ## Tests
 
-- Pure unit tests cover session timing, pause behavior, and stable file naming.
+- Pure unit tests cover session timing, pause behavior, filename normalization,
+  extension preservation, and stable part naming.
 - Compose device tests cover idle, active, call-paused, and save-failure UX.
 - An Android device test runs the real foreground microphone service, records,
   pauses, resumes, stops, forces an invalid folder export, verifies a playable
   recovery part, duplicates it, joins both parts losslessly, and verifies the
   joined timeline grows.
+- Android 15 UI automation physically swipes away the active recording
+  notification, then verifies capture and pause/resume continue without the
+  notification returning.
 - Release tests retain the full app unit/lint/instrumentation/signature/16 KB
   alignment checks.
 - Private provider/audio fixtures live only under ignored `local-testing`; see
