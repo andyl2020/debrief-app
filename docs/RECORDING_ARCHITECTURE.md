@@ -1,15 +1,16 @@
 # Offline recording architecture
 
-Status: implemented for Debrief v1.9.1
+Status: implemented for Debrief v1.9.2
 Updated: July 23, 2026
 
 ## Product behavior
 
 The Library and Recorder are first-class bottom-navigation destinations. The
 Recorder shows the linked folder, editable filename, live timer, microphone
-level, large record control, pause/resume, and stop/save. Recording does not call
-any network API. Filename edits change only the eventual destination name; local
-durability parts keep stable session identifiers throughout capture.
+level, large record control, pause/resume, trash/discard, and stop/save.
+Recording does not call any network API. Filename edits change only the eventual
+destination name; local durability parts keep stable session identifiers
+throughout capture.
 
 If a folder is already linked, Record starts after Android grants microphone
 permission. If no folder is linked, the same durable Storage Access Framework
@@ -21,6 +22,15 @@ stays inside the app to reduce accidental termination of a long field session.
 On Android 13+, a user swipe is delivered to an exported-false receiver and
 checkpointed for the session. Notification updates stop, but capture and the
 foreground service continue. A new recording resets notification visibility.
+
+While recording or paused, tapping trash opens a destructive confirmation.
+Pressing and holding the same control changes its icon, gives haptic feedback,
+and immediately discards. Discard stops and releases `MediaRecorder`, removes
+monitor callbacks and the wake lock, deletes every app-private part for that
+session, clears the recovery checkpoint, and stops the foreground service. It
+does not call the folder-export pipeline. Once Stop has advanced to finalization
+or recovery, discard is rejected so a late interaction cannot race a destination
+write.
 
 ## Capture engine
 
@@ -111,11 +121,15 @@ not be. Uninstalling Debrief removes app-specific recovery files.
 
 - Pure unit tests cover session timing, pause behavior, filename normalization,
   extension preservation, and stable part naming.
-- Compose device tests cover idle, active, call-paused, and save-failure UX.
+- Compose device tests cover idle, active, call-paused, save-failure, trash
+  visibility, tap confirmation, and direct press-and-hold discard UX.
 - An Android device test runs the real foreground microphone service, records,
   pauses, resumes, stops, forces an invalid folder export, verifies a playable
   recovery part, duplicates it, joins both parts losslessly, and verifies the
   joined timeline grows.
+- A separate real-service path starts microphone capture, verifies a private
+  session part exists, discards, and verifies the session returns to idle with
+  every local part removed.
 - Android 15 UI automation physically swipes away the active recording
   notification, then verifies capture and pause/resume continue without the
   notification returning.

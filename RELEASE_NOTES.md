@@ -17,7 +17,8 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 ### Offline Recorder
 
 - Use the bottom **Record** tab to capture a new recording completely offline. If a recordings folder is already linked, the large record button starts after microphone permission is granted. If no folder is linked, Debrief opens the folder picker first.
-- The Recorder shows a live timer, microphone level, editable recording name, pause/resume, and Stop. The name can be changed before starting, while recording, while paused, or before retrying a failed save. Debrief preserves the `.m4a` audio extension and replaces characters Android file providers cannot safely use.
+- The Recorder shows a live timer, microphone level, editable recording name, pause/resume, trash, and Stop. The name can be changed before starting, while recording, while paused, or before retrying a failed save. Debrief preserves the `.m4a` audio extension and replaces characters Android file providers cannot safely use.
+- During recording or pause, tap the **trash** button to review a permanent-delete confirmation, then tap **Delete recording**. For the quick path, press and hold trash: it changes to delete-forever, gives haptic feedback, and immediately discards the current session without saving it to the linked folder.
 - It continues in a foreground microphone service with a notification while the screen is off or another app is open.
 - The notification opens the Recorder and offers pause/resume. Stop and final save remain inside Debrief to reduce accidental termination of a long session.
 - On Android 13 or newer, swipe the active-recording notification away once to hide it for the rest of that recording. Capture continues, including through app switching and screen-off use. Return to Debrief for pause/resume/Stop after dismissing it.
@@ -83,6 +84,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Android 10 or newer is required. Universal APKs include ARM64 and are verified for 16 KB memory pages used by modern phones such as the OnePlus 13.
 - No Android app can guarantee recording through force-stop, uninstall, reboot/power loss, revoked microphone/storage permission, full or failed storage, hardware failure, or an OEM killing the foreground service. Debrief checkpoints finalized parts, but an abruptly terminated currently open M4A part (up to roughly nine minutes) may not be recoverable.
 - Active audio is first written to app-specific device storage and copied to the linked folder only when Stop/finalization succeeds. Do not uninstall or clear Debrief data while **Save needs attention** is present; that removes the local recovery copy.
+- Recorder trash is intentionally irreversible. The confirmation protects normal taps, but a completed press-and-hold deletes the current session immediately. It removes only the in-progress app-private parts; it does not delete previously saved Library recordings. Once Stop has entered final saving, a stale trash action is ignored rather than racing the folder export.
 - Normal Android apps cannot record the audio of a phone call. Debrief pauses for detected call/communication mode. Some OEM or calling apps may not expose mode changes consistently.
 - Android may give Debrief silence while a higher-priority app uses the microphone. Debrief warns when the platform reports this and continues automatically, but it cannot reconstruct speech that Android did not deliver.
 - OnePlus and other aggressive battery managers may offer an app-specific **Allow background activity** or **Unrestricted** battery option. The foreground service and wake lock are designed for screen-off capture; enabling that OEM option provides additional protection for critical multi-hour sessions.
@@ -106,6 +108,15 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.9.2 - Active recording discard (2026-07-23)
+
+- Added a dedicated trash control while the Recorder is recording or paused.
+- A normal tap opens explicit permanent-delete confirmation. Press-and-hold changes the icon to delete-forever, gives haptic feedback, and discards immediately.
+- Discard stops the microphone service, releases the wake lock, removes every app-private part for that session, clears recovery state, and never enters the linked-folder export path.
+- Late/stale discard actions are ignored after final saving begins so deletion cannot race a normal Stop/save.
+- Added Compose tests for button presence, tap confirmation, and direct hold behavior plus a real microphone-service test that proves all private session parts are deleted.
+- Verification before tagging: JVM unit tests, debug/release lint, debug build, and release R8 passed; 28 Android 11 instrumentation tests passed with an empty crash buffer; 28 Android 15/true-16 KB tests passed, followed by a clean eight-test v1.9.2 recorder/service slice with an empty crash buffer. Production signing, exact artifact verification, and upgrade testing are completed below after publication.
 
 ### v1.9.1 - Recording names and notification control (2026-07-23)
 

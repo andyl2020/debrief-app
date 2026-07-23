@@ -5,7 +5,7 @@ Debrief is a local-first Android app for capturing and reviewing long field reco
 ## What works
 
 - Persistent Android Storage Access Framework folder permission with automatic rescans
-- Dedicated offline Recorder tab with an editable filename, live level meter, timer, pause/resume, stop/save, screen-off foreground capture, dismissible notification controls, call interruption handling, storage safeguards, recoverable local parts, and lossless M4A joining
+- Dedicated offline Recorder tab with an editable filename, live level meter, timer, pause/resume, confirmed or hold-to-discard deletion, stop/save, screen-off foreground capture, dismissible notification controls, call interruption handling, storage safeguards, recoverable local parts, and lossless M4A joining
 - MP3, M4A, WAV, and AAC library with new/queued/transcribing/ready/failed states and physical file rename controls
 - WorkManager transcription queue with unmetered Wi-Fi by default and automatic retry
 - Long-press multi-select with explicit checkbox-based batch transcription
@@ -30,7 +30,7 @@ API keys are entered in Settings and encrypted with a non-exportable Android Key
 
 The app does not provide cloud storage. Audio is prepared in the app cache, sent directly to the selected transcription provider over HTTPS, and deleted from the cache after the request completes. AI Enhance never sends whole recordings to Gemini; when enabled, it sends only short extracted clips for targeted re-listening. The optional Organize Recording pass sends transcript text, never audio, to the AI provider selected in Settings. Redaction mode stores timestamp metadata and mutes playback in-app; it does not edit source recordings. Original recordings and all durable app data remain on the phone.
 
-Recording is completely offline. During an active session Debrief writes protected local M4A parts in app-specific device storage, then losslessly joins and copies the finished recording into the linked folder when Stop is tapped. Temporary parts are removed after a verified folder save.
+Recording is completely offline. During an active session Debrief writes protected local M4A parts in app-specific device storage, then losslessly joins and copies the finished recording into the linked folder when Stop is tapped. Temporary parts are removed after a verified folder save. The Recorder trash action deliberately stops capture and deletes those private parts without writing a destination file.
 
 ## Build
 

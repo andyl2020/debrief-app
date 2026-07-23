@@ -4,7 +4,7 @@ Last updated: 2026-07-23
 
 ## Objective
 
-Implement and release Debrief v1.9.1 with editable recording filenames, Library physical rename, and session-persistent notification dismissal without interrupting capture.
+Implement and release Debrief v1.9.2 with a safe active-recording trash action: confirmed tap or haptic press-and-hold discard, complete private-part cleanup, and no destination export.
 
 ## Shipped checkpoint
 
@@ -15,6 +15,10 @@ Implement and release Debrief v1.9.1 with editable recording filenames, Library 
 
 ## Current checkpoint
 
+- v1.9.2 adds a dedicated trash control during recording and pause. Tap opens a permanent-delete confirmation; press-and-hold changes the icon, gives haptic feedback, and discards immediately.
+- Discard is isolated from Stop/save: it stops and releases `MediaRecorder`, removes callbacks and the wake lock, deletes all app-private session parts, clears recovery state, and stops the service without calling folder export. Stale actions are ignored once finalization begins.
+- Verification so far: JVM tests, debug/release lint, debug build, release R8, 28 Android 11 instrumentation tests with an empty crash buffer, 28 Android 15 true-16 KB tests, and a clean eight-test v1.9.2 Android 15 recorder/service slice with an empty crash buffer passed.
+- Source checkpoint `5bc7879` is pushed. Version/release documentation, tagged production signing, public APK verification, and signed upgrade verification are in progress. Local release packaging correctly stops only at the intentionally absent local production keystore; GitHub Actions owns signing.
 - v1.9.1 adds an editable Recorder filename before/during capture, a Library pencil rename action, shared filename sanitization/extension preservation, search/sidecar refresh, and a persisted per-session notification-dismissed state.
 - Android 13+ notification dismissal uses an exported-false broadcast receiver. Once the system reports the user's swipe, timer and pause/resume notification updates are suppressed while the foreground microphone service and recording continue.
 - Verification so far: unit tests, debug lint/build, 25 Android 11 tests, 25 Android 15 16 KB tests, a separate real Android 15 notification-shade swipe test, real microphone pause/resume/save-failure recovery, Recorder/Library UI tests, visual Recorder inspection, and empty final app crash buffers passed.
