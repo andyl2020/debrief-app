@@ -82,10 +82,6 @@ class RecordingService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action ?: ACTION_RECOVER
-        if (action == ACTION_NOTIFICATION_DISMISSED) {
-            repository.markNotificationDismissed()
-            return START_STICKY
-        }
         val foregroundResult = runCatching {
             if (!repository.state.value.notificationDismissed || !foregroundStarted) {
                 showForeground(useMicrophone = action == ACTION_START || mediaRecorder != null)
@@ -602,8 +598,9 @@ class RecordingService : Service() {
         val builder = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(openPendingIntent)
-            .setOngoing(state.isSessionActive)
-            .setDeleteIntent(servicePendingIntent(ACTION_NOTIFICATION_DISMISSED, 4))
+            // Android still marks this as a foreground-service notification. Keeping the
+            // app-level ongoing flag off lets Android 13+ honor an individual user swipe.
+            .setDeleteIntent(notificationDismissPendingIntent())
             .setOnlyAlertOnce(true)
             .setSilent(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
@@ -643,6 +640,15 @@ class RecordingService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
+    private fun notificationDismissPendingIntent(): PendingIntent =
+        PendingIntent.getBroadcast(
+            this,
+            4,
+            Intent(this, RecordingNotificationDismissReceiver::class.java)
+                .setAction(RecordingNotificationDismissReceiver.ACTION_DISMISSED),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
     private fun stopForegroundAndSelf() {
         stopForeground(STOP_FOREGROUND_REMOVE)
         foregroundStarted = false
@@ -665,7 +671,6 @@ class RecordingService : Service() {
         const val ACTION_STOP = "com.andyluu.debrief.recording.STOP"
         const val ACTION_RETRY_SAVE = "com.andyluu.debrief.recording.RETRY_SAVE"
         const val ACTION_RECOVER = "com.andyluu.debrief.recording.RECOVER"
-        const val ACTION_NOTIFICATION_DISMISSED = "com.andyluu.debrief.recording.NOTIFICATION_DISMISSED"
         const val EXTRA_FOLDER_URI = "folder_uri"
         const val EXTRA_DISPLAY_NAME = "display_name"
 

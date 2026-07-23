@@ -36,5 +36,8 @@
             android:exported="false"
             android:foregroundServiceType="microphone|dataSync"
             android:stopWithTask="false" />
+        <receiver
+            android:name=".recording.RecordingNotificationDismissReceiver"
+            android:exported="false" />
     </application>
 </manifest>
