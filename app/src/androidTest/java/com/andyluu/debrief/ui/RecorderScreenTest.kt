@@ -11,6 +11,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import com.andyluu.debrief.recording.RecordingPauseReason
+import com.andyluu.debrief.recording.RecordingInputRoute
 import com.andyluu.debrief.recording.RecordingPhase
 import com.andyluu.debrief.recording.RecordingState
 import org.junit.Assert.assertTrue
@@ -43,7 +44,31 @@ class RecorderScreenTest {
 
         compose.onNodeWithContentDescription("Start recording").performClick()
         assertTrue(started)
+        compose.onNodeWithContentDescription("Using phone microphone").assertIsDisplayed()
         compose.onNodeWithText("Offline • 128 kbps AAC • screen-off recording supported").assertIsDisplayed()
+    }
+
+    @Test
+    fun externalMicrophoneRouteIsClearlyIdentified() {
+        compose.setContent {
+            DebriefTheme {
+                RecorderContent(
+                    state = RecordingState(
+                        phase = RecordingPhase.RECORDING,
+                        sessionId = "rec-usb",
+                        inputRoute = RecordingInputRoute.EXTERNAL,
+                        inputDeviceName = "USB PnP Microphone",
+                    ),
+                    folderLinked = true,
+                    onStart = {}, onPause = {}, onResume = {}, onStop = {},
+                    onRetry = {}, onPickFolder = {}, onClearMessage = {},
+                    onOpenLibrary = {}, onOpenSettings = {},
+                )
+            }
+        }
+
+        compose.onNodeWithContentDescription("Using external microphone: USB PnP Microphone").assertIsDisplayed()
+        compose.onNodeWithText("External · USB PnP Microphone").assertIsDisplayed()
     }
 
     @Test

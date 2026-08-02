@@ -123,6 +123,9 @@ private class RecordingSessionStore(context: Context) {
         val pauseReason = preferences.getString("pause_reason", null)
             ?.let { runCatching { RecordingPauseReason.valueOf(it) }.getOrNull() }
             ?: RecordingPauseReason.NONE
+        val inputRoute = preferences.getString("input_route", null)
+            ?.let { runCatching { RecordingInputRoute.valueOf(it) }.getOrNull() }
+            ?: RecordingInputRoute.INTERNAL
         return RecordingState(
             phase = phase,
             sessionId = preferences.getString("session_id", null),
@@ -136,6 +139,10 @@ private class RecordingSessionStore(context: Context) {
             lastSavedName = preferences.getString("last_saved_name", null),
             lastSavedUri = preferences.getString("last_saved_uri", null),
             notificationDismissed = preferences.getBoolean("notification_dismissed", false),
+            inputRoute = inputRoute,
+            inputDeviceName = preferences.getString("input_device_name", null)
+                ?: if (inputRoute == RecordingInputRoute.EXTERNAL) "External microphone" else "Phone microphone",
+            inputRoutingWarning = preferences.getString("input_routing_warning", null),
         )
     }
 
@@ -152,6 +159,9 @@ private class RecordingSessionStore(context: Context) {
             .putString("last_saved_name", state.lastSavedName)
             .putString("last_saved_uri", state.lastSavedUri)
             .putBoolean("notification_dismissed", state.notificationDismissed)
+            .putString("input_route", state.inputRoute.name)
+            .putString("input_device_name", state.inputDeviceName)
+            .putString("input_routing_warning", state.inputRoutingWarning)
         if (!editor.commit()) {
             Log.e("DebriefRecorder", "Could not checkpoint the recording recovery state.")
         }

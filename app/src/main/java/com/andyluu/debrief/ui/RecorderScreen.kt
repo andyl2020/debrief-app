@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.HeadsetMic
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
@@ -79,6 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.andyluu.debrief.data.AppSettings
 import com.andyluu.debrief.recording.RecordingPauseReason
+import com.andyluu.debrief.recording.RecordingInputRoute
 import com.andyluu.debrief.recording.RecordingNames
 import com.andyluu.debrief.recording.RecordingPhase
 import com.andyluu.debrief.recording.RecordingState
@@ -280,7 +282,22 @@ internal fun RecorderContent(
                 amplitude = if (state.phase == RecordingPhase.RECORDING) state.amplitude else 0f,
                 active = state.phase == RecordingPhase.RECORDING,
             )
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(16.dp))
+            MicrophoneRouteStatus(state)
+            state.inputRoutingWarning?.let { warning ->
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                ) {
+                    Text(
+                        warning,
+                        Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+            Spacer(Modifier.height(20.dp))
 
             when (state.phase) {
                 RecordingPhase.IDLE -> IdleRecordButton(
@@ -331,6 +348,37 @@ internal fun RecorderContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(bottom = 18.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun MicrophoneRouteStatus(state: RecordingState) {
+    val external = state.inputRoute == RecordingInputRoute.EXTERNAL
+    val description = if (external) {
+        "Using external microphone: ${state.inputDeviceName}"
+    } else {
+        "Using phone microphone"
+    }
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = if (external) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.semantics { contentDescription = description },
+    ) {
+        Row(
+            Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                if (external) Icons.Default.HeadsetMic else Icons.Default.Mic,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                if (external) "External · ${state.inputDeviceName}" else "Phone microphone",
+                style = MaterialTheme.typography.labelLarge,
             )
         }
     }

@@ -1,5 +1,6 @@
 package com.andyluu.debrief.recording
 
+import android.media.AudioDeviceInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -59,5 +60,35 @@ class RecordingModelsTest {
     @Test(expected = IllegalArgumentException::class)
     fun emptyRecordingNameIsRejected() {
         RecordingNames.normalizeDisplayName("   ")
+    }
+
+    @Test
+    fun externalMicrophoneTypesExcludeSystemAndTelephonySources() {
+        assertTrue(isExternalMicrophoneType(AudioDeviceInfo.TYPE_USB_HEADSET))
+        assertTrue(isExternalMicrophoneType(AudioDeviceInfo.TYPE_WIRED_HEADSET))
+        assertTrue(isExternalMicrophoneType(AudioDeviceInfo.TYPE_BLE_HEADSET))
+        assertFalse(isExternalMicrophoneType(AudioDeviceInfo.TYPE_BUILTIN_MIC))
+        assertFalse(isExternalMicrophoneType(AudioDeviceInfo.TYPE_TELEPHONY))
+        assertFalse(isExternalMicrophoneType(AudioDeviceInfo.TYPE_REMOTE_SUBMIX))
+    }
+
+    @Test
+    fun usbMicrophonesWinDeterministicallyAndLabelsStayClear() {
+        assertTrue(
+            externalMicrophonePriority(AudioDeviceInfo.TYPE_USB_HEADSET) >
+                externalMicrophonePriority(AudioDeviceInfo.TYPE_BLUETOOTH_SCO)
+        )
+        assertEquals(
+            RecordingInputRoute.EXTERNAL,
+            microphoneRouteForDeviceType(AudioDeviceInfo.TYPE_USB_DEVICE),
+        )
+        assertEquals(
+            "USB PnP Microphone",
+            microphoneDisplayName(RecordingInputRoute.EXTERNAL, "USB PnP Microphone"),
+        )
+        assertEquals(
+            "Phone microphone",
+            microphoneDisplayName(RecordingInputRoute.INTERNAL, "Built-in Mic"),
+        )
     }
 }

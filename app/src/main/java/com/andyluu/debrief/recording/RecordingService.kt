@@ -9,8 +9,11 @@ import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.AudioRecordingConfiguration
+import android.media.AudioRouting
 import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
@@ -54,6 +57,20 @@ class RecordingService : Service() {
     private var captureSilenced = false
     private var foregroundStarted = false
 
+    private val routingChangedListener = AudioRouting.OnRoutingChangedListener { routing ->
+        if (routing === mediaRecorder) publishRoutedInput(routing as MediaRecorder)
+    }
+
+    private val audioDeviceCallback = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
+            refreshPreferredInputRoute()
+        }
+
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
+            refreshPreferredInputRoute()
+        }
+    }
+
     private val recordingCallback = object : AudioManager.AudioRecordingCallback() {
         override fun onRecordingConfigChanged(configs: MutableList<AudioRecordingConfiguration>?) {
             val ownConfiguration = mediaRecorder?.activeRecordingConfiguration
@@ -78,6 +95,8 @@ class RecordingService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        audioManager.registerAudioDeviceCallback(audioDeviceCallback, handler)
+        publishAvailableInput()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -132,9 +151,11 @@ class RecordingService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(monitorRunnable)
+        audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
         if (mediaRecorder != null && !finalizing) {
             runCatching { mediaRecorder?.stop() }
             runCatching { mediaRecorder?.unregisterAudioRecordingCallback(recordingCallback) }
+            runCatching { mediaRecorder?.removeOnRoutingChangedListener(routingChangedListener) }
             runCatching { mediaRecorder?.release() }
             mediaRecorder = null
         }
@@ -194,6 +215,7 @@ class RecordingService : Service() {
             }
             .onFailure { error ->
                 runCatching { mediaRecorder?.unregisterAudioRecordingCallback(recordingCallback) }
+                runCatching { mediaRecorder?.removeOnRoutingChangedListener(routingChangedListener) }
                 runCatching { mediaRecorder?.release() }
                 mediaRecorder = null
                 releaseWakeLock()
@@ -226,10 +248,17 @@ class RecordingService : Service() {
                     handleRecorderError("The recorder reached its local part limit before rollover")
             }
         }
+        val preferredInput = preferredInputDevice()
+        val preferenceAccepted = recorder.setPreferredDevice(preferredInput)
         recorder.prepare()
         recorder.registerAudioRecordingCallback(ContextCompat.getMainExecutor(this), recordingCallback)
+        recorder.addOnRoutingChangedListener(routingChangedListener, handler)
         mediaRecorder = recorder
         recorder.start()
+        publishRoutedInput(recorder, preferredInput, preferenceAccepted)
+        handler.postDelayed({
+            if (mediaRecorder === recorder) publishRoutedInput(recorder, preferredInput, preferenceAccepted)
+        }, ROUTE_SETTLE_DELAY_MS)
     }
 
     private fun queueNextPart(recorder: MediaRecorder) {
@@ -317,6 +346,7 @@ class RecordingService : Service() {
         val elapsed = current.elapsedMs()
         runCatching { mediaRecorder?.stop() }
         runCatching { mediaRecorder?.unregisterAudioRecordingCallback(recordingCallback) }
+        runCatching { mediaRecorder?.removeOnRoutingChangedListener(routingChangedListener) }
         runCatching { mediaRecorder?.release() }
         mediaRecorder = null
         pendingNextPart = null
@@ -350,6 +380,7 @@ class RecordingService : Service() {
         handler.removeCallbacks(monitorRunnable)
         runCatching { mediaRecorder?.stop() }
         runCatching { mediaRecorder?.unregisterAudioRecordingCallback(recordingCallback) }
+        runCatching { mediaRecorder?.removeOnRoutingChangedListener(routingChangedListener) }
         runCatching { mediaRecorder?.release() }
         mediaRecorder = null
         sessionId = null
@@ -474,6 +505,7 @@ class RecordingService : Service() {
         val elapsed = current.elapsedMs()
         runCatching { mediaRecorder?.stop() }
         runCatching { mediaRecorder?.unregisterAudioRecordingCallback(recordingCallback) }
+        runCatching { mediaRecorder?.removeOnRoutingChangedListener(routingChangedListener) }
         runCatching { mediaRecorder?.release() }
         mediaRecorder = null
         pendingNextPart?.let { if (it.length() == 0L) runCatching { it.delete() } }
@@ -549,6 +581,73 @@ class RecordingService : Service() {
         return mode == AudioManager.MODE_IN_CALL ||
             mode == AudioManager.MODE_IN_COMMUNICATION ||
             (Build.VERSION.SDK_INT >= 30 && mode == AudioManager.MODE_CALL_SCREENING)
+    }
+
+    /**
+     * Changes MediaRecorder's preferred input in place. The recorder is never
+     * stopped, paused, or recreated for a device connection change.
+     */
+    private fun refreshPreferredInputRoute() {
+        val recorder = mediaRecorder
+        if (recorder == null) {
+            publishAvailableInput()
+            return
+        }
+        val preferred = preferredInputDevice()
+        val accepted = runCatching { recorder.setPreferredDevice(preferred) }.getOrDefault(false)
+        publishRoutedInput(recorder, preferred, accepted)
+        handler.postDelayed({
+            if (mediaRecorder === recorder) publishRoutedInput(recorder, preferred, accepted)
+        }, ROUTE_SETTLE_DELAY_MS)
+    }
+
+    private fun preferredInputDevice(): AudioDeviceInfo? {
+        val inputs = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS).filter { it.isSource }
+        return inputs
+            .filter { isExternalMicrophoneType(it.type) }
+            .maxByOrNull { externalMicrophonePriority(it.type) }
+            ?: inputs.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }
+    }
+
+    private fun publishAvailableInput() {
+        val preferred = preferredInputDevice()
+        publishInputState(preferred, warning = null)
+    }
+
+    private fun publishRoutedInput(
+        recorder: MediaRecorder,
+        preferred: AudioDeviceInfo? = recorder.preferredDevice,
+        preferenceAccepted: Boolean = true,
+    ) {
+        val routed = runCatching { recorder.routedDevice }.getOrNull()
+        val shownDevice = routed ?: preferred
+        val preferredIsExternal = preferred?.let { isExternalMicrophoneType(it.type) } == true
+        val routedIsExternal = routed?.let { isExternalMicrophoneType(it.type) } == true
+        val warning = when {
+            !preferenceAccepted -> "Android couldn't select the preferred microphone. Recording is still running on the system-selected input."
+            preferredIsExternal && routed != null && !routedIsExternal ->
+                "An external microphone is connected, but Android kept the phone input. Recording is still running."
+            else -> null
+        }
+        publishInputState(shownDevice, warning)
+    }
+
+    private fun publishInputState(device: AudioDeviceInfo?, warning: String?) {
+        val route = microphoneRouteForDeviceType(device?.type)
+        val current = repository.state.value
+        val name = microphoneDisplayName(route, device?.productName)
+        if (current.inputRoute == route &&
+            current.inputDeviceName == name &&
+            current.inputRoutingWarning == warning
+        ) return
+        repository.update(
+            current.copy(
+                inputRoute = route,
+                inputDeviceName = name,
+                inputRoutingWarning = warning,
+            ),
+            persist = current.sessionId != null,
+        )
     }
 
     private fun availableLocalBytes(): Long {
@@ -725,6 +824,7 @@ class RecordingService : Service() {
         private const val MIN_RESUME_FREE_BYTES = 64L * 1024L * 1024L
         private const val MONITOR_INTERVAL_MS = 500L
         private const val STORAGE_CHECK_INTERVAL_MS = 15_000L
+        private const val ROUTE_SETTLE_DELAY_MS = 750L
         private const val MAX_WAKE_LOCK_MS = 12L * 60L * 60L * 1_000L
     }
 }

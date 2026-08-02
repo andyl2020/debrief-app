@@ -21,6 +21,11 @@ enum class RecordingPauseReason {
     STORAGE,
 }
 
+enum class RecordingInputRoute {
+    INTERNAL,
+    EXTERNAL,
+}
+
 data class RecordingState(
     val phase: RecordingPhase = RecordingPhase.IDLE,
     val sessionId: String? = null,
@@ -35,6 +40,9 @@ data class RecordingState(
     val lastSavedName: String? = null,
     val lastSavedUri: String? = null,
     val notificationDismissed: Boolean = false,
+    val inputRoute: RecordingInputRoute = RecordingInputRoute.INTERNAL,
+    val inputDeviceName: String = "Phone microphone",
+    val inputRoutingWarning: String? = null,
 ) {
     val isSessionActive: Boolean
         get() = phase in setOf(
