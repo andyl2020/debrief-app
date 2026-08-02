@@ -18,9 +18,13 @@ Implement and release Debrief v1.10.1 with Samsung-compatible recorder-notificat
 - v1.10.1 removes the recorder notification on every terminal service path, including failed linked-folder saves. `STOP_FOREGROUND_REMOVE` is paired with an idempotent `NotificationManager.cancel`, and service startup clears stale notification id 8120 when no session is active.
 - The monitor no longer calls `notify()` every 500 ms. Android's system chronometer advances elapsed time without reposting; pause/resume, call/storage state, recorder restart, rollover, and microphone-silence transitions still update explicitly.
 - The underlying recording behavior is unchanged: active capture remains a microphone foreground service. Android 12 and older do not permit an active FGS notification to be swiped away safely; v1.10.1 does not drop foreground status and risk long recordings.
-- Source checkpoint `62ce7d4` is pushed. The deterministic pre-Android-13 receiver test adjustment is included with the release checkpoint.
+- Source checkpoint `62ce7d4` and release checkpoint `411865d` are pushed. Annotated tag `v1.10.1` points to the release checkpoint.
 - JVM unit tests, debug lint/build, all 30 Android 11 tests, all 30 Android 15 true-16 KB tests, and a separate real Android 15 notification-shade swipe/pause/resume/save-failure test pass.
-- Release version code 26/name 1.10.1 and documentation are complete. Production signing and publication are owned by the annotated-tag GitHub workflow.
+- GitHub Actions runs 30732968355 and 30732974517 passed independent CI, unit tests, release lint/R8, production signing, ARM64/x86-64 16 KB checks, and public release publication.
+- GitHub Release v1.10.1 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.10.1
+- The unauthenticated public APK is 9,240,910 bytes with SHA-256 `380D80AF9032A1D9408A0ADA1488AF2941E066DB375D0CD7F147B7ACB54E457C`.
+- Public-artifact verification passed: package `com.andyluu.debrief`, version code 26/name 1.10.1, production RSA-4096 certificate SHA-256 `32BB05383EBD2FE29B70306D607842F1AAED8066C193C720A35EA5B8B8F60FE0`, APK Signature Scheme v3, ARM64/x86-64 16 KB ELF alignment, clean launch, empty crash buffer, zero stale recorder notifications, retained data directory/first-install time, and a signed v1.10.0 -> v1.10.1 upgrade on Android 15 true-16 KB.
+- No implementation or release work remains for v1.10.1.
 
 - v1.10.0 automatic microphone routing is implemented. The Recorder displays the phone/external input and device name; USB, wired, BLE/Bluetooth, line, dock, and bus inputs are selected with `MediaRecorder.setPreferredDevice` without stopping, pausing, releasing, or recreating the recorder. Disconnect returns preference to the built-in microphone. Live route callbacks update the UI and route refusal is non-fatal.
 - v1.10.0 annotation durability is implemented. SQLCipher remains authoritative; an AES-GCM encrypted app-private snapshot uses verified atomic replacement plus a previous copy, and paired verified sidecars live beside the recording. All copies are keyed/bound to recording identity and audio size/duration.

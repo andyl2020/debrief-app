@@ -125,7 +125,8 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Strengthened the recorder instrumentation test to assert that a forced folder-save failure preserves playable local audio while leaving no active notification. Added an explicit notification-present assertion before the real system-shade swipe scenario.
 - Verification before tagging: JVM unit tests, debug lint/build, all 30 Android 11 instrumentation tests, all 30 Android 15 true-16 KB instrumentation tests, and a separate real Android 15 notification-shade swipe/pause/resume/save-failure test passed.
 - GitHub Release: https://github.com/andyl2020/debrief-app/releases/tag/v1.10.1
-- Production signing, release lint/R8, exact public APK size/hash, signature, 16 KB alignment, clean launch, and signed v1.10.0 -> v1.10.1 upgrade verification are completed during publication and recorded in `IMPLEMENTATION_STATUS.md`.
+- GitHub Actions runs 30732968355 and 30732974517 passed independent CI, unit tests, release lint/R8, production signing, ARM64/x86-64 16 KB checks, and public release publication.
+- Independently verified public APK: 9,240,910 bytes; SHA-256 `380D80AF9032A1D9408A0ADA1488AF2941E066DB375D0CD7F147B7ACB54E457C`. Package version 26/1.10.1, the production RSA-4096 certificate, APK Signature Scheme v3, ARM64/x86-64 16 KB alignment, clean launch, zero stale recorder notifications, retained first-install time/data directory, and a signed v1.10.0 -> v1.10.1 upgrade passed.
 
 ### v1.10.0 - Automatic microphone routing and durable markers (2026-08-01)
 
