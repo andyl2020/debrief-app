@@ -89,12 +89,18 @@ class RecordingService : Service() {
                     }
                 )
             )
+            updateNotification()
         }
     }
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        // Clear a notification detached by an older build or interrupted save before
+        // handling a new idle/retry command. Active sessions retain their FGS notice.
+        if (!repository.state.value.isSessionActive) {
+            notificationManager.cancel(NOTIFICATION_ID)
+        }
         audioManager.registerAudioDeviceCallback(audioDeviceCallback, handler)
         publishAvailableInput()
     }
@@ -275,6 +281,7 @@ class RecordingService : Service() {
         repository.update(
             repository.state.value.copy(statusMessage = "Long recording secured in $currentPartIndex local parts.")
         )
+        updateNotification()
     }
 
     private fun pauseInternal(reason: RecordingPauseReason) {
@@ -282,6 +289,7 @@ class RecordingService : Service() {
         if (current.phase == RecordingPhase.PAUSED) {
             if (reason == RecordingPauseReason.USER && current.pauseReason != RecordingPauseReason.USER) {
                 repository.update(current.copy(pauseReason = RecordingPauseReason.USER, statusMessage = "Paused"))
+                updateNotification()
             }
             return
         }
@@ -312,6 +320,7 @@ class RecordingService : Service() {
         if (current.phase != RecordingPhase.PAUSED) return
         if (isCallOrCommunicationActive()) {
             repository.update(current.copy(pauseReason = RecordingPauseReason.CALL, statusMessage = "Waiting for the call to end…"))
+            updateNotification()
             return
         }
         if (availableLocalBytes() < MIN_RESUME_FREE_BYTES) {
@@ -321,6 +330,7 @@ class RecordingService : Service() {
                     statusMessage = "Free at least 64 MB of device storage to resume.",
                 )
             )
+            updateNotification()
             return
         }
         runCatching { mediaRecorder?.resume() }
@@ -485,9 +495,10 @@ class RecordingService : Service() {
                     )
                 )
                 finalizing = false
-                updateNotification()
-                stopForeground(STOP_FOREGROUND_DETACH)
-                stopSelf()
+                // DETACH intentionally leaves a notification visible after the service
+                // dies. The failed audio is already checkpointed and remains recoverable
+                // from Recorder, so remove the foreground notice on every terminal path.
+                stopForegroundAndSelf()
             }
         }
     }
@@ -524,6 +535,7 @@ class RecordingService : Service() {
                             statusMessage = "$message. Debrief restarted capture automatically.",
                         )
                     )
+                    updateNotification()
                     return
                 }
         }
@@ -571,7 +583,6 @@ class RecordingService : Service() {
                 0
             }
             repository.updateAmplitude(sqrt(amplitude.coerceAtLeast(0) / 32767f))
-            updateNotification()
             handler.postDelayed(this, MONITOR_INTERVAL_MS)
         }
     }
@@ -740,8 +751,11 @@ class RecordingService : Service() {
             // Android still marks this as a foreground-service notification. Keeping the
             // app-level ongoing flag off lets Android 13+ honor an individual user swipe.
             .setDeleteIntent(notificationDismissPendingIntent())
+            .setOngoing(false)
             .setOnlyAlertOnce(true)
             .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setContentTitle(
                 when (state.phase) {
@@ -753,7 +767,25 @@ class RecordingService : Service() {
                     else -> "Debrief Recorder"
                 }
             )
-            .setContentText(state.statusMessage ?: formatElapsed(state.elapsedMs()))
+            .setContentText(
+                state.statusMessage ?: if (state.phase == RecordingPhase.RECORDING) {
+                    "Tap to open Recorder"
+                } else {
+                    formatElapsed(state.elapsedMs())
+                }
+            )
+
+        if (state.phase == RecordingPhase.RECORDING) {
+            // System UI can advance this timer without a notify() call every 500 ms.
+            // Avoiding that repost loop prevents OEM notification drawers from bringing
+            // a user-dismissed card back and reduces work throughout long recordings.
+            builder
+                .setWhen(System.currentTimeMillis() - state.elapsedMs())
+                .setShowWhen(true)
+                .setUsesChronometer(true)
+        } else {
+            builder.setShowWhen(false).setUsesChronometer(false)
+        }
 
         when (state.phase) {
             RecordingPhase.RECORDING -> builder.addAction(
@@ -790,6 +822,9 @@ class RecordingService : Service() {
 
     private fun stopForegroundAndSelf() {
         stopForeground(STOP_FOREGROUND_REMOVE)
+        // Some Samsung System UI versions retain a stale FGS card after the lifecycle
+        // call. An explicit idempotent cancel closes that vendor edge case.
+        notificationManager.cancel(NOTIFICATION_ID)
         foregroundStarted = false
         stopSelf()
     }

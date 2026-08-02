@@ -54,6 +54,7 @@ class RecordingServiceTest {
         val exerciseSystemSwipe = Build.VERSION.SDK_INT >= 33 &&
             InstrumentationRegistry.getArguments().getString("debriefTestNotificationSwipe") == "1"
         if (exerciseSystemSwipe) {
+            awaitRecordingNotificationPresent(notificationManager)
             swipeAwayRecordingNotification(repository)
         } else {
             application.sendBroadcast(
@@ -78,7 +79,7 @@ class RecordingServiceTest {
         awaitPhase(repository, RecordingPhase.SAVE_FAILED, timeoutMs = 20_000)
         assertEquals("Networking follow-up.m4a", repository.state.value.displayName)
         assertTrue(repository.state.value.notificationDismissed)
-        notificationManager.cancel(RecordingService.NOTIFICATION_ID)
+        awaitRecordingNotificationAbsent(notificationManager)
         val sessionId = requireNotNull(repository.state.value.sessionId)
         val output = RecordingOutput(application)
         val playablePart = output.sessionParts(sessionId).firstOrNull(M4aConcatenator::isReadableAudio)
@@ -139,6 +140,35 @@ class RecordingServiceTest {
         assertTrue(repository.state.value.notificationDismissed)
     }
 
+    private suspend fun awaitRecordingNotificationAbsent(notificationManager: NotificationManager) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (System.currentTimeMillis() < deadline &&
+            notificationManager.activeNotifications.any { it.id == RecordingService.NOTIFICATION_ID }
+        ) {
+            delay(50)
+        }
+        assertTrue(
+            "The recorder notification should be removed when foreground work ends, including after save failure.",
+            notificationManager.activeNotifications.none { it.id == RecordingService.NOTIFICATION_ID },
+        )
+    }
+
+    private suspend fun awaitRecordingNotificationPresent(notificationManager: NotificationManager) {
+        val deadline = System.currentTimeMillis() + 10_000
+        while (System.currentTimeMillis() < deadline &&
+            notificationManager.activeNotifications.none { it.id == RecordingService.NOTIFICATION_ID }
+        ) {
+            delay(50)
+        }
+        val notification = notificationManager.activeNotifications
+            .firstOrNull { it.id == RecordingService.NOTIFICATION_ID }
+        assertEquals(
+            "The active recorder notification should be posted before testing its system swipe behavior.",
+            "Debrief is recording",
+            notification?.notification?.extras?.getString(android.app.Notification.EXTRA_TITLE),
+        )
+    }
+
     private suspend fun swipeAwayRecordingNotification(repository: RecordingRepository) {
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
         repeat(3) {
@@ -146,7 +176,7 @@ class RecordingServiceTest {
             assertTrue("Could not open the notification shade.", device.openNotification())
             device.waitForIdle()
             val notification = device.findObject(UiSelector().text("Debrief is recording"))
-            assertTrue("The active recording notification was not visible.", notification.waitForExists(5_000))
+            assertTrue("The active recording notification was not visible.", notification.waitForExists(10_000))
             val centerY = notification.bounds.centerY()
             assertTrue(
                 "The recording notification could not be swiped away.",
