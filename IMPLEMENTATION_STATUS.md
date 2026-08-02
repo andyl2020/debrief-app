@@ -21,10 +21,14 @@ Implement and release Debrief v1.10.2 with substantially faster finalization for
 - Recorder finalization now displays and persists determinate percentage, current-part, and verification progress instead of an indefinite spinner.
 - A full Android 15 run exposed a `ForegroundServiceDidNotStartInTimeException` under emulator load. Pause/resume/stop/discard no longer create redundant foreground-service-start obligations; only start/retry/recover commands use `startForegroundService`.
 - A subsequent cold-boot matrix run exposed an old-session `stopSelf()` race when the next recording begins immediately after IDLE is published. Terminal cleanup is now main-looper serialized and guarded by `stopSelfResult`; an immediate-discard/restart regression is included.
-- Source implementation checkpoint `eaa4118` is pushed. Release documentation/version checkpoint and annotated `v1.10.2` tag are pending.
+- Source implementation checkpoint `eaa4118` and release checkpoint `7c06488` are pushed. Annotated tag `v1.10.2` points to the release checkpoint.
 - JVM unit tests and debug lint pass. All 31 Android 11/4 KB instrumentation tests and all 31 Android 15/true-16 KB instrumentation tests pass after the lifecycle hardening.
 - The device matrix covers real microphone capture, pause/resume, discard and immediate restart, folder-failure recovery, a 40-part direct-file-descriptor finalization with timeline/readability checks, determinate progress, and all existing app regressions.
-- Local release lint and R8 pass. Production signing, public publication, independent download/hash, signed upgrade, clean launch, and final 16 KB artifact verification remain pending.
+- Local release lint and R8 pass. GitHub Actions runs 30747238999 and 30747245537 passed independent CI, unit tests, release lint/R8, production signing, ARM64/x86-64 16 KB checks, and public release publication.
+- GitHub Release v1.10.2 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.10.2
+- The unauthenticated public APK is 9,246,204 bytes with SHA-256 `2F5E922A0EFED4DDA5D40951F3FDDD71F3B42053FF2B04F869AE39F275C44EA1`.
+- Public-artifact verification passed: package `com.andyluu.debrief`, version code 27/name 1.10.2, production RSA-4096 certificate SHA-256 `32BB05383EBD2FE29B70306D607842F1AAED8066C193C720A35EA5B8B8F60FE0`, APK Signature Scheme v3, ARM64/x86-64 16 KB ELF alignment, clean launch, empty crash buffer, retained data directory/first-install time, and a signed v1.10.1 -> v1.10.2 upgrade on Android 15 true-16 KB.
+- No implementation or release work remains for v1.10.2.
 
 - v1.10.1 removes the recorder notification on every terminal service path, including failed linked-folder saves. `STOP_FOREGROUND_REMOVE` is paired with an idempotent `NotificationManager.cancel`, and service startup clears stale notification id 8120 when no session is active.
 - The monitor no longer calls `notify()` every 500 ms. Android's system chronometer advances elapsed time without reposting; pause/resume, call/storage state, recorder restart, rollover, and microphone-silence transitions still update explicitly.

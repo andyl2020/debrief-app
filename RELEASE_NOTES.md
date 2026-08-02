@@ -131,7 +131,8 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Added a 40-part simulated long-recording device regression test that remuxes directly to a final file descriptor, reports every part, verifies playable output, and verifies the extended timeline. Added Recorder UI coverage for determinate save progress.
 - Verification before tagging: JVM unit tests, debug lint, all 31 Android 11/4 KB instrumentation tests, and all 31 Android 15/true-16 KB instrumentation tests passed. The matrix includes real microphone capture, pause/resume/discard/restart/save-failure recovery, 40-part direct remux, determinate progress, and all existing product regressions.
 - GitHub Release: https://github.com/andyl2020/debrief-app/releases/tag/v1.10.2
-- Production signing, release lint/R8, exact public APK size/hash, signature, 16 KB alignment, clean launch, and signed upgrade verification are completed during publication and recorded in `IMPLEMENTATION_STATUS.md`.
+- GitHub Actions runs 30747238999 and 30747245537 passed independent CI, unit tests, release lint/R8, production signing, ARM64/x86-64 16 KB checks, and public release publication.
+- Independently verified public APK: 9,246,204 bytes; SHA-256 `2F5E922A0EFED4DDA5D40951F3FDDD71F3B42053FF2B04F869AE39F275C44EA1`. Package version 27/1.10.2, the production RSA-4096 certificate, APK Signature Scheme v3, ARM64/x86-64 16 KB alignment, clean launch, empty crash buffer, retained first-install time/data directory, and a signed v1.10.1 -> v1.10.2 upgrade passed.
 
 ### v1.10.1 - Samsung recorder notification cleanup (2026-08-01)
 
