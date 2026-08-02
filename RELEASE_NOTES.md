@@ -23,6 +23,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - It continues in a foreground microphone service with a notification while the screen is off or another app is open.
 - The notification opens the Recorder and offers pause/resume. Stop and final save remain inside Debrief to reduce accidental termination of a long session.
 - On Android 13 or newer, swipe the active-recording notification away once to hide it for the rest of that recording. Capture continues, including through app switching and screen-off use. Return to Debrief for pause/resume/Stop after dismissing it.
+- The active timer is advanced by Android's notification chronometer instead of Debrief reposting the notification every 500 ms. Stop, discard, successful save, failed save, and empty recovery all remove the foreground notification and explicitly cancel its id; opening v1.10.1 also clears a stale notice left by an older build when no recording is active.
 - Recordings use 48 kHz mono 128 kbps AAC in an M4A container, approximately 58 MB per hour.
 - Long recordings roll into protected local parts at roughly nine-minute boundaries without stopping the active `MediaRecorder`. Tapping Stop losslessly joins the parts and writes one normal M4A file into the currently linked folder.
 - Debrief checks storage before and during capture. It requires 256 MiB free to start, pauses below 32 MiB, and resumes automatically after at least 64 MiB becomes available.
@@ -93,7 +94,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Connecting or disconnecting a microphone does not intentionally stop Debrief recording or playback. Android and the microphone hardware can still introduce a brief click, route-transition gap, or silence while the physical input changes. The preferred device is a request to Android, not an absolute guarantee; the Recorder shows the actual active route when the platform reports it and warns when the request is rejected.
 - OnePlus and other aggressive battery managers may offer an app-specific **Allow background activity** or **Unrestricted** battery option. The foreground service and wake lock are designed for screen-off capture; enabling that OEM option provides additional protection for critical multi-hour sessions.
 - Denying notification permission does not grant another app microphone access, but it can make the ongoing foreground-service notice less visible. Grant notifications for clear long-session status.
-- Android 12 and older normally keep foreground-service notifications non-dismissible. On Android 13+, a dismissed recording notification stays hidden until the next recording, but Android can still list Debrief under **Active apps** because recording continues. Dismissing the notification removes its pause/resume buttons; reopen Debrief for controls.
+- Android 12 and older—including a Galaxy S10 on its final Android 12 release—keep an active microphone foreground-service notification non-dismissible. Debrief cannot remove that notice during capture without giving up foreground status and making a long recording vulnerable to termination. v1.10.1 removes it immediately when foreground work ends. On Android 13+, a dismissed recording notification stays hidden until the next recording, but Android can still list Debrief under **Active apps** because recording continues. Dismissing the notification removes its pause/resume buttons; reopen Debrief for controls.
 - Recorder and Library renames preserve the file's actual audio extension. Blank names are rejected, unsupported filename characters are replaced, and a document provider may reject a name collision; the original file remains unchanged when a rename fails.
 - The Chapters drawer opens from its toolbar button. Closed-edge swipe is intentionally disabled so it does not interfere with Android back gestures; swipe-to-close works while the drawer is open.
 - AI-generated summaries, speaker names, and rename suggestions can be wrong. Sets are manual-only because automatic boundaries were not reliable enough.
@@ -114,6 +115,17 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.10.1 - Samsung recorder notification cleanup (2026-08-01)
+
+- Fixed a save-failure path that detached the recorder notification from its service, which Android defines as leaving the notification visible even after the service stops.
+- Every terminal recorder path now uses foreground-notification removal plus an explicit idempotent notification-manager cancel for Samsung/OEM cleanup. Service startup also clears an older stale notice whenever no recording session is active.
+- Replaced twice-per-second notification reposting with Android's built-in chronometer. State transitions still update pause/resume/status controls, while a dismissed Android 13+ card is not republished.
+- Kept the active microphone service reliable. Android 12 and older cannot swipe away an active foreground-service notification; the app does not trade multi-hour capture reliability for an unsafe hidden background service.
+- Strengthened the recorder instrumentation test to assert that a forced folder-save failure preserves playable local audio while leaving no active notification. Added an explicit notification-present assertion before the real system-shade swipe scenario.
+- Verification before tagging: JVM unit tests, debug lint/build, all 30 Android 11 instrumentation tests, all 30 Android 15 true-16 KB instrumentation tests, and a separate real Android 15 notification-shade swipe/pause/resume/save-failure test passed.
+- GitHub Release: https://github.com/andyl2020/debrief-app/releases/tag/v1.10.1
+- Production signing, release lint/R8, exact public APK size/hash, signature, 16 KB alignment, clean launch, and signed v1.10.0 -> v1.10.1 upgrade verification are completed during publication and recorded in `IMPLEMENTATION_STATUS.md`.
 
 ### v1.10.0 - Automatic microphone routing and durable markers (2026-08-01)
 

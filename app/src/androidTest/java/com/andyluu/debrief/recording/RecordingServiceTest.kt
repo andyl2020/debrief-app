@@ -57,9 +57,13 @@ class RecordingServiceTest {
             awaitRecordingNotificationPresent(notificationManager)
             swipeAwayRecordingNotification(repository)
         } else {
-            application.sendBroadcast(
+            // Exercise the receiver deterministically on Android versions where a live
+            // foreground-service notification cannot be swiped away. Android 13+ gets
+            // a separate physical notification-shade swipe run below.
+            RecordingNotificationDismissReceiver().onReceive(
+                application,
                 Intent(application, RecordingNotificationDismissReceiver::class.java)
-                    .setAction(RecordingNotificationDismissReceiver.ACTION_DISMISSED)
+                    .setAction(RecordingNotificationDismissReceiver.ACTION_DISMISSED),
             )
             awaitNotificationDismissed(repository)
         }

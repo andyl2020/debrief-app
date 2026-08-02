@@ -4,7 +4,7 @@ Last updated: 2026-08-01
 
 ## Objective
 
-Implement and release Debrief v1.10.0 with automatic non-stopping external microphone routing and redundant recording-bound persistence for chapters, bookmarks, redactions, and speaker names.
+Implement and release Debrief v1.10.1 with Samsung-compatible recorder-notification cleanup while preserving reliable foreground microphone capture.
 
 ## Shipped checkpoint
 
@@ -14,6 +14,13 @@ Implement and release Debrief v1.10.0 with automatic non-stopping external micro
 - Verification: JVM unit tests, Android instrumentation tests on Android 11 and Android 15 16 KB, signed upgrade tests, lint, and APK alignment checks passed.
 
 ## Current checkpoint
+
+- v1.10.1 removes the recorder notification on every terminal service path, including failed linked-folder saves. `STOP_FOREGROUND_REMOVE` is paired with an idempotent `NotificationManager.cancel`, and service startup clears stale notification id 8120 when no session is active.
+- The monitor no longer calls `notify()` every 500 ms. Android's system chronometer advances elapsed time without reposting; pause/resume, call/storage state, recorder restart, rollover, and microphone-silence transitions still update explicitly.
+- The underlying recording behavior is unchanged: active capture remains a microphone foreground service. Android 12 and older do not permit an active FGS notification to be swiped away safely; v1.10.1 does not drop foreground status and risk long recordings.
+- Source checkpoint `62ce7d4` is pushed. The deterministic pre-Android-13 receiver test adjustment is included with the release checkpoint.
+- JVM unit tests, debug lint/build, all 30 Android 11 tests, all 30 Android 15 true-16 KB tests, and a separate real Android 15 notification-shade swipe/pause/resume/save-failure test pass.
+- Release version code 26/name 1.10.1 and documentation are complete. Production signing and publication are owned by the annotated-tag GitHub workflow.
 
 - v1.10.0 automatic microphone routing is implemented. The Recorder displays the phone/external input and device name; USB, wired, BLE/Bluetooth, line, dock, and bus inputs are selected with `MediaRecorder.setPreferredDevice` without stopping, pausing, releasing, or recreating the recorder. Disconnect returns preference to the built-in microphone. Live route callbacks update the UI and route refusal is non-fatal.
 - v1.10.0 annotation durability is implemented. SQLCipher remains authoritative; an AES-GCM encrypted app-private snapshot uses verified atomic replacement plus a previous copy, and paired verified sidecars live beside the recording. All copies are keyed/bound to recording identity and audio size/duration.
