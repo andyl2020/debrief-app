@@ -128,6 +128,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Verification before tagging: all JVM unit tests, debug Android-test compilation, debug lint, and all 30 Android 15/true-16 KB emulator instrumentation tests passed. The suite includes real microphone capture/pause/resume/recovery, input-route UI, encrypted snapshot at-rest checks, delete-and-restore recovery for a bookmark/redaction/set/speaker name, set CRUD, redactions, search, database security, and launch regressions.
 - GitHub Release: https://github.com/andyl2020/debrief-app/releases/tag/v1.10.0
 - Production signing, release lint/R8, exact public APK size/hash, signature, 16 KB alignment, clean launch, and signed upgrade verification are completed during publication and recorded in `IMPLEMENTATION_STATUS.md`.
+- Independently verified public APK: 9,240,630 bytes; SHA-256 `D893F5CC1093DCD8CAF1C15416DCADA85978E11FCDD481BEC007FD635DC64991`. Package/version, production RSA-4096 certificate, APK Signature Scheme v3, ARM64/x86-64 16 KB alignment, clean launch, retained package data, and signed v1.9.3 -> v1.10.0 upgrade passed.
 
 ### v1.9.3 - Redaction leading-edge privacy fix (2026-07-23)
 

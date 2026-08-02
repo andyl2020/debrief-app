@@ -22,7 +22,12 @@ Implement and release Debrief v1.10.0 with automatic non-stopping external micro
 - Source checkpoints `d5a7215` and `508f3a0` are pushed.
 - JVM unit tests, debug lint, Android-test compilation, the targeted encrypted delete/restore recovery test, and all 30 Android 15 true-16 KB instrumentation tests pass.
 - Release lint and R8 pass locally. Local `packageRelease` stops only at the intentionally absent production keystore; the tag-triggered GitHub workflow owns production signing.
-- Release documentation and version code 25/name 1.10.0 are prepared. Production release workflow, public APK verification, and signed v1.9.3 -> v1.10.0 upgrade verification remain next.
+- Release documentation and version code 25/name 1.10.0 are complete. Annotated tag `v1.10.0` points to release checkpoint `7d27d76`.
+- GitHub Actions runs 30731621206 and 30731654284 passed independent CI, unit tests, release lint/R8, production signing, ARM64/x86-64 16 KB checks, and public release publication.
+- GitHub Release v1.10.0 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.10.0
+- The independently downloaded public APK is 9,240,630 bytes with SHA-256 `D893F5CC1093DCD8CAF1C15416DCADA85978E11FCDD481BEC007FD635DC64991`.
+- Public-artifact verification passed: package `com.andyluu.debrief`, version code 25/name 1.10.0, production RSA-4096 certificate SHA-256 `32BB05383EBD2FE29B70306D607842F1AAED8066C193C720A35EA5B8B8F60FE0`, APK Signature Scheme v3, ARM64/x86-64 16 KB ELF alignment, clean launch, retained package data directory/first-install time, and signed v1.9.3 -> v1.10.0 upgrade on a true 16 KB Android 15 emulator.
+- No implementation or release work remains for v1.10.0.
 
 - v1.9.3 replaces the old 150 ms symmetric redaction pad with a 750 ms leading/250 ms trailing privacy window, clamps at file start, normalizes bounds, and merges overlapping windows.
 - Review precomputes mute windows only when redactions change. Playback polling, Play, skip, scrubber, chapter/comment, search-result, and transcript-card seeks all use the same redaction-aware volume decision.
