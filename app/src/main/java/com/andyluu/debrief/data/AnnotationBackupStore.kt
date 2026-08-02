@@ -28,12 +28,13 @@ data class AnnotationBackupStatus(
     val folderCurrent: Boolean = false,
     val localRevision: Long = 0,
     val folderRevision: Long = 0,
+    val requiresFolderSync: Boolean = false,
     val localError: String? = null,
     val folderError: String? = null,
 ) {
     val warning: String?
         get() = when {
-            protectedItemCount == 0 -> null
+            protectedItemCount == 0 && !requiresFolderSync -> null
             !localCurrent ->
                 "Your markers are still in Debrief's encrypted database, but the extra local recovery copy could not be updated. Avoid clearing app data and tap Retry backup."
             !folderCurrent ->
@@ -102,8 +103,10 @@ class AnnotationBackupStore(
             val pending = previous.copy(
                 protectedItemCount = snapshot.protectedItemCount,
                 localCurrent = false,
-                folderCurrent = snapshot.protectedItemCount == 0,
+                folderCurrent = false,
                 localRevision = revision,
+                requiresFolderSync = snapshot.protectedItemCount > 0 ||
+                    previous.protectedItemCount > 0 || previous.requiresFolderSync,
                 localError = null,
                 folderError = null,
             )
@@ -135,13 +138,14 @@ class AnnotationBackupStore(
         val current = currentStatus(recordingId)
         val next = if (success) {
             current.copy(
-                folderCurrent = current.protectedItemCount == 0 || revision == current.localRevision,
+                folderCurrent = revision == current.localRevision,
                 folderRevision = revision,
+                requiresFolderSync = false,
                 folderError = null,
             )
         } else {
             current.copy(
-                folderCurrent = current.protectedItemCount == 0,
+                folderCurrent = !current.requiresFolderSync,
                 folderError = error?.message?.take(180) ?: "Recording-folder backup is unavailable.",
             )
         }
@@ -285,6 +289,7 @@ class AnnotationBackupStore(
             if (status.folderCurrent) 1 else 0,
             status.localRevision,
             status.folderRevision,
+            if (status.requiresFolderSync) 1 else 0,
             encodeStatusText(status.localError),
             encodeStatusText(status.folderError),
         ).joinToString("|")
@@ -295,15 +300,16 @@ class AnnotationBackupStore(
 
     private fun loadStatus(recordingId: String): AnnotationBackupStatus {
         val parts = preferences.getString(statusKey(recordingId), null)?.split('|') ?: return AnnotationBackupStatus()
-        if (parts.size < 7) return AnnotationBackupStatus()
+        if (parts.size < 8) return AnnotationBackupStatus()
         return AnnotationBackupStatus(
             protectedItemCount = parts[0].toIntOrNull() ?: 0,
             localCurrent = parts[1] == "1",
             folderCurrent = parts[2] == "1",
             localRevision = parts[3].toLongOrNull() ?: 0,
             folderRevision = parts[4].toLongOrNull() ?: 0,
-            localError = decodeStatusText(parts[5]),
-            folderError = decodeStatusText(parts[6]),
+            requiresFolderSync = parts[5] == "1",
+            localError = decodeStatusText(parts[6]),
+            folderError = decodeStatusText(parts[7]),
         )
     }
 

@@ -1,10 +1,10 @@
 # Debrief implementation checkpoint
 
-Last updated: 2026-07-23
+Last updated: 2026-08-01
 
 ## Objective
 
-Implement and release Debrief v1.9.3 so redacted audio is muted before the first audible phoneme, including at 3×/4× playback and immediately after Play/seek.
+Implement and release Debrief v1.10.0 with automatic non-stopping external microphone routing and redundant recording-bound persistence for chapters, bookmarks, redactions, and speaker names.
 
 ## Shipped checkpoint
 
@@ -14,6 +14,15 @@ Implement and release Debrief v1.9.3 so redacted audio is muted before the first
 - Verification: JVM unit tests, Android instrumentation tests on Android 11 and Android 15 16 KB, signed upgrade tests, lint, and APK alignment checks passed.
 
 ## Current checkpoint
+
+- v1.10.0 automatic microphone routing is implemented. The Recorder displays the phone/external input and device name; USB, wired, BLE/Bluetooth, line, dock, and bus inputs are selected with `MediaRecorder.setPreferredDevice` without stopping, pausing, releasing, or recreating the recorder. Disconnect returns preference to the built-in microphone. Live route callbacks update the UI and route refusal is non-fatal.
+- v1.10.0 annotation durability is implemented. SQLCipher remains authoritative; an AES-GCM encrypted app-private snapshot uses verified atomic replacement plus a previous copy, and paired verified sidecars live beside the recording. All copies are keyed/bound to recording identity and audio size/duration.
+- Retranscription now verifies the local annotation recovery snapshot before transcript replacement. It still replaces only segment/word rows. Folder-sidecar failures surface as a persistent Retry backup card rather than converting a successful transcription to Failed.
+- Folder rescans secure missing recordings' markers before cascade deletion and retain the database row if the local checkpoint fails.
+- Source checkpoints `d5a7215` and `508f3a0` are pushed.
+- JVM unit tests, debug lint, Android-test compilation, the targeted encrypted delete/restore recovery test, and all 30 Android 15 true-16 KB instrumentation tests pass.
+- Release lint and R8 pass locally. Local `packageRelease` stops only at the intentionally absent production keystore; the tag-triggered GitHub workflow owns production signing.
+- Release documentation and version code 25/name 1.10.0 are prepared. Production release workflow, public APK verification, and signed v1.9.3 -> v1.10.0 upgrade verification remain next.
 
 - v1.9.3 replaces the old 150 ms symmetric redaction pad with a 750 ms leading/250 ms trailing privacy window, clamps at file start, normalizes bounds, and merges overlapping windows.
 - Review precomputes mute windows only when redactions change. Playback polling, Play, skip, scrubber, chapter/comment, search-result, and transcript-card seeks all use the same redaction-aware volume decision.

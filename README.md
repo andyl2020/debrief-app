@@ -5,7 +5,7 @@ Debrief is a local-first Android app for capturing and reviewing long field reco
 ## What works
 
 - Persistent Android Storage Access Framework folder permission with automatic rescans
-- Dedicated offline Recorder tab with an editable filename, live level meter, timer, pause/resume, confirmed or hold-to-discard deletion, stop/save, screen-off foreground capture, dismissible notification controls, call interruption handling, storage safeguards, recoverable local parts, and lossless M4A joining
+- Dedicated offline Recorder tab with an editable filename, live level meter, internal/external microphone indicator, automatic live external-input routing, timer, pause/resume, confirmed or hold-to-discard deletion, stop/save, screen-off foreground capture, dismissible notification controls, call interruption handling, storage safeguards, recoverable local parts, and lossless M4A joining
 - MP3, M4A, WAV, and AAC library with new/queued/transcribing/ready/failed states and physical file rename controls
 - WorkManager transcription queue with unmetered Wi-Fi by default and automatic retry
 - Long-press multi-select with explicit checkbox-based batch transcription
@@ -22,13 +22,13 @@ Debrief is a local-first Android app for capturing and reviewing long field reco
 - SQLCipher-encrypted Room database with transcript-only in-player search and broad Library FTS5 search across filenames, transcripts, summaries, and comments
 - Timestamped comment create/edit/delete and recording-wide speaker aliases
 - Markdown share-sheet export
-- JSON sidecars next to each recording, restored after reinstall
+- Recording-bound comments, sets, redactions, and speaker names with an encrypted atomic app-private recovery snapshot plus two verified reinstall-safe JSON sidecars next to each recording
 
 ## Privacy and secrets
 
 API keys are entered in Settings and encrypted with a non-exportable Android Keystore AES-GCM key. They are excluded from Android backup and never written to source, Gradle properties, logs, sidecars, or APK resources. The Room/FTS database is encrypted at rest with SQLCipher using a random passphrase protected by the same Keystore mechanism. Private developer fixtures and provider keys under `local-testing` are gitignored and never used by normal CI.
 
-The app does not provide cloud storage. Audio is prepared in the app cache, sent directly to the selected transcription provider over HTTPS, and deleted from the cache after the request completes. AI Enhance never sends whole recordings to Gemini; when enabled, it sends only short extracted clips for targeted re-listening. The optional Organize Recording pass sends transcript text, never audio, to the AI provider selected in Settings. Redaction mode stores timestamp metadata and mutes playback in-app; it does not edit source recordings. Original recordings and all durable app data remain on the phone.
+The app does not provide cloud storage. Audio is prepared in the app cache, sent directly to the selected transcription provider over HTTPS, and deleted from the cache after the request completes. AI Enhance never sends whole recordings to Gemini; when enabled, it sends only short extracted clips for targeted re-listening. The optional Organize Recording pass sends transcript text, never audio, to the AI provider selected in Settings. Redaction mode stores timestamp metadata and mutes playback in-app; it does not edit source recordings. Original recordings and all durable app data remain on the phone. User-authored markers are stored in SQLCipher, mirrored to an encrypted app-private snapshot, and copied into paired sidecars beside their recording; sidecars are ordinary JSON so the linked phone folder's own storage protection applies.
 
 Recording is completely offline. During an active session Debrief writes protected local M4A parts in app-specific device storage, then losslessly joins and copies the finished recording into the linked folder when Stop is tapped. Temporary parts are removed after a verified folder save. The Recorder trash action deliberately stops capture and deletes those private parts without writing a destination file.
 

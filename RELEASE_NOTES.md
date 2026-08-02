@@ -18,6 +18,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 
 - Use the bottom **Record** tab to capture a new recording completely offline. If a recordings folder is already linked, the large record button starts after microphone permission is granted. If no folder is linked, Debrief opens the folder picker first.
 - The Recorder shows a live timer, microphone level, editable recording name, pause/resume, trash, and Stop. The name can be changed before starting, while recording, while paused, or before retrying a failed save. Debrief preserves the `.m4a` audio extension and replaces characters Android file providers cannot safely use.
+- The Recorder shows a **Phone microphone** or **External** input chip. A connected USB, wired-headset, Bluetooth/BLE, line, dock, or bus microphone is preferred automatically; unplugging it returns capture to the built-in microphone. The route changes on the active `MediaRecorder` without pausing, stopping, or recreating the recording, and an actionable warning appears if Android rejects the preferred route.
 - During recording or pause, tap the **trash** button to review a permanent-delete confirmation, then tap **Delete recording**. For the quick path, press and hold trash: it changes to delete-forever, gives haptic feedback, and immediately discards the current session without saving it to the linked folder.
 - It continues in a foreground microphone service with a notification while the screen is off or another app is open.
 - The notification opens the Recorder and offers pause/resume. Stop and final save remain inside Debrief to reduce accidental termination of a long session.
@@ -76,7 +77,9 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Settings tracks local per-key transcription and AI usage. Deepgram provider usage, spend, and balance appear when the key has the provider scopes required for those endpoints.
 - Settings shows the installed Debrief version and version code near the bottom of the screen.
 - API keys are encrypted using Android Keystore and are excluded from backup, source control, sidecars, logs, and APK resources.
-- The Room/FTS database is encrypted with SQLCipher. JSON sidecars beside recordings preserve transcript, comments, aliases, AI summary, sets, and speaker suggestions across reinstall/rescan.
+- The Room/FTS database is encrypted with SQLCipher. Comments/bookmarks, manual sets, redactions, and speaker names are keyed to their recording and survive app updates and retranscription.
+- Every marker change is also written to an encrypted, atomic app-private recovery snapshot with a previous-copy fallback. Two verified JSON sidecars beside the audio provide a separate reinstall-safe copy. Review stays quiet while copies are current and shows **Retry backup** only when a protected recording's recovery copies cannot be refreshed.
+- Retranscription creates and verifies the encrypted marker snapshot before replacing transcript rows. If that safety checkpoint fails, retranscription stops before changing the transcript. A sidecar-only failure no longer incorrectly changes a successfully transcribed recording to Failed.
 
 ## Limitations, gotchas, and edge cases
 
@@ -87,6 +90,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Recorder trash is intentionally irreversible. The confirmation protects normal taps, but a completed press-and-hold deletes the current session immediately. It removes only the in-progress app-private parts; it does not delete previously saved Library recordings. Once Stop has entered final saving, a stale trash action is ignored rather than racing the folder export.
 - Normal Android apps cannot record the audio of a phone call. Debrief pauses for detected call/communication mode. Some OEM or calling apps may not expose mode changes consistently.
 - Android may give Debrief silence while a higher-priority app uses the microphone. Debrief warns when the platform reports this and continues automatically, but it cannot reconstruct speech that Android did not deliver.
+- Connecting or disconnecting a microphone does not intentionally stop Debrief recording or playback. Android and the microphone hardware can still introduce a brief click, route-transition gap, or silence while the physical input changes. The preferred device is a request to Android, not an absolute guarantee; the Recorder shows the actual active route when the platform reports it and warns when the request is rejected.
 - OnePlus and other aggressive battery managers may offer an app-specific **Allow background activity** or **Unrestricted** battery option. The foreground service and wake lock are designed for screen-off capture; enabling that OEM option provides additional protection for critical multi-hour sessions.
 - Denying notification permission does not grant another app microphone access, but it can make the ongoing foreground-service notice less visible. Grant notifications for clear long-session status.
 - Android 12 and older normally keep foreground-service notifications non-dismissible. On Android 13+, a dismissed recording notification stays hidden until the next recording, but Android can still list Debrief under **Active apps** because recording continues. Dismissing the notification removes its pause/resume buttons; reopen Debrief for controls.
@@ -106,9 +110,24 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Some noisy speech is unrecoverable. Debrief should mark `[inaudible]` rather than invent words when Gemini cannot hear the clip clearly.
 - If the Gemini key is missing, rate-limited, offline, or blocked by the **Send short clips** toggle, Enhance fails gracefully or runs only the available text stage.
 - Debrief has no cloud sync, collaboration, iOS app, video support, or live transcription. Original audio and durable app data remain on the phone.
+- The encrypted app-private marker snapshot survives normal app upgrades and retranscription, but Android removes it if Debrief is uninstalled or its app data is cleared. The paired recording-folder sidecars are the reinstall-safe copy. Sidecars are normal JSON files beside the audio and are not encrypted independently of the phone/folder storage.
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.10.0 - Automatic microphone routing and durable markers (2026-08-01)
+
+- Added a clear internal/external microphone chip to the Recorder, including the routed device name when Android provides one.
+- Added deterministic automatic preference for connected external inputs, with USB first, followed by wired, BLE/Bluetooth, line, dock, and bus inputs. Disconnect falls back to the built-in microphone.
+- Device changes use `MediaRecorder.setPreferredDevice` on the live recorder. Debrief does not pause, stop, release, or recreate the recorder and does not change the Media3 playback route.
+- Added live audio-device and recorder-routing callbacks plus a non-fatal warning when Android refuses or does not honor the preferred external input.
+- Confirmed retranscription replaces transcript segments/words only; manual sets, comments/bookmarks, redactions, speaker names, and playback position remain recording-bound local rows.
+- Added an encrypted AES-GCM app-private annotation snapshot, atomic temp-file replacement, a previous-copy fallback, two verified recording-folder sidecars, serialized sidecar writes, and sidecar v4 word-confidence preservation.
+- Added a retranscription safety gate: Debrief verifies its local marker recovery snapshot before uploading/replacing text. A folder backup failure is now a visible **Retry backup** warning and no longer turns a completed transcription into a false failure.
+- Folder rescans checkpoint markers before deleting database rows for missing audio; if that checkpoint fails, Debrief retains the row instead of risking a cascade deletion during a transient folder error.
+- Verification before tagging: all JVM unit tests, debug Android-test compilation, debug lint, and all 30 Android 15/true-16 KB emulator instrumentation tests passed. The suite includes real microphone capture/pause/resume/recovery, input-route UI, encrypted snapshot at-rest checks, delete-and-restore recovery for a bookmark/redaction/set/speaker name, set CRUD, redactions, search, database security, and launch regressions.
+- GitHub Release: https://github.com/andyl2020/debrief-app/releases/tag/v1.10.0
+- Production signing, release lint/R8, exact public APK size/hash, signature, 16 KB alignment, clean launch, and signed upgrade verification are completed during publication and recorded in `IMPLEMENTATION_STATUS.md`.
 
 ### v1.9.3 - Redaction leading-edge privacy fix (2026-07-23)
 

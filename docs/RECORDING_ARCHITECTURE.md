@@ -1,13 +1,14 @@
 # Offline recording architecture
 
-Status: implemented for Debrief v1.9.2
-Updated: July 23, 2026
+Status: implemented for Debrief v1.10.0
+Updated: August 1, 2026
 
 ## Product behavior
 
 The Library and Recorder are first-class bottom-navigation destinations. The
 Recorder shows the linked folder, editable filename, live timer, microphone
-level, large record control, pause/resume, trash/discard, and stop/save.
+level, current internal/external input, large record control, pause/resume,
+trash/discard, and stop/save.
 Recording does not call any network API. Filename edits change only the eventual
 destination name; local durability parts keep stable session identifiers
 throughout capture.
@@ -50,6 +51,25 @@ Default format:
 This is approximately 58 MB per hour before container overhead. It preserves
 far more speech detail than a low-bitrate voice memo while remaining practical
 for multi-hour sessions.
+
+## Live microphone routing
+
+The foreground service registers both an `AudioDeviceCallback` and a
+`MediaRecorder` routing listener. Eligible connected source devices are ranked
+deterministically: USB headset/device/accessory, wired headset, BLE headset,
+Bluetooth SCO, digital/analog line, auxiliary line, then dock/bus inputs.
+Telephony, remote-submix, and tuner sources are never treated as user microphones.
+
+At start and whenever devices connect/disconnect, Debrief calls
+`MediaRecorder.setPreferredDevice` on the same active recorder. It never pauses,
+stops, releases, or recreates capture to change inputs. If an external source is
+removed, the built-in microphone becomes the preference. The Recorder displays
+the routed device Android reports and keeps capture alive with a warning if the
+platform rejects or does not honor the preference.
+
+This route request affects recording input only. Debrief does not change the
+Media3 player's output route or restart playback. Android/OEM hardware still
+owns the physical transition and may introduce a brief click, gap, or silence.
 
 ## Long-session durability
 
@@ -120,9 +140,11 @@ not be. Uninstalling Debrief removes app-specific recovery files.
 ## Tests
 
 - Pure unit tests cover session timing, pause behavior, filename normalization,
-  extension preservation, and stable part naming.
-- Compose device tests cover idle, active, call-paused, save-failure, trash
-  visibility, tap confirmation, and direct press-and-hold discard UX.
+  extension preservation, stable part naming, external-device eligibility, and
+  deterministic microphone priority.
+- Compose device tests cover idle, active, call-paused, save-failure, phone and
+  named external input indicators, trash visibility, tap confirmation, and
+  direct press-and-hold discard UX.
 - An Android device test runs the real foreground microphone service, records,
   pauses, resumes, stops, forces an invalid folder export, verifies a playable
   recovery part, duplicates it, joins both parts losslessly, and verifies the

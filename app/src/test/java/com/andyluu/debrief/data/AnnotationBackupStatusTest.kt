@@ -17,6 +17,20 @@ class AnnotationBackupStatusTest {
     }
 
     @Test
+    fun deletingTheLastMarkerStillWarnsUntilFolderCopiesCatchUp() {
+        val warning = AnnotationBackupStatus(
+            protectedItemCount = 0,
+            localCurrent = true,
+            folderCurrent = false,
+            localRevision = 11,
+            folderRevision = 10,
+            requiresFolderSync = true,
+        ).warning.orEmpty()
+
+        assertTrue(warning.contains("recording-folder backup is out of date"))
+    }
+
+    @Test
     fun localAndFolderFailuresHaveDifferentActionableWarnings() {
         val localWarning = AnnotationBackupStatus(
             protectedItemCount = 2,
