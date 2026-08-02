@@ -47,6 +47,7 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -86,6 +87,7 @@ import com.andyluu.debrief.recording.RecordingPhase
 import com.andyluu.debrief.recording.RecordingState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlin.math.roundToInt
 
 internal enum class HomeTab { LIBRARY, RECORDER }
 
@@ -319,6 +321,31 @@ internal fun RecorderContent(
                     onRetry = onRetry,
                     onPickFolder = onPickFolder,
                 )
+                RecordingPhase.FINALIZING, RecordingPhase.RECOVERING -> {
+                    val progress = state.saveProgress
+                    if (progress == null) {
+                        CircularProgressIndicator(Modifier.size(58.dp))
+                    } else {
+                        val percent = (progress.coerceIn(0f, 1f) * 100).roundToInt()
+                        Column(
+                            modifier = Modifier.width(240.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            LinearProgressIndicator(
+                                progress = { progress.coerceIn(0f, 1f) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .semantics { contentDescription = "Save progress $percent percent" },
+                            )
+                            Text(
+                                "$percent%",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
                 else -> CircularProgressIndicator(Modifier.size(58.dp))
             }
 

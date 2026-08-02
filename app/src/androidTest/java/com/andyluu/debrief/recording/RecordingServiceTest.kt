@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.content.Intent
 import android.media.MediaMetadataRetriever
 import android.os.Build
+import android.os.ParcelFileDescriptor
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -100,6 +101,31 @@ class RecordingServiceTest {
         assertTrue(
             "Joining two parts should extend the recording timeline.",
             durationMs(joined) >= durationMs(playablePart) * 1.7,
+        )
+
+        val directJoined = playablePart.parentFile!!.resolve("$sessionId-test-direct-long.m4a")
+        val simulatedLongRecordingParts = List(40) { playablePart }
+        var completedParts = 0
+        ParcelFileDescriptor.open(
+            directJoined,
+            ParcelFileDescriptor.MODE_CREATE or
+                ParcelFileDescriptor.MODE_READ_WRITE or
+                ParcelFileDescriptor.MODE_TRUNCATE,
+        ).use { parcel ->
+            M4aConcatenator.concatenate(simulatedLongRecordingParts, parcel.fileDescriptor) { completed, total ->
+                completedParts = completed
+                assertEquals(simulatedLongRecordingParts.size, total)
+            }
+            parcel.fileDescriptor.sync()
+        }
+        assertEquals("Every protected part should report direct-save progress.", 40, completedParts)
+        assertTrue(
+            "A 40-part recording remuxed directly to its final descriptor should be playable.",
+            M4aConcatenator.isReadableAudio(directJoined),
+        )
+        assertTrue(
+            "Direct finalization should preserve the full simulated long-recording timeline.",
+            durationMs(directJoined) >= durationMs(playablePart) * 30,
         )
 
         output.cleanup(sessionId)

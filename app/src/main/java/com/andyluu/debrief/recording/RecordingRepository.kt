@@ -135,6 +135,7 @@ private class RecordingSessionStore(context: Context) {
             elapsedBeforeRunningMs = preferences.getLong("elapsed", 0),
             runningSinceElapsedMs = 0,
             pauseReason = pauseReason,
+            saveProgress = preferences.getFloat("save_progress", -1f).takeIf { it >= 0f },
             statusMessage = preferences.getString("message", null),
             lastSavedName = preferences.getString("last_saved_name", null),
             lastSavedUri = preferences.getString("last_saved_uri", null),
@@ -155,6 +156,7 @@ private class RecordingSessionStore(context: Context) {
             .putLong("started_at", state.startedAtEpochMs)
             .putLong("elapsed", state.elapsedMs())
             .putString("pause_reason", state.pauseReason.name)
+            .putFloat("save_progress", state.saveProgress ?: -1f)
             .putString("message", state.statusMessage)
             .putString("last_saved_name", state.lastSavedName)
             .putString("last_saved_uri", state.lastSavedUri)

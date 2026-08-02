@@ -227,4 +227,29 @@ class RecorderScreenTest {
         compose.runOnIdle { assertTrue(discarded) }
         assertTrue(compose.onAllNodesWithText("Delete this recording?").fetchSemanticsNodes().isEmpty())
     }
+
+    @Test
+    fun longRecordingSaveShowsDeterminateProgress() {
+        compose.setContent {
+            DebriefTheme {
+                RecorderContent(
+                    state = RecordingState(
+                        phase = RecordingPhase.FINALIZING,
+                        sessionId = "rec-long",
+                        displayName = "Six hour recording.m4a",
+                        saveProgress = 0.42f,
+                        statusMessage = "Saving audio part 17 of 40...",
+                    ),
+                    folderLinked = true,
+                    onStart = {}, onPause = {}, onResume = {}, onStop = {},
+                    onRetry = {}, onPickFolder = {}, onClearMessage = {},
+                    onOpenLibrary = {}, onOpenSettings = {},
+                )
+            }
+        }
+
+        compose.onNodeWithContentDescription("Save progress 42 percent").assertIsDisplayed()
+        compose.onNodeWithText("42%").assertIsDisplayed()
+        compose.onNodeWithText("Saving audio part 17 of 40...").assertIsDisplayed()
+    }
 }

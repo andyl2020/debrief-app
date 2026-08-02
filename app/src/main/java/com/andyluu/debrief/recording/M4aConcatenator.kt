@@ -5,29 +5,73 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
 import java.io.File
+import java.io.FileDescriptor
 import java.nio.ByteBuffer
 
 internal object M4aConcatenator {
     fun isReadableAudio(file: File): Boolean = runCatching {
         MediaExtractor().useExtractor { extractor ->
             extractor.setDataSource(file.absolutePath)
-            findAudioTrack(extractor) >= 0 && file.length() > 0
+            hasAudioSample(extractor) && file.length() > 0
         }
     }.getOrDefault(false)
 
-    fun concatenate(inputs: List<File>, output: File) {
+    fun isReadableAudio(fileDescriptor: FileDescriptor): Boolean = runCatching {
+        MediaExtractor().useExtractor { extractor ->
+            extractor.setDataSource(fileDescriptor)
+            hasAudioSample(extractor)
+        }
+    }.getOrDefault(false)
+
+    fun concatenate(
+        inputs: List<File>,
+        output: File,
+        onPartWritten: (completed: Int, total: Int) -> Unit = { _, _ -> },
+    ) {
         require(inputs.isNotEmpty()) { "No recording parts were available." }
         output.parentFile?.mkdirs()
         if (output.exists()) check(output.delete()) { "Could not replace the temporary joined recording." }
 
+        try {
+            concatenate(
+                inputs = inputs,
+                createMuxer = { MediaMuxer(output.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4) },
+                onPartWritten = onPartWritten,
+            )
+        } catch (error: Throwable) {
+            runCatching { output.delete() }
+            throw error
+        }
+    }
+
+    fun concatenate(
+        inputs: List<File>,
+        output: FileDescriptor,
+        onPartWritten: (completed: Int, total: Int) -> Unit = { _, _ -> },
+    ) {
+        require(inputs.isNotEmpty()) { "No recording parts were available." }
+        concatenate(
+            inputs = inputs,
+            createMuxer = { MediaMuxer(output, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4) },
+            onPartWritten = onPartWritten,
+        )
+    }
+
+    private fun concatenate(
+        inputs: List<File>,
+        createMuxer: () -> MediaMuxer,
+        onPartWritten: (completed: Int, total: Int) -> Unit,
+    ) {
         var muxer: MediaMuxer? = null
+        var muxerStarted = false
+        var writesCompleted = false
         try {
             var outputTrack = -1
             var timelineOffsetUs = 0L
             val buffer = ByteBuffer.allocateDirect(512 * 1024)
             val info = MediaCodec.BufferInfo()
 
-            inputs.forEach { input ->
+            inputs.forEachIndexed { index, input ->
                 MediaExtractor().useExtractor { extractor ->
                     extractor.setDataSource(input.absolutePath)
                     val inputTrack = findAudioTrack(extractor)
@@ -35,9 +79,10 @@ internal object M4aConcatenator {
                     extractor.selectTrack(inputTrack)
                     val format = extractor.getTrackFormat(inputTrack)
                     if (muxer == null) {
-                        muxer = MediaMuxer(output.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+                        muxer = createMuxer()
                         outputTrack = muxer!!.addTrack(format)
                         muxer!!.start()
+                        muxerStarted = true
                     }
 
                     val sampleDurationUs = estimatedSampleDurationUs(format)
@@ -65,11 +110,18 @@ internal object M4aConcatenator {
                         timelineOffsetUs += lastTimestampUs + sampleDurationUs
                     }
                 }
+                onPartWritten(index + 1, inputs.size)
             }
             require(muxer != null) { "No readable audio was found in the recording parts." }
+            writesCompleted = true
         } finally {
-            runCatching { muxer?.stop() }
-            runCatching { muxer?.release() }
+            try {
+                if (muxerStarted) {
+                    if (writesCompleted) muxer?.stop() else runCatching { muxer?.stop() }
+                }
+            } finally {
+                runCatching { muxer?.release() }
+            }
         }
     }
 
@@ -79,6 +131,13 @@ internal object M4aConcatenator {
                 .getString(MediaFormat.KEY_MIME)
                 ?.startsWith("audio/") == true
         } ?: -1
+
+    private fun hasAudioSample(extractor: MediaExtractor): Boolean {
+        val audioTrack = findAudioTrack(extractor)
+        if (audioTrack < 0) return false
+        extractor.selectTrack(audioTrack)
+        return extractor.sampleTime >= 0
+    }
 
     private fun estimatedSampleDurationUs(format: MediaFormat): Long {
         val sampleRate = if (format.containsKey(MediaFormat.KEY_SAMPLE_RATE)) {

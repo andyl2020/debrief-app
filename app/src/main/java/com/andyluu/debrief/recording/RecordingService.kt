@@ -367,6 +367,7 @@ class RecordingService : Service() {
                 elapsedBeforeRunningMs = elapsed,
                 runningSinceElapsedMs = 0,
                 amplitude = 0f,
+                saveProgress = 0f,
                 statusMessage = "Saving to the linked folder…",
             )
         )
@@ -415,6 +416,7 @@ class RecordingService : Service() {
             current.copy(
                 phase = RecordingPhase.RECOVERING,
                 folderUri = targetFolder,
+                saveProgress = 0f,
                 statusMessage = "Retrying save…",
             )
         )
@@ -447,6 +449,7 @@ class RecordingService : Service() {
                 phase = RecordingPhase.RECOVERING,
                 runningSinceElapsedMs = 0,
                 amplitude = 0f,
+                saveProgress = 0f,
                 statusMessage = "Recovering a recording interrupted by Android…",
             )
         )
@@ -458,12 +461,11 @@ class RecordingService : Service() {
         serviceScope.launch {
             runCatching {
                 check(!treeUri.isNullOrBlank()) { "Choose a recordings folder, then retry the save." }
-                val (source, parts) = output.prepareForExport(id)
-                output.saveToFolder(
-                    source = source,
+                output.saveSessionToFolder(
+                    sessionId = id,
                     treeUri = treeUri,
                     requestedName = requestedName ?: RecordingNames.newDisplayName(),
-                    partCount = parts.size,
+                    onProgress = { progress -> publishSaveProgress(id, progress) },
                 )
             }.onSuccess { saved ->
                 output.cleanup(id)
@@ -491,6 +493,7 @@ class RecordingService : Service() {
                         phase = RecordingPhase.SAVE_FAILED,
                         runningSinceElapsedMs = 0,
                         amplitude = 0f,
+                        saveProgress = null,
                         statusMessage = "Recording preserved locally. ${error.message ?: "Saving failed."}",
                     )
                 )
@@ -727,6 +730,20 @@ class RecordingService : Service() {
             type,
         )
         foregroundStarted = true
+    }
+
+    private fun publishSaveProgress(id: String, progress: RecordingSaveProgress) {
+        val current = repository.state.value
+        if (current.sessionId != id ||
+            current.phase !in setOf(RecordingPhase.FINALIZING, RecordingPhase.RECOVERING)
+        ) return
+        repository.update(
+            current.copy(
+                saveProgress = progress.fraction.coerceIn(0f, 1f),
+                statusMessage = progress.message,
+            )
+        )
+        updateNotification()
     }
 
     private fun updateNotification() {

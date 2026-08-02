@@ -36,6 +36,7 @@ data class RecordingState(
     val runningSinceElapsedMs: Long = 0,
     val pauseReason: RecordingPauseReason = RecordingPauseReason.NONE,
     val amplitude: Float = 0f,
+    val saveProgress: Float? = null,
     val statusMessage: String? = null,
     val lastSavedName: String? = null,
     val lastSavedUri: String? = null,
