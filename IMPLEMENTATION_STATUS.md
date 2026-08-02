@@ -1,10 +1,10 @@
 # Debrief implementation checkpoint
 
-Last updated: 2026-08-01
+Last updated: 2026-08-02
 
 ## Objective
 
-Implement and release Debrief v1.10.1 with Samsung-compatible recorder-notification cleanup while preserving reliable foreground microphone capture.
+Implement and release Debrief v1.10.2 with substantially faster finalization for four-to-six-hour recordings while preserving protected crash-recovery parts.
 
 ## Shipped checkpoint
 
@@ -14,6 +14,17 @@ Implement and release Debrief v1.10.1 with Samsung-compatible recorder-notificat
 - Verification: JVM unit tests, Android instrumentation tests on Android 11 and Android 15 16 KB, signed upgrade tests, lint, and APK alignment checks passed.
 
 ## Current checkpoint
+
+- v1.10.2 replaces the normal multi-part export's full local join plus full destination copy with one direct `MediaMuxer(FileDescriptor)` pass into a seekable linked-folder destination.
+- Roughly 8 MiB protected recovery parts are retained until the completed destination is reopened and verified to contain a readable audio sample. Failed saves delete the partial destination and retain every source part for retry.
+- Non-seekable document providers use an explicit compatible two-pass fallback. Normal local Android folders take the faster one-pass path.
+- Recorder finalization now displays and persists determinate percentage, current-part, and verification progress instead of an indefinite spinner.
+- A full Android 15 run exposed a `ForegroundServiceDidNotStartInTimeException` under emulator load. Pause/resume/stop/discard no longer create redundant foreground-service-start obligations; only start/retry/recover commands use `startForegroundService`.
+- A subsequent cold-boot matrix run exposed an old-session `stopSelf()` race when the next recording begins immediately after IDLE is published. Terminal cleanup is now main-looper serialized and guarded by `stopSelfResult`; an immediate-discard/restart regression is included.
+- Source implementation checkpoint `eaa4118` is pushed. Release documentation/version checkpoint and annotated `v1.10.2` tag are pending.
+- JVM unit tests and debug lint pass. All 31 Android 11/4 KB instrumentation tests and all 31 Android 15/true-16 KB instrumentation tests pass after the lifecycle hardening.
+- The device matrix covers real microphone capture, pause/resume, discard and immediate restart, folder-failure recovery, a 40-part direct-file-descriptor finalization with timeline/readability checks, determinate progress, and all existing app regressions.
+- Local release lint and R8 pass. Production signing, public publication, independent download/hash, signed upgrade, clean launch, and final 16 KB artifact verification remain pending.
 
 - v1.10.1 removes the recorder notification on every terminal service path, including failed linked-folder saves. `STOP_FOREGROUND_REMOVE` is paired with an idempotent `NotificationManager.cancel`, and service startup clears stale notification id 8120 when no session is active.
 - The monitor no longer calls `notify()` every 500 ms. Android's system chronometer advances elapsed time without reposting; pause/resume, call/storage state, recorder restart, rollover, and microphone-silence transitions still update explicitly.

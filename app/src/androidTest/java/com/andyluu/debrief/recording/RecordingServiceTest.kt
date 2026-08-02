@@ -160,6 +160,18 @@ class RecordingServiceTest {
             "Discard must delete every private session part instead of exporting it.",
             output.sessionParts(sessionId).isEmpty(),
         )
+
+        // Starting again as soon as IDLE is visible must not be killed by a delayed
+        // stopSelf() belonging to the discarded session.
+        repository.start(
+            "content://com.andyluu.debrief.invalid/tree/missing",
+            "Immediate restart.m4a",
+        )
+        awaitPhase(repository, RecordingPhase.RECORDING)
+        delay(600)
+        assertEquals(RecordingPhase.RECORDING, repository.state.value.phase)
+        repository.discard()
+        awaitPhase(repository, RecordingPhase.IDLE)
     }
 
     private suspend fun awaitNotificationDismissed(repository: RecordingRepository) {

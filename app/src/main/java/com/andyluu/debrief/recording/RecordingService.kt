@@ -56,6 +56,7 @@ class RecordingService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var captureSilenced = false
     private var foregroundStarted = false
+    private var latestStartId = 0
 
     private val routingChangedListener = AudioRouting.OnRoutingChangedListener { routing ->
         if (routing === mediaRecorder) publishRoutedInput(routing as MediaRecorder)
@@ -106,6 +107,7 @@ class RecordingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        latestStartId = startId
         val action = intent?.action ?: ACTION_RECOVER
         val foregroundResult = runCatching {
             if (!repository.state.value.notificationDismissed || !foregroundStarted) {
@@ -838,12 +840,19 @@ class RecordingService : Service() {
         )
 
     private fun stopForegroundAndSelf() {
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        // Some Samsung System UI versions retain a stale FGS card after the lifecycle
-        // call. An explicit idempotent cancel closes that vendor edge case.
-        notificationManager.cancel(NOTIFICATION_ID)
-        foregroundStarted = false
-        stopSelf()
+        // Serialize terminal cleanup with onStartCommand on the main looper. A user can
+        // start a new session immediately after the previous session publishes IDLE;
+        // an unconditional stopSelf() from the old command must never kill that new one.
+        handler.post {
+            if (repository.state.value.isSessionActive) return@post
+            val stopped = stopSelfResult(latestStartId)
+            if (!stopped) return@post
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            // Some Samsung System UI versions retain a stale FGS card after the lifecycle
+            // call. An explicit idempotent cancel closes that vendor edge case.
+            notificationManager.cancel(NOTIFICATION_ID)
+            foregroundStarted = false
+        }
     }
 
     private fun formatElapsed(milliseconds: Long): String {

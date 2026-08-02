@@ -14,8 +14,8 @@ android {
         applicationId = "com.andyluu.debrief"
         minSdk = 29
         targetSdk = 35
-        versionCode = 26
-        versionName = "1.10.1"
+        versionCode = 27
+        versionName = "1.10.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

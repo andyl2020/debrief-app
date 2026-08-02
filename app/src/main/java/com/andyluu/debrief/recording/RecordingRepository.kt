@@ -96,7 +96,23 @@ class RecordingRepository(private val context: Context) {
     private fun startService(action: String, vararg extras: Pair<String, String>) {
         val intent = Intent(context, RecordingService::class.java).setAction(action)
         extras.forEach { (key, value) -> intent.putExtra(key, value) }
-        runCatching { ContextCompat.startForegroundService(context, intent) }
+        runCatching {
+            if (action in setOf(
+                    RecordingService.ACTION_START,
+                    RecordingService.ACTION_RETRY_SAVE,
+                    RecordingService.ACTION_RECOVER,
+                )
+            ) {
+                // These commands can create a new long-running service and therefore
+                // carry Android's five-second startForeground() obligation.
+                ContextCompat.startForegroundService(context, intent)
+            } else {
+                // Pause/resume/stop/discard target an already running foreground
+                // recorder. Starting a second FGS obligation for every UI command can
+                // trip ForegroundServiceDidNotStartInTimeException under system load.
+                context.startService(intent)
+            }
+        }
             .onFailure { error ->
                 Log.e("DebriefRecorder", "Could not deliver recorder action $action", error)
                 val current = state.value

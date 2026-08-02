@@ -25,7 +25,8 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - On Android 13 or newer, swipe the active-recording notification away once to hide it for the rest of that recording. Capture continues, including through app switching and screen-off use. Return to Debrief for pause/resume/Stop after dismissing it.
 - The active timer is advanced by Android's notification chronometer instead of Debrief reposting the notification every 500 ms. Stop, discard, successful save, failed save, and empty recovery all remove the foreground notification and explicitly cancel its id; opening v1.10.1 also clears a stale notice left by an older build when no recording is active.
 - Recordings use 48 kHz mono 128 kbps AAC in an M4A container, approximately 58 MB per hour.
-- Long recordings roll into protected local parts at roughly nine-minute boundaries without stopping the active `MediaRecorder`. Tapping Stop losslessly joins the parts and writes one normal M4A file into the currently linked folder.
+- Long recordings roll into protected local parts at roughly nine-minute boundaries without stopping the active `MediaRecorder`. Tapping Stop losslessly remuxes those parts directly into one normal M4A in a local linked folder. The old full-size temporary join plus second full-file copy is gone for normal seekable Android folders.
+- Final saving shows a determinate percentage and the current protected part, such as **Saving audio part 17 of 40**. Status is checkpointed; after an interruption, recovery safely restarts finalization from the preserved parts rather than from an exact byte offset.
 - Debrief checks storage before and during capture. It requires 256 MiB free to start, pauses below 32 MiB, and resumes automatically after at least 64 MiB becomes available.
 - Android call/communication mode pauses capture and resumes after the call. A user pause remains paused. If Android temporarily supplies silence because another app has higher microphone priority, Debrief shows a warning and keeps the recorder alive until microphone audio returns.
 - If the folder write fails, **Save needs attention** keeps the local recovery audio and offers **Retry save** or **Choose another folder**. An unfinished session with finalized parts is recovered on the next app open.
@@ -95,6 +96,8 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - OnePlus and other aggressive battery managers may offer an app-specific **Allow background activity** or **Unrestricted** battery option. The foreground service and wake lock are designed for screen-off capture; enabling that OEM option provides additional protection for critical multi-hour sessions.
 - Denying notification permission does not grant another app microphone access, but it can make the ongoing foreground-service notice less visible. Grant notifications for clear long-session status.
 - Android 12 and older—including a Galaxy S10 on its final Android 12 release—keep an active microphone foreground-service notification non-dismissible. Debrief cannot remove that notice during capture without giving up foreground status and making a long recording vulnerable to termination. v1.10.1 removes it immediately when foreground work ends. On Android 13+, a dismissed recording notification stays hidden until the next recording, but Android can still list Debrief under **Active apps** because recording continues. Dismissing the notification removes its pause/resume buttons; reopen Debrief for controls.
+- A stock recorder can appear to save in seconds because it writes one final file throughout capture. Debrief intentionally keeps independently playable recovery parts so a crash near hour six does not risk the whole session. v1.10.2 removes one of the previous two full-file finalization passes, but producing one standard M4A still requires one duration-proportional remux/write pass. Folder speed and free space still matter.
+- Local Android folders use the fast direct-save path. An unusual cloud/document provider that exposes only a non-seekable write pipe falls back to the compatible two-pass save. The progress display makes that fallback visible; choose a local on-device folder for the fastest and most reliable multi-hour saves.
 - Recorder and Library renames preserve the file's actual audio extension. Blank names are rejected, unsupported filename characters are replaced, and a document provider may reject a name collision; the original file remains unchanged when a rename fails.
 - The Chapters drawer opens from its toolbar button. Closed-edge swipe is intentionally disabled so it does not interfere with Android back gestures; swipe-to-close works while the drawer is open.
 - AI-generated summaries, speaker names, and rename suggestions can be wrong. Sets are manual-only because automatic boundaries were not reliable enough.
@@ -115,6 +118,20 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.10.2 - Faster long-recording saves (2026-08-02)
+
+- Removed the redundant two-pass Stop pipeline for normal local linked folders. Multi-part recordings now go from protected app-private parts straight through `MediaExtractor`/`MediaMuxer` into the destination file descriptor instead of first creating a full-size joined temporary file and then copying it again.
+- Kept the reliability design intact: roughly 8 MiB independently playable parts remain untouched until the final destination reopens successfully and contains a readable audio sample. Any write or verification failure deletes the partial destination and preserves the protected parts for Retry save.
+- Added a compatibility fallback for document providers that do not supply a seekable file descriptor. Those providers retain the older temporary-join/copy behavior rather than losing export support.
+- Added determinate finalization UI and persisted progress/status updates, including current part/total and final verification, so a multi-hour save no longer looks frozen.
+- Hardened mux finalization so a failed `MediaMuxer.stop()` is surfaced instead of silently accepting a potentially corrupt destination.
+- Recorder pause/resume/stop/discard commands now target the already-running foreground service as normal service commands. Only commands that can create a new long-running service use `startForegroundService`, preventing redundant five-second foreground-start obligations under a busy Android system.
+- Terminal service cleanup is serialized with new recorder commands and uses `stopSelfResult`. Starting a new recording immediately after a discard/save can no longer be killed by a delayed `stopSelf()` belonging to the previous session.
+- Added a 40-part simulated long-recording device regression test that remuxes directly to a final file descriptor, reports every part, verifies playable output, and verifies the extended timeline. Added Recorder UI coverage for determinate save progress.
+- Verification before tagging: JVM unit tests, debug lint, all 31 Android 11/4 KB instrumentation tests, and all 31 Android 15/true-16 KB instrumentation tests passed. The matrix includes real microphone capture, pause/resume/discard/restart/save-failure recovery, 40-part direct remux, determinate progress, and all existing product regressions.
+- GitHub Release: https://github.com/andyl2020/debrief-app/releases/tag/v1.10.2
+- Production signing, release lint/R8, exact public APK size/hash, signature, 16 KB alignment, clean launch, and signed upgrade verification are completed during publication and recorded in `IMPLEMENTATION_STATUS.md`.
 
 ### v1.10.1 - Samsung recorder notification cleanup (2026-08-01)
 
