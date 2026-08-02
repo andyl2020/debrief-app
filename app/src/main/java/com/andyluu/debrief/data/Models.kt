@@ -308,9 +308,12 @@ data class SearchHit(
 
 @Serializable
 data class SidecarDocument(
-    val schemaVersion: Int = 3,
+    val schemaVersion: Int = 4,
+    val recordingId: String? = null,
     val recordingName: String,
     val recordingSizeBytes: Long,
+    val recordingDurationMs: Long = 0,
+    val writtenAtEpochMs: Long = 0,
     val transcript: List<SidecarSegment>,
     val words: List<SidecarWord>,
     val comments: List<SidecarComment>,
@@ -337,6 +340,7 @@ data class SidecarWord(
     val startMs: Long,
     val endMs: Long,
     val text: String,
+    val confidence: Double? = null,
 )
 
 @Serializable

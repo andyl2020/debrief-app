@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.andyluu.debrief.DebriefApplication
 import com.andyluu.debrief.data.AppSettings
+import com.andyluu.debrief.data.AnnotationBackupStatus
 import com.andyluu.debrief.data.AiRecordingEntity
 import com.andyluu.debrief.data.AiPassStatus
 import com.andyluu.debrief.data.CommentEntity
@@ -67,6 +68,7 @@ data class ReviewState(
     val repairRun: RepairRunEntity? = null,
     val repairs: List<RepairEntity> = emptyList(),
     val qualityReport: TranscriptQualityReportEntity? = null,
+    val annotationBackup: AnnotationBackupStatus = AnnotationBackupStatus(),
 )
 
 data class UsageUiState(
@@ -376,6 +378,7 @@ class ReviewViewModel(
         val redactions: List<RedactionEntity>,
         val aliases: Map<String, String>,
         val ai: AiRecordingEntity?,
+        val annotationBackup: AnnotationBackupStatus,
     )
 
     private data class CoreReviewRows(
@@ -406,8 +409,18 @@ class ReviewViewModel(
         coreRows,
         dao.observeAliases(recordingId),
         dao.observeAiRecording(recordingId),
-    ) { rows, aliases, ai ->
-        CoreReviewState(rows.recording, rows.segments, rows.words, rows.comments, rows.redactions, aliases.associate { it.speakerId to it.displayName }, ai)
+        services.annotationBackups.observeStatus(recordingId),
+    ) { rows, aliases, ai, annotationBackup ->
+        CoreReviewState(
+            rows.recording,
+            rows.segments,
+            rows.words,
+            rows.comments,
+            rows.redactions,
+            aliases.associate { it.speakerId to it.displayName },
+            ai,
+            annotationBackup,
+        )
     }
 
     private val enhanceState = combine(
@@ -439,8 +452,13 @@ class ReviewViewModel(
             enhance.repairRun,
             enhance.repairs,
             qualityReport,
+            core.annotationBackup,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReviewState())
+
+    init {
+        viewModelScope.launch { checkpointAnnotations(showMessage = false) }
+    }
 
     fun savePlaybackPosition(positionMs: Long) = launchHandled("Couldn't save the playback position.") {
         dao.updatePlaybackPosition(recordingId, positionMs)
@@ -457,6 +475,11 @@ class ReviewViewModel(
         }
         _reloadVersion.update { it + 1 }
         _messages.emit(if (dao.getSegments(recordingId).isEmpty()) "No saved transcript was found." else "Transcript reloaded.")
+    }
+
+    fun retryAnnotationBackup() = launchHandled("Couldn't update the marker backup.") {
+        val status = checkpointAnnotations(showMessage = true)
+        if (status.warning == null) _messages.emit("Markers backed up locally and beside the recording.")
     }
 
     fun addComment(timestampMs: Long, text: String) = launchHandled("Couldn't add the comment.") {
@@ -820,16 +843,25 @@ class ReviewViewModel(
             Log.e("DebriefSearch", "Derived search update failed", error)
             _messages.emit("Saved on device, but the search index couldn't update yet.")
         }
-        try {
-            val folder = services.settings.settings.first().folderUri
-            folder?.let { uri ->
-                DocumentFile.fromTreeUri(app, Uri.parse(uri))?.let { services.sidecars.write(it, recordingId) }
+        checkpointAnnotations(showMessage = true)
+    }
+
+    private suspend fun checkpointAnnotations(showMessage: Boolean): AnnotationBackupStatus {
+        val folderUri = services.settings.settings.first().folderUri
+        val root = folderUri?.let { DocumentFile.fromTreeUri(app, Uri.parse(it)) }
+        val status = services.sidecars.checkpoint(root, recordingId)
+        if (showMessage) {
+            when {
+                !status.localCurrent -> _messages.emit(
+                    "Saved in the encrypted database, but the extra local recovery copy failed. Free storage and tap Retry backup."
+                )
+                !status.folderCurrent && status.protectedItemCount > 0 -> _messages.emit(
+                    "Saved locally, but the recording-folder backup couldn't update. Re-link the folder or tap Retry backup."
+                )
+                else -> Unit
             }
-        } catch (error: Throwable) {
-            if (error is CancellationException) throw error
-            Log.e("DebriefSidecar", "Sidecar update failed", error)
-            _messages.emit("Saved on device, but the sidecar backup couldn't update. Re-link the folder to retry.")
         }
+        return status
     }
 
     private suspend fun persistSets(sets: List<ConversationSetEntity>) {

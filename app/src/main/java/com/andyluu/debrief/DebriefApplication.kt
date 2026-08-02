@@ -2,6 +2,7 @@ package com.andyluu.debrief
 
 import android.app.Application
 import com.andyluu.debrief.data.DebriefDatabase
+import com.andyluu.debrief.data.AnnotationBackupStore
 import com.andyluu.debrief.data.FolderRepository
 import com.andyluu.debrief.data.SearchRepository
 import com.andyluu.debrief.data.SecureSecretStore
@@ -21,7 +22,8 @@ class AppServices(application: Application) {
     val usage = UsageStore(application)
     val usageRepository = UsageRepository(usage)
     val search = SearchRepository(database)
-    val sidecars = SidecarStore(application, database, search)
+    val annotationBackups = AnnotationBackupStore(application, database)
+    val sidecars = SidecarStore(application, database, search, annotationBackups)
     val renamer = RecordingRenamer(application, database.dao())
     val aiPass = AiPassProcessor(application, database, settings, secrets, search, sidecars, renamer, usage)
     val aiEnhance = AiEnhanceProcessor(application, database, settings, secrets, search, sidecars, usage)

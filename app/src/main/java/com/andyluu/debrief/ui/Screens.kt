@@ -109,6 +109,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.andyluu.debrief.BuildConfig
 import com.andyluu.debrief.data.CommentEntity
+import com.andyluu.debrief.data.AnnotationBackupStatus
 import com.andyluu.debrief.data.AiPassStatus
 import com.andyluu.debrief.data.AiRecordingEntity
 import com.andyluu.debrief.data.ConversationSetEntity
@@ -1162,6 +1163,12 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                     },
                 )
             }
+            state.annotationBackup.warning?.let {
+                AnnotationBackupWarningCard(
+                    status = state.annotationBackup,
+                    onRetry = viewModel::retryAnnotationBackup,
+                )
+            }
             state.qualityReport?.takeIf { !qualityDismissed }?.let { report ->
                 TranscriptQualityCard(
                     report = report,
@@ -1370,6 +1377,26 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
             report = qualityReportForDialog,
             onDismiss = { showingQualityDetails = false },
         )
+    }
+}
+
+@Composable
+private fun AnnotationBackupWarningCard(
+    status: AnnotationBackupStatus,
+    onRetry: () -> Unit,
+) {
+    val warning = status.warning ?: return
+    Card(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3CD)),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(warning, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = onRetry) { Text("Retry backup") }
+        }
     }
 }
 

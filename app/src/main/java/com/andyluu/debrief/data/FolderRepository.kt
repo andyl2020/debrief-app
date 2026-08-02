@@ -19,6 +19,10 @@ class FolderRepository(
     suspend fun scan(treeUri: Uri): Int = withContext(Dispatchers.IO) {
         val root = DocumentFile.fromTreeUri(context, treeUri)
             ?: error("The selected folder is no longer available")
+        check(root.exists() && root.canRead()) {
+            "The selected folder cannot be read. Re-link it; no local recording data was removed."
+        }
+        val recordsBeforeScan = dao.getAllRecordings()
         val audioFiles = mutableListOf<DocumentFile>()
         Log.i("DebriefScan", "Scanning readable=${root.canRead()} existing=${root.exists()} children=${root.listFiles().size}")
         collectAudio(root, audioFiles)
@@ -47,7 +51,15 @@ class FolderRepository(
             if (existing == null) sidecarStore.restoreIfPresent(root, recording)
         }
 
-        if (activeIds.isEmpty()) dao.deleteAllRecordings() else dao.deleteMissingRecordings(activeIds)
+        // Room cascades child rows when a recording is removed. Before pruning a
+        // missing audio entry, secure its annotations in app-private storage. If
+        // that checkpoint fails, retain the row rather than risk losing markers
+        // because of a transient Storage Access Framework scan.
+        recordsBeforeScan.filterNot { it.id in activeIds }.forEach { missing ->
+            val status = sidecarStore.checkpoint(root = null, recordingId = missing.id)
+            if (!status.localCurrent) activeIds += missing.id
+        }
+        if (activeIds.isEmpty()) dao.deleteAllRecordings() else dao.deleteMissingRecordings(activeIds.distinct())
         audioFiles.size
     }
 

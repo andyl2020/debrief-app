@@ -6,10 +6,12 @@ import com.andyluu.debrief.data.CommentEntity
 import com.andyluu.debrief.data.AiPassStatus
 import com.andyluu.debrief.data.AiRecordingEntity
 import com.andyluu.debrief.data.ConversationSetEntity
+import com.andyluu.debrief.data.AnnotationBackupStore
 import com.andyluu.debrief.data.DebriefDatabase
 import com.andyluu.debrief.data.RedactionEntity
 import com.andyluu.debrief.data.RecordingEntity
 import com.andyluu.debrief.data.SearchRepository
+import com.andyluu.debrief.data.SpeakerAliasEntity
 import com.andyluu.debrief.data.SecureSecretStore
 import com.andyluu.debrief.data.TranscriptSegmentEntity
 import com.andyluu.debrief.data.TranscriptWordEntity
@@ -93,12 +95,60 @@ class SecurityAndSearchTest {
         )
         dao.upsertComment(CommentEntity("preserved-comment", recording.id, 200, "Keep this comment"))
         dao.upsertRedaction(RedactionEntity("preserved-redaction", recording.id, 150, 250, "secret"))
+        dao.upsertConversationSet(ConversationSetEntity("preserved-set", recording.id, 0, 100, 900, "Set 1"))
+        dao.upsertAlias(SpeakerAliasEntity(recording.id, "Speaker A", "Andy"))
 
         dao.upsertRecording(recording.copy(displayName = "Renamed recording.mp3", lastModified = 2))
 
         assertEquals("Keep this transcript", dao.getSegments(recording.id).single().text)
         assertEquals("Keep this comment", dao.getComment("preserved-comment")?.text)
         assertEquals("secret", dao.getRedactions(recording.id).single().text)
+        assertEquals("Set 1", dao.getConversationSets(recording.id).single().title)
+        assertEquals("Andy", dao.getAliases(recording.id).single().displayName)
+    }
+
+    @Test
+    fun encryptedAnnotationSnapshotRestoresRecordingBoundMarkers() = runBlocking {
+        val db = DebriefDatabase.get(context)
+        val dao = db.dao()
+        val id = "annotation-recovery-${System.nanoTime()}"
+        val recording = RecordingEntity(
+            id = id,
+            documentUri = "content://test/$id",
+            displayName = "Recovery test.m4a",
+            mimeType = "audio/mp4",
+            sizeBytes = 42_424,
+            lastModified = 10,
+            durationMs = 120_000,
+        )
+        val store = AnnotationBackupStore(context, db)
+        store.deleteForTest(id)
+        dao.upsertRecording(recording)
+        dao.upsertComment(CommentEntity("recovery-comment", id, 5_000, "private bookmark phrase"))
+        dao.upsertRedaction(RedactionEntity("recovery-redaction", id, 6_000, 7_000, "private redaction phrase"))
+        dao.upsertAlias(SpeakerAliasEntity(id, "Speaker A", "Andy"))
+        dao.upsertConversationSet(
+            ConversationSetEntity("recovery-set", id, 0, 4_000, 40_000, "Networking set")
+        )
+
+        val status = store.checkpoint(id)
+        assertTrue(status.localCurrent)
+        assertEquals(4, status.protectedItemCount)
+        val encryptedPayload = requireNotNull(store.snapshotPayloadForTest(id))
+        val payloadText = encryptedPayload.toString(Charsets.UTF_8)
+        assertFalse(payloadText.contains("private bookmark phrase"))
+        assertFalse(payloadText.contains("private redaction phrase"))
+
+        dao.deleteRecording(id)
+        dao.upsertRecording(recording)
+        assertTrue(dao.getComments(id).isEmpty())
+        assertTrue(store.restoreIfEmpty(recording))
+
+        assertEquals("private bookmark phrase", dao.getComments(id).single().text)
+        assertEquals("private redaction phrase", dao.getRedactions(id).single().text)
+        assertEquals("Andy", dao.getAliases(id).single().displayName)
+        assertEquals("Networking set", dao.getConversationSets(id).single().title)
+        store.deleteForTest(id)
     }
 
     @Test

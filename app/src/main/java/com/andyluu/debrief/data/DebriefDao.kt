@@ -23,6 +23,9 @@ interface DebriefDao {
     @Query("SELECT * FROM recordings WHERE documentUri = :uri LIMIT 1")
     suspend fun getRecordingByUri(uri: String): RecordingEntity?
 
+    @Query("SELECT * FROM recordings")
+    suspend fun getAllRecordings(): List<RecordingEntity>
+
     @Upsert
     suspend fun upsertRecording(recording: RecordingEntity)
 
@@ -43,6 +46,9 @@ interface DebriefDao {
 
     @Query("DELETE FROM recordings")
     suspend fun deleteAllRecordings()
+
+    @Query("DELETE FROM recordings WHERE id = :recordingId")
+    suspend fun deleteRecording(recordingId: String)
 
     @Query("SELECT * FROM transcript_segments WHERE recordingId = :recordingId ORDER BY startMs")
     fun observeSegments(recordingId: String): Flow<List<TranscriptSegmentEntity>>

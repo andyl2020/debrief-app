@@ -36,10 +36,20 @@ class TranscriptionWorker(
         val dao = services.database.dao()
         val recording = dao.getRecording(recordingId) ?: return Result.failure()
         setForeground(foregroundInfo("Transcribing ${recording.displayName}"))
-        dao.updateStatus(recordingId, RecordingStatus.TRANSCRIBING)
         var preparedAudio: PreparedAudio? = null
         return try {
             val settings = services.settings.settings.first()
+            val folderRoot = settings.folderUri?.let { uri ->
+                DocumentFile.fromTreeUri(applicationContext, Uri.parse(uri))
+            }
+            val preflightBackup = services.sidecars.checkpoint(folderRoot, recordingId)
+            if (!preflightBackup.localCurrent) {
+                throw TranscriptionException(
+                    "Debrief could not create a recovery copy of this recording's chapters and bookmarks. " +
+                        "Nothing was replaced; free storage and try again."
+                )
+            }
+            dao.updateStatus(recordingId, RecordingStatus.TRANSCRIBING)
             val providerName = settings.provider
             val key = services.secrets.get(providerName)
                 ?: throw TranscriptionException("Add the ${providerName.replaceFirstChar(Char::uppercase)} API key in Settings")
@@ -82,9 +92,9 @@ class TranscriptionWorker(
             services.usage.recordSuccess(providerName, key, recording.durationMs)
             dao.updateStatus(recordingId, RecordingStatus.READY)
             services.search.rebuild(recordingId)
-            settings.folderUri?.let { uri ->
-                DocumentFile.fromTreeUri(applicationContext, Uri.parse(uri))?.let { services.sidecars.write(it, recordingId) }
-            }
+            // A folder-sidecar failure must not turn a completed transcription
+            // into FAILED. The durable status is surfaced in the review screen.
+            services.sidecars.checkpoint(folderRoot, recordingId)
             if (settings.aiEnhanceEnabled && settings.aiAutoRun) {
                 AiEnhanceWorker.enqueueAuto(applicationContext, recordingId, settings.allowMobileData)
             }
