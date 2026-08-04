@@ -17,6 +17,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      DEBRIEF_SHARE_BASE_URL: ${{ vars.DEBRIEF_SHARE_BASE_URL }}
     steps:
       - name: Resolve release tag
         id: release_tag
@@ -38,6 +40,14 @@ jobs:
           cache: gradle
 
       - uses: android-actions/setup-android@v3
+
+      - name: Verify production share service configuration
+        shell: bash
+        run: |
+          case "$DEBRIEF_SHARE_BASE_URL" in
+            https://*) ;;
+            *) echo "Repository variable DEBRIEF_SHARE_BASE_URL must contain the deployed HTTPS Worker URL." >&2; exit 1 ;;
+          esac
 
       - name: Install Android SDK packages
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"

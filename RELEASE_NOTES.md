@@ -74,6 +74,16 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Comments can be edited or deleted inline. Comments before the first segment, in transcript gaps, and after the last segment remain visible.
 - Export creates Markdown through Android's share sheet with timestamped transcript text and comments.
 
+### Share Sets
+
+- Open a ready recording, tap **Chapters**, then tap **Select to share**. Choose one to ten completed manual sets from that recording and tap **Review share**. Open/incomplete sets cannot be shared.
+- Review shows the exact set order, total duration, estimated upload size, included comments, and privacy rules before any cloud work begins. One share link contains every selected set, each with its own 0:00-based player.
+- Choose a 30-, 60-, or 90-day expiry; 30 days is the default. An optional PIN adds another recipient check. The page is read-only and intentionally has no Download button.
+- Debrief never uploads the source recording. It snapshots the selection, exports only each selected time range, permanently renders every stored redaction as `[redacted]` plus silent audio, and includes every comment whose timestamp falls inside the set. The local source and reversible local redactions remain unchanged.
+- Preparation/upload runs in resumable WorkManager foreground work. Completed clips and multipart checkpoints survive app switching, network loss, and process death; errors name the cause and offer **Resume**. A share becomes public only after every expected object passes server size/hash validation.
+- Open **Settings -> Cloud sharing** to see current tracked bytes against the full 10 GB R2 Standard reference, active/resumable links, expiry dates, and per-link sizes. From **Shared links**, copy/share/open, extend to 30/60/90 days from now, or revoke immediately.
+- Cloud setup uses a one-time pairing code. The owner credential is protected by Android Keystore; public-link and optional-PIN secrets are never written into transcript sidecars or uploaded source metadata.
+
 ### Usage, storage, and privacy
 
 - Settings tracks local per-key transcription and AI usage. Deepgram provider usage, spend, and balance appear when the key has the provider scopes required for those endpoints.
@@ -113,11 +123,24 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Audio re-listen clips are short derived cache files, not original recordings. They may be cleared by Android cache cleanup, and they are not written to sidecars.
 - Some noisy speech is unrecoverable. Debrief should mark `[inaudible]` rather than invent words when Gemini cannot hear the clip clearly.
 - If the Gemini key is missing, rate-limited, offline, or blocked by the **Send short clips** toggle, Enhance fails gracefully or runs only the available text stage.
-- Debrief has no cloud sync, collaboration, iOS app, video support, or live transcription. Original audio and durable app data remain on the phone.
+- Share links are bearer URLs: anyone who receives a non-PIN link can open it until expiry or revocation. Do not post a sensitive link publicly. Browser screen capture and network tools can still preserve media even though the viewer has no Download control.
+- The 10 GB display is a consistent R2 Standard free-tier reference, not a hard quota guaranteed by Debrief. Cloudflare measures GB-month from average daily peak storage and also applies request limits. Expired/revoked objects are deleted, while the history row remains locally visible.
+- A share is an immutable snapshot. Later edits, retranscription, comments, set-boundary changes, or local unredactions do not mutate an already published link; revoke and create a replacement.
+- Shares support one recording per link, at most ten completed sets, and at most three hours combined. Recipient comments, accounts, reactions, downloads, analytics, and multi-recording links are not included.
+- Debrief has no general-purpose cloud sync, recipient collaboration, iOS app, video support, or live transcription. Original audio and durable app data remain on the phone.
 - The encrypted app-private marker snapshot survives normal app upgrades and retranscription, but Android removes it if Debrief is uninstalled or its app data is cleared. The paired recording-folder sidecars are the reinstall-safe copy. Sidecars are normal JSON files beside the audio and are not encrypted independently of the phone/folder storage.
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.11.0 - Private Share Sets (2026-08-03)
+
+- Added privacy-safe, expiring sharing for one to ten completed manual sets from one recording, with separate audio players, transcript, and every in-set comment in one read-only link.
+- Added immutable local snapshots, exact start-inclusive/end-exclusive filtering, permanently rendered shared redactions, source-free derived clip export, private resumable multipart upload, atomic publication, and process-death reconciliation.
+- Added 30/60/90-day expiry, optional PIN, extend/revoke, public range playback, and exact expiry/revoke denial. The viewer has no Download control and discloses that screen capture cannot be prevented.
+- Added Settings **Cloud sharing** with active/resumable/history management and tracked storage against the full 10 GB R2 Standard reference.
+- Added a private Cloudflare Worker/D1/R2 service with one-time owner pairing, token hashing, PIN throttling, server-validated manifests, private object keys, cleanup/reconciliation, security headers, and a no-index web viewer.
+- Verification before tagging: Android JVM tests, lint, Android-test compilation, seven Worker D1/R2 integration tests, Wrangler dry run, complete Android 11 and Android 15/true-16-KB device suites, and a real ignored-M4A Android-to-Worker privacy test pass. The live test verified permanent redaction, boundary/comment non-leakage, audio Range playback, 10 GB usage reconciliation, revoke, deletion, and immediate public denial.
 
 ### v1.10.2 - Faster long-recording saves (2026-08-02)
 

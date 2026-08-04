@@ -359,6 +359,11 @@ This checklist is the authoritative resume point if work is interrupted. Update 
 - [x] Stage 7: Full backend/Android/device/privacy regression and recovery tests. Android 11 and Android 15/true-16-KB 32-test suites passed before the conditional live fixture was added. The final Android 11 suite passes all 33 registered tests (the live test safely skips without private arguments), with an empty crash buffer. A separate live test using an ignored real M4A fixture passed derived clip export, permanent text/audio redaction, upload, publication, transcript/comment/audio Range retrieval, 10 GB usage reconciliation, revoke, and immediate public denial. Android JVM/lint/androidTest compilation and seven Worker D1/R2 integration tests pass; Wrangler dry-run is 51.84 KiB raw/14.22 KiB gzip.
 - [ ] Stage 8: Release notes/status/version, signed build, Cloudflare deployment, tag, GitHub release, and public verification.
 
+Stage 8 partial checkpoint: version code 28/name 1.11.0, user guide, limitations,
+release body, release R8, and guarded GitHub deployment/release workflows are
+complete. Production deployment/tag/publication remain intentionally unchecked
+until Cloudflare OAuth is authorized and the real D1/R2/Worker URL is verified.
+
 ## Resume Protocol
 
 1. Read this file and `IMPLEMENTATION_STATUS.md`.

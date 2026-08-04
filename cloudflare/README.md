@@ -61,6 +61,23 @@ Authorization: Bearer <BOOTSTRAP_SECRET>
 
 Enter the returned code in Debrief Settings. Android exchanges it through `POST /v1/pair`, stores the returned owner credential in Android Keystore, and never retains the bootstrap secret.
 
+## Repeatable production deployment
+
+After the one-time D1/R2 provisioning updates `wrangler.jsonc` with the real D1
+database id, the manual **Deploy Cloudflare Share Service** GitHub workflow runs
+tests, applies migrations, publishes Worker secrets, deploys, and verifies the
+health endpoint. Configure these once in the repository production environment:
+
+- Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
+  `DEBRIEF_SHARE_BOOTSTRAP_SECRET`, `DEBRIEF_SHARE_TOKEN_PEPPER`, and
+  `DEBRIEF_SHARE_PIN_PEPPER`.
+- Variable: `DEBRIEF_SHARE_BASE_URL`, containing the production HTTPS Worker URL.
+
+The Android release workflow consumes the same public URL variable and refuses
+to publish a production APK when it is absent or not HTTPS. Rotate the three
+Worker secrets deliberately: existing owner credentials and public/PIN links
+depend on their peppers and will stop validating after rotation.
+
 ## Limits
 
 - 10 completed sets per share.
