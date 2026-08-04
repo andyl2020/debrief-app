@@ -3,6 +3,7 @@ package com.andyluu.debrief.share
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.ServiceInfo
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
@@ -20,11 +21,11 @@ class ShareUploadWorker(
 
     override suspend fun doWork(): Result {
         val draftId = inputData.getString(KEY_DRAFT_ID) ?: return Result.failure()
-        setForeground(notification("Preparing private share", 0, 1))
         return try {
+            setForeground(shareUploadForegroundInfo(applicationContext, "Preparing private share", 0, 1))
             repository.processDraft(draftId) { stage, completed, total ->
                 setProgress(workDataOf("stage" to stage, "completed" to completed, "total" to total))
-                setForeground(notification(stage, completed, total))
+                setForeground(shareUploadForegroundInfo(applicationContext, stage, completed, total))
             }
             Result.success()
         } catch (error: CancellationException) {
@@ -40,29 +41,41 @@ class ShareUploadWorker(
         }
     }
 
-    override suspend fun getForegroundInfo(): ForegroundInfo = notification("Preparing private share", 0, 1)
-
-    private fun notification(stage: String, completed: Int, total: Int): ForegroundInfo {
-        val manager = applicationContext.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Share preparation", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "Resumable private set preparation and upload"
-            }
-        )
-        val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Creating Debrief share")
-            .setContentText(stage)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setProgress(total.coerceAtLeast(1), completed.coerceIn(0, total.coerceAtLeast(1)), false)
-            .build()
-        return ForegroundInfo(NOTIFICATION_ID, notification)
-    }
+    override suspend fun getForegroundInfo(): ForegroundInfo =
+        shareUploadForegroundInfo(applicationContext, "Preparing private share", 0, 1)
 
     companion object {
         const val KEY_DRAFT_ID = "draft_id"
-        private const val CHANNEL_ID = "share_uploads"
-        private const val NOTIFICATION_ID = 2301
     }
 }
+
+internal fun shareUploadForegroundInfo(
+    context: Context,
+    stage: String,
+    completed: Int,
+    total: Int,
+): ForegroundInfo {
+    val manager = context.getSystemService(NotificationManager::class.java)
+    manager.createNotificationChannel(
+        NotificationChannel(SHARE_CHANNEL_ID, "Share preparation", NotificationManager.IMPORTANCE_LOW).apply {
+            description = "Resumable private set preparation and upload"
+        }
+    )
+    val safeTotal = total.coerceAtLeast(1)
+    val notification = NotificationCompat.Builder(context, SHARE_CHANNEL_ID)
+        .setSmallIcon(R.drawable.ic_notification)
+        .setContentTitle("Creating Debrief share")
+        .setContentText(stage)
+        .setOngoing(true)
+        .setOnlyAlertOnce(true)
+        .setProgress(safeTotal, completed.coerceIn(0, safeTotal), false)
+        .build()
+    return ForegroundInfo(
+        SHARE_NOTIFICATION_ID,
+        notification,
+        ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+    )
+}
+
+private const val SHARE_CHANNEL_ID = "share_uploads"
+private const val SHARE_NOTIFICATION_ID = 2301

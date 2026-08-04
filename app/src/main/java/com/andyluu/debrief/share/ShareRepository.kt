@@ -80,6 +80,13 @@ class ShareRepository(
 
     fun resume(draftId: String) = enqueue(draftId, replace = true)
 
+    suspend fun recoverPending() {
+        if (configurationOrNull() == null) return
+        drafts.first()
+            .filter { it.status in setOf(ShareDraftStatus.READY_TO_UPLOAD, ShareDraftStatus.UPLOADING, ShareDraftStatus.PUBLISHING) }
+            .forEach { enqueue(it.id, replace = false) }
+    }
+
     suspend fun cancel(draftId: String) {
         WorkManager.getInstance(context).cancelUniqueWork(workName(draftId))
         val draft = dao.getShareDraft(draftId) ?: return

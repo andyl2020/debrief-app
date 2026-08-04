@@ -4,9 +4,17 @@ Last updated: 2026-08-04
 
 ## Objective
 
-Implement and release Debrief v1.11.0 with privacy-safe, expiring sharing of completed manual sets, including derived audio, transcript, every in-set comment, Cloudflare storage visibility, and active-link management.
+Release Debrief v1.11.1 as a stability patch for Share Sets startup and interrupted-draft recovery while preserving the v1.11.0 privacy and cloud contract.
 
-## Active v1.11.0 checkpoint
+## Active v1.11.1 checkpoint
+
+- Root cause reproduced on Android 15/true-16-KB: Share Sets started WorkManager's foreground service with runtime type `none`, causing a fatal `InvalidForegroundServiceTypeException` immediately after link creation on target SDK 35.
+- Fix implemented: `ShareUploadWorker` now supplies `ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC`, matching the existing manifest declaration/permission and Android's long-running-worker contract.
+- Recovery strengthened: opening Shared Links re-enqueues pending READY_TO_UPLOAD/UPLOADING/PUBLISHING drafts with `ExistingWorkPolicy.KEEP`, so a draft left by the old crash resumes without replacing healthy active work or creating a duplicate cloud draft.
+- Regression coverage: a direct foreground-type instrumentation assertion passes. The exact real ignored-M4A Android-to-production flow that previously crashed now passes on Android 15/true-16-KB, including export, redaction, upload, publish, Range playback, revoke, cleanup, and an empty crash buffer.
+- Release candidate: version code 29/name 1.11.1. JVM tests, debug lint/build, and Android-test compilation pass. Final full device/release verification and public publication remain.
+
+## Shipped v1.11.0 checkpoint
 
 - Approved requirements, UX, privacy contract, Cloudflare architecture, data model, staged rollout, tests, and resume protocol are recorded in `debrief-share-sets-prd-addendum.md`.
 - One link contains up to ten completed sets/three hours from one recording. The recipient page is a read-only immutable snapshot with separate players, transcript, and all in-set comments.

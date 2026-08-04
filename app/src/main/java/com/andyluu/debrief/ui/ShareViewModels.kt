@@ -128,7 +128,13 @@ class CloudSharingViewModel(application: Application) : AndroidViewModel(applica
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CloudSharingUiState(paired = repository.isPaired()))
 
     init {
-        if (paired.value) refresh()
+        if (paired.value) {
+            viewModelScope.launch {
+                runCatching { repository.recoverPending() }
+                    .onFailure { _messages.emit(it.message ?: "A pending share could not be resumed.") }
+            }
+            refresh()
+        }
     }
 
     fun pair(baseUrl: String, code: String) {

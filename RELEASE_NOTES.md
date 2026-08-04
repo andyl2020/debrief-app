@@ -81,6 +81,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Choose a 30-, 60-, or 90-day expiry; 30 days is the default. An optional PIN adds another recipient check. The page is read-only and intentionally has no Download button.
 - Debrief never uploads the source recording. It snapshots the selection, exports only each selected time range, permanently renders every stored redaction as `[redacted]` plus silent audio, and includes every comment whose timestamp falls inside the set. The local source and reversible local redactions remain unchanged.
 - Preparation/upload runs in resumable WorkManager foreground work. Completed clips and multipart checkpoints survive app switching, network loss, and process death; errors name the cause and offer **Resume**. A share becomes public only after every expected object passes server size/hash validation.
+- Android 14/15 share preparation declares and supplies the required `dataSync` foreground-service type. Pending drafts are reattached when Shared Links opens after a process interruption or app update.
 - Open **Settings -> Cloud sharing** to see current tracked bytes against the full 10 GB R2 Standard reference, active/resumable links, expiry dates, and per-link sizes. From **Shared links**, copy/share/open, extend to 30/60/90 days from now, or revoke immediately.
 - At 9 GB Debrief shows an amber near-limit warning with the current calendar-month deadline and posts a daily-deduplicated Android notification. At 10 GB it escalates to an exceeded warning. Tap the notification to open Shared Links or tap the info icon to learn how Cloudflare's average-daily-peak GB-month billing works.
 - Cloud setup uses a one-time pairing code. The owner credential is protected by Android Keystore; public-link and optional-PIN secrets are never written into transcript sidecars or uploaded source metadata.
@@ -134,6 +135,14 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.11.1 - Stable Share Sets startup (2026-08-04)
+
+- Fixed the reproducible Android 14/15 crash that occurred immediately after **Create private link**. The Share Sets worker declared `dataSync` in the manifest but omitted the same type from its runtime `ForegroundInfo`, causing `InvalidForegroundServiceTypeException` on target SDK 35 devices such as the OnePlus 13.
+- Added the required runtime `FOREGROUND_SERVICE_TYPE_DATA_SYNC` value and moved foreground initialization inside the worker's guarded failure path.
+- Added pending-draft recovery. Opening Shared Links safely reattaches unfinished snapshot/upload/publish work with `ExistingWorkPolicy.KEEP`, preserving completed checkpoints and avoiding duplicate cloud drafts.
+- Added a regression assertion for the worker's runtime service type.
+- Reproduced the old fatal exception on an Android 15 true-16-KB emulator, then passed the same real ignored-M4A Android-to-production flow after the fix: clip export, permanent redaction, transcript/comment isolation, upload, public Range playback, revoke, object cleanup, and an empty crash buffer.
 
 ### v1.11.0 - Private Share Sets (2026-08-04)
 
