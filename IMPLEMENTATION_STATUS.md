@@ -12,8 +12,10 @@ Implement and release Debrief v1.11.0 with privacy-safe, expiring sharing of com
 - One link contains up to ten completed sets/three hours from one recording. The recipient page is a read-only immutable snapshot with separate players, transcript, and all in-set comments.
 - The original recording never uploads. Stored redactions must be rendered permanently into derived shared clips/text before publication.
 - Settings uses the full current 10 GB R2 Standard free-tier reference; there is no separate 8 GB cap.
-- Current checkpoint: specification complete; implementation has not started.
-- Next action: Stage 1 Cloudflare Worker/R2/D1 skeleton, schema, security middleware, and tests.
+- Cloudflare Stages 1 and 2 are implemented under `cloudflare/`: D1 schema, private multipart R2 uploads, server-validated atomic publication, owner/pairing auth, optional PIN, exact expiry/revoke enforcement, range streaming, cleanup/reconciliation, storage usage, and the no-download read-only viewer.
+- Verification: Node 22 TypeScript compile, seven Workers Vitest integration tests against local D1/R2, zero `npm audit` vulnerabilities, and Wrangler production bundle dry-run (50.26 KiB raw/14.04 KiB gzip) pass.
+- Current checkpoint: backend source is locally complete but not deployed because Cloudflare account authentication/resources have not yet been audited.
+- Next action: commit/push backend checkpoint, then implement Android Room/share preparation/upload foundations.
 
 ## Shipped checkpoint
 

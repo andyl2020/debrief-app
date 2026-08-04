@@ -350,8 +350,8 @@ Use synthetic audio with identifiable tones/phrases before, inside, and after se
 This checklist is the authoritative resume point if work is interrupted. Update it with commit hashes and verification results before every push.
 
 - [x] Product questions resolved and PRD addendum written.
-- [ ] Stage 1: Cloudflare skeleton, D1 schema, API contracts, security middleware, and backend tests.
-- [ ] Stage 2: Private R2 upload/publish, range streaming, expiry/revoke/cleanup, storage metrics, and viewer.
+- [x] Stage 1: Cloudflare skeleton, D1 schema, API contracts, security middleware, and backend tests. Commit: pending checkpoint push; `npm run check` passes with 7 Worker integration tests.
+- [x] Stage 2: Private R2 upload/publish, range streaming, expiry/revoke/cleanup, storage metrics, and viewer. Wrangler dry-run passes at 50.26 KiB raw/14.04 KiB gzip.
 - [ ] Stage 3: Android Room share state/migration, pairing client, repository, and resumable upload worker.
 - [ ] Stage 4: Set-package builder, exact filtering, clip extraction, permanent redaction rendering, and leakage tests.
 - [ ] Stage 5: Chapters set selection, full-screen review, progress/resume, success actions, and errors.
