@@ -12,7 +12,7 @@ Release Debrief v1.11.1 as a stability patch for Share Sets startup and interrup
 - Fix implemented: `ShareUploadWorker` now supplies `ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC`, matching the existing manifest declaration/permission and Android's long-running-worker contract.
 - Recovery strengthened: opening Shared Links re-enqueues pending READY_TO_UPLOAD/UPLOADING/PUBLISHING drafts with `ExistingWorkPolicy.KEEP`, so a draft left by the old crash resumes without replacing healthy active work or creating a duplicate cloud draft.
 - Regression coverage: a direct foreground-type instrumentation assertion passes. The exact real ignored-M4A Android-to-production flow that previously crashed now passes on Android 15/true-16-KB, including export, redaction, upload, publish, Range playback, revoke, cleanup, and an empty crash buffer.
-- Release candidate: version code 29/name 1.11.1. JVM tests, debug lint/build, and Android-test compilation pass. Final full device/release verification and public publication remain.
+- Release candidate: version code 29/name 1.11.1. JVM tests, debug/release lint, debug build, release R8, Android-test compilation, all 35 registered Android 11/4-KB tests, and all 35 registered Android 15/true-16-KB tests pass. The credential-gated live fixture separately passes against production on Android 15. Tag/publication and public signed-upgrade verification remain.
 
 ## Shipped v1.11.0 checkpoint
 
