@@ -17,7 +17,7 @@
     {
       "binding": "DB",
       "database_name": "debrief-share",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "24068807-199a-4d36-bdac-2a2748728004",
       "migrations_dir": "migrations"
     }
   ],
