@@ -59,12 +59,12 @@ class ShareSnapshotBuilder(
                         title = displayTitle(set),
                         durationMs = set.endMs - set.startMs,
                         transcriptSegmentCount = source.segments.count { it.startMs < set.endMs && it.endMs > set.startMs },
-                        commentCount = source.comments.count { it.timestampMs in set.startMs..set.endMs },
+                        commentCount = source.comments.count { it.timestampMs >= set.startMs && it.timestampMs < set.endMs },
                         redactionCount = source.redactions.count { it.startMs < set.endMs && it.endMs > set.startMs },
                     )
                 },
                 totalDurationMs = source.sets.sumOf { it.endMs - it.startMs },
-                commentCount = source.sets.sumOf { set -> source.comments.count { it.timestampMs in set.startMs..set.endMs } },
+                commentCount = source.sets.sumOf { set -> source.comments.count { it.timestampMs >= set.startMs && it.timestampMs < set.endMs } },
                 redactionCount = source.sets.sumOf { set -> source.redactions.count { it.startMs < set.endMs && it.endMs > set.startMs } },
             )
         }
@@ -88,7 +88,7 @@ class ShareSnapshotBuilder(
             val parts = source.sets.mapIndexed { position, set ->
                 val setTitle = displayTitle(set)
                 val duration = set.endMs - set.startMs
-                val metadata = buildMetadata(set, setTitle, source.segments, source.words, source.comments, source.redactions, aliases)
+                val metadata = buildShareMetadata(set, setTitle, source.segments, source.words, source.comments, source.redactions, aliases)
                 require(metadata.segments.isNotEmpty()) { "$setTitle has no transcript inside its boundaries." }
                 val metadataFile = File(directory, "set_${position.toString().padStart(2, '0')}_metadata.json")
                 metadataFile.writeText(json.encodeToString(metadata), Charsets.UTF_8)
@@ -160,67 +160,6 @@ class ShareSnapshotBuilder(
         )
     }
 
-    private fun buildMetadata(
-        set: ConversationSetEntity,
-        setTitle: String,
-        segments: List<TranscriptSegmentEntity>,
-        words: List<TranscriptWordEntity>,
-        comments: List<com.andyluu.debrief.data.CommentEntity>,
-        redactions: List<com.andyluu.debrief.data.RedactionEntity>,
-        aliases: Map<String, String>,
-    ): ShareMetadataPayload {
-        val relativeSegments = segments.mapNotNull { segment ->
-            if (segment.startMs >= set.endMs || segment.endMs <= set.startMs) return@mapNotNull null
-            val timedWords = words.filter { word ->
-                word.speakerId == segment.speakerId &&
-                    word.endMs > segment.startMs && word.startMs < segment.endMs &&
-                    word.startMs >= set.startMs && word.endMs <= set.endMs
-            }
-            val text = if (timedWords.isNotEmpty()) {
-                redactWords(timedWords, redactions)
-            } else {
-                if (segment.startMs < set.startMs || segment.endMs > set.endMs) return@mapNotNull null
-                redactedTranscriptText(segment.text, emptyList(), redactions, segment.startMs, segment.endMs)
-            }
-            if (text.isBlank()) return@mapNotNull null
-            val absoluteStart = timedWords.firstOrNull()?.startMs ?: maxOf(segment.startMs, set.startMs)
-            val absoluteEnd = timedWords.lastOrNull()?.endMs ?: minOf(segment.endMs, set.endMs)
-            if (absoluteEnd <= absoluteStart) return@mapNotNull null
-            ShareTranscriptSegment(
-                speaker = aliases[segment.speakerId]?.takeIf(String::isNotBlank) ?: segment.speakerId,
-                startMs = absoluteStart - set.startMs,
-                endMs = absoluteEnd - set.startMs,
-                text = text,
-            )
-        }
-        val relativeComments = comments
-            .filter { it.timestampMs in set.startMs..set.endMs }
-            .sortedBy { it.timestampMs }
-            .map { ShareComment(it.timestampMs - set.startMs, it.text) }
-        return ShareMetadataPayload(
-            title = setTitle,
-            durationMs = set.endMs - set.startMs,
-            segments = relativeSegments,
-            comments = relativeComments,
-        )
-    }
-
-    private fun redactWords(
-        words: List<TranscriptWordEntity>,
-        redactions: List<com.andyluu.debrief.data.RedactionEntity>,
-    ): String {
-        val output = mutableListOf<String>()
-        words.forEach { word ->
-            val redacted = redactions.any { it.startMs < word.endMs && it.endMs > word.startMs }
-            if (redacted) {
-                if (output.lastOrNull() != REDACTION_LABEL) output += REDACTION_LABEL
-            } else {
-                output += word.text
-            }
-        }
-        return output.joinToString(" ").trim()
-    }
-
     private fun displayTitle(set: ConversationSetEntity): String =
         set.title.trim().takeIf(String::isNotBlank) ?: "Set ${set.orderIndex + 1}"
 
@@ -232,6 +171,60 @@ class ShareSnapshotBuilder(
         val comments: List<com.andyluu.debrief.data.CommentEntity>,
         val redactions: List<com.andyluu.debrief.data.RedactionEntity>,
         val aliases: List<com.andyluu.debrief.data.SpeakerAliasEntity>,
+    )
+}
+
+internal fun buildShareMetadata(
+    set: ConversationSetEntity,
+    setTitle: String,
+    segments: List<TranscriptSegmentEntity>,
+    words: List<TranscriptWordEntity>,
+    comments: List<com.andyluu.debrief.data.CommentEntity>,
+    redactions: List<com.andyluu.debrief.data.RedactionEntity>,
+    aliases: Map<String, String>,
+): ShareMetadataPayload {
+    val relativeSegments = segments.mapNotNull { segment ->
+        if (segment.startMs >= set.endMs || segment.endMs <= set.startMs) return@mapNotNull null
+        val timedWords = words.filter { word ->
+            word.speakerId == segment.speakerId &&
+                word.endMs > segment.startMs && word.startMs < segment.endMs &&
+                word.startMs >= set.startMs && word.endMs <= set.endMs
+        }
+        val text = if (timedWords.isNotEmpty()) {
+            val output = mutableListOf<String>()
+            timedWords.forEach { word ->
+                val redacted = redactions.any { it.startMs < word.endMs && it.endMs > word.startMs }
+                if (redacted) {
+                    if (output.lastOrNull() != REDACTION_LABEL) output += REDACTION_LABEL
+                } else {
+                    output += word.text
+                }
+            }
+            output.joinToString(" ").trim()
+        } else {
+            if (segment.startMs < set.startMs || segment.endMs > set.endMs) return@mapNotNull null
+            redactedTranscriptText(segment.text, emptyList(), redactions, segment.startMs, segment.endMs)
+        }
+        if (text.isBlank()) return@mapNotNull null
+        val absoluteStart = timedWords.firstOrNull()?.startMs ?: maxOf(segment.startMs, set.startMs)
+        val absoluteEnd = timedWords.lastOrNull()?.endMs ?: minOf(segment.endMs, set.endMs)
+        if (absoluteEnd <= absoluteStart) return@mapNotNull null
+        ShareTranscriptSegment(
+            speaker = aliases[segment.speakerId]?.takeIf(String::isNotBlank) ?: segment.speakerId,
+            startMs = absoluteStart - set.startMs,
+            endMs = absoluteEnd - set.startMs,
+            text = text,
+        )
+    }
+    val relativeComments = comments
+        .filter { it.timestampMs >= set.startMs && it.timestampMs < set.endMs }
+        .sortedBy { it.timestampMs }
+        .map { ShareComment(it.timestampMs - set.startMs, it.text) }
+    return ShareMetadataPayload(
+        title = setTitle,
+        durationMs = set.endMs - set.startMs,
+        segments = relativeSegments,
+        comments = relativeComments,
     )
 }
 

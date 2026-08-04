@@ -13,6 +13,7 @@ internal class RedactionSilenceAudioProcessor(
 ) : BaseAudioProcessor() {
     private val ranges = ranges.sortedBy(ShareMuteRange::startMs)
     private var framesProcessed = 0L
+    private var rangeIndex = 0
     var mutedFrames: Long = 0L
         private set
 
@@ -29,7 +30,8 @@ internal class RedactionSilenceAudioProcessor(
         val output = replaceOutputBuffer(completeBytes)
         repeat(completeBytes / bytesPerFrame) {
             val timestampMs = framesProcessed * 1_000L / inputAudioFormat.sampleRate
-            val muted = ranges.any { timestampMs in it.startMs until it.endMs }
+            while (rangeIndex < ranges.size && timestampMs >= ranges[rangeIndex].endMs) rangeIndex += 1
+            val muted = rangeIndex < ranges.size && timestampMs >= ranges[rangeIndex].startMs
             repeat(bytesPerFrame) {
                 val value = inputBuffer.get()
                 output.put(if (muted) 0 else value)
@@ -42,6 +44,7 @@ internal class RedactionSilenceAudioProcessor(
 
     override fun onFlush() {
         framesProcessed = 0L
+        rangeIndex = 0
         mutedFrames = 0L
     }
 

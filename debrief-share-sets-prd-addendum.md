@@ -353,9 +353,9 @@ This checklist is the authoritative resume point if work is interrupted. Update 
 - [x] Stage 1: Cloudflare skeleton, D1 schema, API contracts, security middleware, and backend tests. Commit: `fc9a232`; `npm run check` passes with 7 Worker integration tests.
 - [x] Stage 2: Private R2 upload/publish, range streaming, expiry/revoke/cleanup, storage metrics, and viewer. Wrangler dry-run passes at 50.26 KiB raw/14.04 KiB gzip.
 - [x] Stage 3: Android Room share state/migration, pairing client, repository, and resumable upload worker. Room schema 6 is exported; Android JVM tests and Kotlin compilation pass. Commit: this checkpoint.
-- [ ] Stage 4: Set-package builder, exact filtering, clip extraction, permanent redaction rendering, and leakage tests.
-- [ ] Stage 5: Chapters set selection, full-screen review, progress/resume, success actions, and errors.
-- [ ] Stage 6: Settings storage card and Shared Links management page.
+- [x] Stage 4: Set-package builder, exact filtering, clip extraction, permanent redaction rendering, and leakage tests. Boundary, fail-closed untimed text, redacted-word leakage, and PCM silence tests pass.
+- [x] Stage 5: Chapters set selection, full-screen review, progress/resume, success actions, and errors. Only completed manual sets are selectable; one link retains all selected sets.
+- [x] Stage 6: Settings storage card and Shared Links management page. The full 10 GB reference, monthly GB-month explanation, active/resumable state, copy/share/open, extend, revoke, and history are implemented.
 - [ ] Stage 7: Full backend/Android/device/privacy regression and recovery tests.
 - [ ] Stage 8: Release notes/status/version, signed build, Cloudflare deployment, tag, GitHub release, and public verification.
 
@@ -363,7 +363,7 @@ This checklist is the authoritative resume point if work is interrupted. Update 
 
 1. Read this file and `IMPLEMENTATION_STATUS.md`.
 2. Run `git status --short --branch` and `git log -8 --oneline --decorate`.
-3. Continue the first unchecked implementation checkpoint.
+3. Continue the first unchecked implementation checkpoint. Stages 7 and 8 require deployed Cloudflare resources before end-to-end public-link verification.
 4. Never skip the privacy leakage contract to make a share appear functional.
 5. Before stopping, update this checklist and `IMPLEMENTATION_STATUS.md` with exact work, tests, commit, blocker, and next action.
 6. Commit and push each coherent stage. Do not tag or describe v1.11.0 as released until the public APK and deployed service are independently verified.

@@ -228,6 +228,7 @@ async function createDraft(request: Request, env: Env, owner: OwnerDevice): Prom
   return json({
     draftId: shareId,
     expiresAfterHours: stagingTtlHours(env),
+    status: "DRAFT",
     sets: sets.map((set) => ({
       clientSetId: set.clientSetId,
       objects: set.objects.map((object) => ({
@@ -237,6 +238,9 @@ async function createDraft(request: Request, env: Env, owner: OwnerDevice): Prom
         completeUrl: `/v1/owner/share-drafts/${shareId}/objects/${object.id}/complete`,
         minimumPartBytes: MULTIPART_MIN_BYTES,
         maximumPartBytes: MAX_PART_BYTES,
+        status: "UPLOADING",
+        sizeBytes: null,
+        sha256: null,
       })),
     })),
   }, 201);
@@ -266,7 +270,9 @@ async function uploadPart(
 
 async function inspectDraft(env: Env, owner: OwnerDevice, draftId: string): Promise<Response> {
   const share = await ownedShare(env, owner.id, draftId);
-  if (share.status !== "DRAFT") throw new HttpError(409, "NOT_A_DRAFT", "That upload draft is no longer active.");
+  if (share.status !== "DRAFT" && share.status !== "ACTIVE") {
+    throw new HttpError(409, "NOT_A_DRAFT", "That upload draft is no longer active.");
+  }
   const { results: sets = [] } = await env.DB.prepare("SELECT * FROM share_sets WHERE share_id = ? ORDER BY position")
     .bind(draftId).all<ShareSetRow>();
   const { results: objects = [] } = await env.DB.prepare("SELECT * FROM share_objects WHERE share_id = ? ORDER BY share_set_id, kind")
@@ -274,6 +280,7 @@ async function inspectDraft(env: Env, owner: OwnerDevice, draftId: string): Prom
   return json({
     draftId,
     expiresAfterHours: stagingTtlHours(env),
+    status: share.status,
     sets: sets.map((set) => ({
       clientSetId: set.client_set_id,
       objects: objects.filter((object) => object.share_set_id === set.id).map((object) => ({
@@ -283,6 +290,9 @@ async function inspectDraft(env: Env, owner: OwnerDevice, draftId: string): Prom
         completeUrl: `/v1/owner/share-drafts/${draftId}/objects/${object.id}/complete`,
         minimumPartBytes: MULTIPART_MIN_BYTES,
         maximumPartBytes: MAX_PART_BYTES,
+        status: object.status,
+        sizeBytes: object.actual_size_bytes,
+        sha256: object.sha256,
       })),
     })),
   });

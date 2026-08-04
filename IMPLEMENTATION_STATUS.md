@@ -14,10 +14,13 @@ Implement and release Debrief v1.11.0 with privacy-safe, expiring sharing of com
 - Settings uses the full current 10 GB R2 Standard free-tier reference; there is no separate 8 GB cap.
 - Cloudflare Stages 1 and 2 are implemented under `cloudflare/`: D1 schema, private multipart R2 uploads, server-validated atomic publication, owner/pairing auth, optional PIN, exact expiry/revoke enforcement, range streaming, cleanup/reconciliation, storage usage, and the no-download read-only viewer.
 - Android Stage 3 is implemented: encrypted Room share drafts/parts/links/usage with schema 6 migration, Keystore-backed owner/PIN secrets, a validated HTTPS client, immutable per-set snapshots, resumable multipart checkpoints, sequential clip preparation, redaction-silence audio processing, WorkManager progress/retry/resume, and cleanup after confirmed upload.
+- Android Stages 4–6 are implemented: completed-set multi-selection in Chapters, a full-screen exact-content/privacy review, 30/60/90-day expiry and optional PIN, background preparation progress/resume/cancel, a Settings Cloud sharing entry, the full 10 GB storage meter, and active-link copy/share/open/extend/revoke/history management.
+- Privacy tests enforce start-inclusive/end-exclusive set boundaries, reject untimed partial transcript segments, exclude all outside words/comments, fail closed on ambiguous untimed redactions, and verify protected PCM frames become silence. The silence processor is linear in audio frames plus redaction ranges for long recordings.
 - The backend now exposes authenticated draft inspection so Android can recover remote object IDs after process death without creating duplicate drafts.
-- Verification: Android Kotlin compilation and the JVM test suite pass. Node 22 TypeScript compile and seven Workers integration tests against local D1/R2 also pass; the prior Wrangler production bundle dry-run and zero-vulnerability audit remain green.
+- Recovery now also reconciles objects completed immediately before an Android crash and already-published links. Backend tests prove remote size/checksum recovery and idempotent repeat publication with the same retained public token.
+- Verification: Android JVM tests, debug lint, and Android-test compilation pass. Node 22 TypeScript compile and seven Workers integration tests against local D1/R2 pass; Wrangler production dry-run is 51.84 KiB raw/14.22 KiB gzip and the dependency audit remains at zero known vulnerabilities.
 - Current checkpoint: source is not yet deployed because Cloudflare account authentication/resources have not been audited. No source recording is ever queued for upload; only private per-set metadata and derived audio are prepared.
-- Next action: add deterministic privacy/leakage tests, then build Chapters selection, the full-screen share review/progress UI, and Settings/Shared Links management.
+- Next action: deploy/audit Cloudflare resources, run Android 11 and Android 15/16 KB device suites plus live end-to-end share/privacy/recovery checks, then prepare and publicly verify v1.11.0.
 
 ## Shipped checkpoint
 

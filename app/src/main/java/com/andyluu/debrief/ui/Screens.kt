@@ -30,6 +30,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.AddComment
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -523,7 +524,7 @@ private fun SearchHitCard(hit: SearchHit, onClick: () -> Unit) {
 }
 
 @Composable
-fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
+fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenSharedLinks: () -> Unit) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val usage by viewModel.usage.collectAsStateWithLifecycle()
     val aiLocalUsage = viewModel.aiUsage(settings.aiProvider)
@@ -546,6 +547,19 @@ fun SettingsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            item {
+                Card(Modifier.fillMaxWidth().clickable(onClick = onOpenSharedLinks)) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Share, null)
+                        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                            Text("Cloud sharing", fontWeight = FontWeight.Bold)
+                            Text("Storage, active links, expiry, and resumable uploads", style = MaterialTheme.typography.bodySmall)
+                        }
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, null)
+                    }
+                }
+            }
+            item { HorizontalDivider() }
             item { Text("Transcription provider", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             item {
                 Text(
@@ -874,7 +888,12 @@ private fun SecretField(label: String, value: String, onChange: (String) -> Unit
 }
 
 @Composable
-fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () -> Unit) {
+fun ReviewScreen(
+    viewModel: ReviewViewModel,
+    initialTimestamp: Long,
+    onBack: () -> Unit,
+    onShareSets: (recordingId: String, setIds: List<String>) -> Unit,
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val appSettings by viewModel.settings.collectAsStateWithLifecycle()
     val reloadVersion by viewModel.reloadVersion.collectAsStateWithLifecycle()
@@ -1035,6 +1054,13 @@ fun ReviewScreen(viewModel: ReviewViewModel, initialTimestamp: Long, onBack: () 
                     onDeleteSet = { deletingSet = it },
                     onMerge = viewModel::mergeWithNext,
                     onSplit = viewModel::splitSet,
+                    onShareSets = { setIds ->
+                        val recordingId = recording?.id
+                        if (recordingId != null && setIds.isNotEmpty()) {
+                            scope.launch { drawerState.close() }
+                            onShareSets(recordingId, setIds)
+                        }
+                    },
                 )
             }
         },
@@ -2149,7 +2175,7 @@ private fun SetEditDialog(
 }
 
 @Composable
-private fun BackButton(onBack: () -> Unit) = IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+internal fun BackButton(onBack: () -> Unit) = IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
 
 private fun formatSize(bytes: Long): String = when {
     bytes >= 1_000_000_000 -> "%.1f GB".format(bytes / 1_000_000_000.0)

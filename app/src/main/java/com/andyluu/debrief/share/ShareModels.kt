@@ -62,6 +62,7 @@ data class CreateCloudSetRequest(
 data class CloudDraftResponse(
     val draftId: String,
     val expiresAfterHours: Int,
+    val status: String = "DRAFT",
     val sets: List<CloudDraftSet>,
 )
 
@@ -79,6 +80,9 @@ data class CloudDraftObject(
     val completeUrl: String,
     val minimumPartBytes: Int,
     val maximumPartBytes: Int,
+    val status: String = "UPLOADING",
+    val sizeBytes: Long? = null,
+    val sha256: String? = null,
 )
 
 @Serializable

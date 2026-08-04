@@ -50,6 +50,20 @@ describe("Debrief share service", () => {
     expect(publication.expiresAt).toBeGreaterThan(Date.now() + 29 * 24 * 60 * 60 * 1000);
     expect(publication.sizeBytes).toBeGreaterThan(0);
 
+    const recovered = await ownerFetch(owner, `/v1/owner/share-drafts/${fixture.draftId}`);
+    expect(recovered.status).toBe(200);
+    const recoveredDraft = await recovered.json<any>();
+    expect(recoveredDraft.status).toBe("ACTIVE");
+    expect(recoveredDraft.sets[0].objects.every((object: any) => object.status === "COMPLETE")).toBe(true);
+    expect(recoveredDraft.sets[0].objects.every((object: any) => object.sizeBytes > 0 && object.sha256?.length === 64)).toBe(true);
+
+    const repeatedPublish = await ownerFetch(owner, `/v1/owner/share-drafts/${fixture.draftId}/publish`, {
+      method: "POST",
+      body: JSON.stringify({ publicToken: token }),
+    });
+    expect(repeatedPublish.status).toBe(200);
+    await expect(repeatedPublish.json()).resolves.toMatchObject({ url: `${ORIGIN}/s/${token}` });
+
     const publicResponse = await SELF.fetch(`${ORIGIN}/v1/public/${token}`);
     expect(publicResponse.status).toBe(200);
     const snapshot = await publicResponse.json<any>();

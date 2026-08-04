@@ -86,7 +86,11 @@ class ShareAudioExporter(private val context: Context) {
                 buffer.clear()
                 val size = extractor.readSampleData(buffer, 0)
                 if (size < 0) break
-                info.set(0, size, sampleTime - startUs, extractor.sampleFlags)
+                val extractorFlags = extractor.sampleFlags
+                val codecFlags =
+                    (if (extractorFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0) or
+                    (if (extractorFlags and MediaExtractor.SAMPLE_FLAG_PARTIAL_FRAME != 0) MediaCodec.BUFFER_FLAG_PARTIAL_FRAME else 0)
+                info.set(0, size, sampleTime - startUs, codecFlags)
                 muxer.writeSampleData(outputTrack, buffer, info)
                 wrote = true
                 extractor.advance()

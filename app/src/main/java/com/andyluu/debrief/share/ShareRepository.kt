@@ -204,6 +204,7 @@ class ShareRepository(
         }
         draft = dao.getShareDraft(draftId)!!
         parts = assignRemoteObjects(parts, remote)
+        parts = reconcileRemoteCompletion(parts, remote)
         var completed = parts.sumOf { (if (it.metadataUploaded) 1 else 0) + (if (it.audioUploaded) 2 else 0) }
 
         for (originalPart in parts) {
@@ -339,6 +340,49 @@ class ShareRepository(
             dao.upsertSharePart(updated)
             updated
         }
+
+    private suspend fun reconcileRemoteCompletion(
+        parts: List<SharePartEntity>,
+        remote: CloudDraftResponse,
+    ): List<SharePartEntity> = parts.map { part ->
+        val remoteSet = remote.sets.first { it.clientSetId == part.setId }
+        val audio = remoteSet.objects.first { it.kind == "AUDIO" }
+        val metadata = remoteSet.objects.first { it.kind == "METADATA" }
+        val audioComplete = audio.status == "COMPLETE"
+        val metadataComplete = metadata.status == "COMPLETE"
+        if (part.audioUploaded && !audioComplete) {
+            throw IllegalStateException("Cloud audio state no longer matches the resumable checkpoint.")
+        }
+        if (part.metadataUploaded && !metadataComplete) {
+            throw IllegalStateException("Cloud transcript state no longer matches the resumable checkpoint.")
+        }
+        if (audioComplete) verifyRemoteObject("audio", part.audioSizeBytes, part.audioSha256, audio)
+        if (metadataComplete) verifyRemoteObject("transcript", part.metadataSizeBytes, part.metadataSha256, metadata)
+        if (audioComplete) part.audioPath?.let(::File)?.delete()
+        val updated = part.copy(
+            audioPath = if (audioComplete) null else part.audioPath,
+            audioUploaded = audioComplete,
+            metadataUploaded = metadataComplete,
+            status = if (audioComplete && metadataComplete) SharePartStatus.COMPLETE else part.status,
+            updatedAt = System.currentTimeMillis(),
+        )
+        dao.upsertSharePart(updated)
+        updated
+    }
+
+    private fun verifyRemoteObject(
+        label: String,
+        expectedSize: Long,
+        expectedSha256: String?,
+        remote: CloudDraftObject,
+    ) {
+        if (expectedSize > 0L && remote.sizeBytes != expectedSize) {
+            throw IllegalStateException("The completed cloud $label does not match the private snapshot size.")
+        }
+        if (expectedSha256 != null && !remote.sha256.equals(expectedSha256, ignoreCase = true)) {
+            throw IllegalStateException("The completed cloud $label does not match the private snapshot checksum.")
+        }
+    }
 
     private suspend fun updateDraft(draft: com.andyluu.debrief.data.ShareDraftEntity) = dao.upsertShareDraft(draft)
 
