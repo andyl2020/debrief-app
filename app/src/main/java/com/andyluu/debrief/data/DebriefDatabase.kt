@@ -23,6 +23,12 @@ class Converters {
     @TypeConverter fun toRepairRunMode(value: String): RepairRunMode = RepairRunMode.valueOf(value)
     @TypeConverter fun fromTranscriptQualityStatus(value: TranscriptQualityStatus): String = value.name
     @TypeConverter fun toTranscriptQualityStatus(value: String): TranscriptQualityStatus = TranscriptQualityStatus.valueOf(value)
+    @TypeConverter fun fromShareDraftStatus(value: ShareDraftStatus): String = value.name
+    @TypeConverter fun toShareDraftStatus(value: String): ShareDraftStatus = ShareDraftStatus.valueOf(value)
+    @TypeConverter fun fromSharePartStatus(value: SharePartStatus): String = value.name
+    @TypeConverter fun toSharePartStatus(value: String): SharePartStatus = SharePartStatus.valueOf(value)
+    @TypeConverter fun fromSharedLinkStatus(value: SharedLinkStatus): String = value.name
+    @TypeConverter fun toSharedLinkStatus(value: String): SharedLinkStatus = SharedLinkStatus.valueOf(value)
 }
 
 @Database(
@@ -40,8 +46,12 @@ class Converters {
         RepairRunEntity::class,
         RepairEntity::class,
         TranscriptQualityReportEntity::class,
+        ShareDraftEntity::class,
+        SharePartEntity::class,
+        SharedLinkEntity::class,
+        CloudUsageEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -65,7 +75,7 @@ abstract class DebriefDatabase : RoomDatabase() {
                 DebriefDatabase::class.java,
                 "debrief.db",
             ).openHelperFactory(SupportOpenHelperFactory(passphrase, null, false))
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .addCallback(object : Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
@@ -249,6 +259,102 @@ abstract class DebriefDatabase : RoomDatabase() {
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_redactions_recordingId` ON `redactions` (`recordingId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_redactions_recordingId_startMs` ON `redactions` (`recordingId`, `startMs`)")
+            }
+        }
+
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `share_drafts` (
+                        `id` TEXT NOT NULL,
+                        `recordingId` TEXT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `selectedSetIdsJson` TEXT NOT NULL,
+                        `expiryDays` INTEGER NOT NULL,
+                        `pinEnabled` INTEGER NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `stageLabel` TEXT NOT NULL,
+                        `completedSteps` INTEGER NOT NULL,
+                        `totalSteps` INTEGER NOT NULL,
+                        `serverDraftId` TEXT,
+                        `publicToken` TEXT,
+                        `errorMessage` TEXT,
+                        `createdAt` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`recordingId`) REFERENCES `recordings`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )""".trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_share_drafts_recordingId` ON `share_drafts` (`recordingId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_share_drafts_status_updatedAt` ON `share_drafts` (`status`, `updatedAt`)")
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `share_parts` (
+                        `id` TEXT NOT NULL,
+                        `draftId` TEXT NOT NULL,
+                        `setId` TEXT NOT NULL,
+                        `position` INTEGER NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `sourceStartMs` INTEGER NOT NULL,
+                        `sourceEndMs` INTEGER NOT NULL,
+                        `durationMs` INTEGER NOT NULL,
+                        `metadataPath` TEXT NOT NULL,
+                        `redactionRangesJson` TEXT NOT NULL,
+                        `audioPath` TEXT,
+                        `audioMimeType` TEXT NOT NULL,
+                        `audioObjectId` TEXT,
+                        `metadataObjectId` TEXT,
+                        `audioSizeBytes` INTEGER NOT NULL,
+                        `metadataSizeBytes` INTEGER NOT NULL,
+                        `audioSha256` TEXT,
+                        `metadataSha256` TEXT,
+                        `audioPartsJson` TEXT NOT NULL,
+                        `metadataPartsJson` TEXT NOT NULL,
+                        `audioUploaded` INTEGER NOT NULL,
+                        `metadataUploaded` INTEGER NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `errorMessage` TEXT,
+                        `updatedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`draftId`) REFERENCES `share_drafts`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )""".trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_share_parts_draftId` ON `share_parts` (`draftId`)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_share_parts_draftId_position` ON `share_parts` (`draftId`, `position`)")
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `shared_links` (
+                        `id` TEXT NOT NULL,
+                        `recordingId` TEXT,
+                        `title` TEXT NOT NULL,
+                        `url` TEXT NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `expiryDays` INTEGER NOT NULL,
+                        `setCount` INTEGER NOT NULL,
+                        `totalDurationMs` INTEGER NOT NULL,
+                        `totalSizeBytes` INTEGER NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        `publishedAt` INTEGER NOT NULL,
+                        `expiresAt` INTEGER NOT NULL,
+                        `revokedAt` INTEGER,
+                        `lastSyncedAt` INTEGER NOT NULL,
+                        `errorMessage` TEXT,
+                        PRIMARY KEY(`id`)
+                    )""".trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_shared_links_recordingId` ON `shared_links` (`recordingId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_shared_links_status_expiresAt` ON `shared_links` (`status`, `expiresAt`)")
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `cloud_usage` (
+                        `id` INTEGER NOT NULL,
+                        `currentBytes` INTEGER NOT NULL,
+                        `referenceBytes` INTEGER NOT NULL,
+                        `activeLinks` INTEGER NOT NULL,
+                        `providerBytes` INTEGER,
+                        `measuredAt` INTEGER NOT NULL,
+                        `source` TEXT NOT NULL,
+                        `billingNote` TEXT NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )""".trimIndent()
+                )
             }
         }
     }

@@ -17,6 +17,11 @@ android {
         versionCode = 27
         versionName = "1.10.2"
 
+        val shareBaseUrl = (System.getenv("DEBRIEF_SHARE_BASE_URL") ?: "")
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+        buildConfigField("String", "DEBRIEF_SHARE_BASE_URL", "\"$shareBaseUrl\"")
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

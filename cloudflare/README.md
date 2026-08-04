@@ -46,6 +46,8 @@ npx wrangler d1 migrations apply DB --remote
 7. Deploy and confirm `GET /health`.
 8. Set an R2 lifecycle backstop for abandoned `shares/` staging content. Application cleanup remains authoritative because active expiry varies by share.
 
+Android can re-read an existing private draft manifest through the authenticated owner API after process death; it does not need to allocate a duplicate remote draft.
+
 Never commit `.dev.vars`, real resource credentials, API tokens, pairing codes, or owner credentials.
 
 ## Pair the Android owner device

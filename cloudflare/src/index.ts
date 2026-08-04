@@ -79,6 +79,9 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     if (request.method === "GET" && path === "/v1/owner/shares") return listShares(env, owner);
     if (request.method === "POST" && path === "/v1/owner/share-drafts") return createDraft(request, env, owner);
 
+    const inspectDraftMatch = path.match(/^\/v1\/owner\/share-drafts\/([^/]+)$/);
+    if (request.method === "GET" && inspectDraftMatch?.[1]) return inspectDraft(env, owner, inspectDraftMatch[1]);
+
     const uploadPartMatch = path.match(/^\/v1\/owner\/share-drafts\/([^/]+)\/objects\/([^/]+)\/parts\/(\d+)$/);
     if (request.method === "PUT" && uploadPartMatch?.[1] && uploadPartMatch[2] && uploadPartMatch[3]) {
       return uploadPart(request, env, owner, uploadPartMatch[1], uploadPartMatch[2], Number(uploadPartMatch[3]));
@@ -259,6 +262,30 @@ async function uploadPart(
   const upload = env.AUDIO.resumeMultipartUpload(object.object_key, object.upload_id);
   const part = await upload.uploadPart(partNumber, request.body);
   return json({ partNumber, etag: part.etag });
+}
+
+async function inspectDraft(env: Env, owner: OwnerDevice, draftId: string): Promise<Response> {
+  const share = await ownedShare(env, owner.id, draftId);
+  if (share.status !== "DRAFT") throw new HttpError(409, "NOT_A_DRAFT", "That upload draft is no longer active.");
+  const { results: sets = [] } = await env.DB.prepare("SELECT * FROM share_sets WHERE share_id = ? ORDER BY position")
+    .bind(draftId).all<ShareSetRow>();
+  const { results: objects = [] } = await env.DB.prepare("SELECT * FROM share_objects WHERE share_id = ? ORDER BY share_set_id, kind")
+    .bind(draftId).all<ShareObjectRow>();
+  return json({
+    draftId,
+    expiresAfterHours: stagingTtlHours(env),
+    sets: sets.map((set) => ({
+      clientSetId: set.client_set_id,
+      objects: objects.filter((object) => object.share_set_id === set.id).map((object) => ({
+        objectId: object.id,
+        kind: object.kind,
+        partUrl: `/v1/owner/share-drafts/${draftId}/objects/${object.id}/parts/{partNumber}`,
+        completeUrl: `/v1/owner/share-drafts/${draftId}/objects/${object.id}/complete`,
+        minimumPartBytes: MULTIPART_MIN_BYTES,
+        maximumPartBytes: MAX_PART_BYTES,
+      })),
+    })),
+  });
 }
 
 async function completeObject(

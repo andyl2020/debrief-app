@@ -13,9 +13,11 @@ Implement and release Debrief v1.11.0 with privacy-safe, expiring sharing of com
 - The original recording never uploads. Stored redactions must be rendered permanently into derived shared clips/text before publication.
 - Settings uses the full current 10 GB R2 Standard free-tier reference; there is no separate 8 GB cap.
 - Cloudflare Stages 1 and 2 are implemented under `cloudflare/`: D1 schema, private multipart R2 uploads, server-validated atomic publication, owner/pairing auth, optional PIN, exact expiry/revoke enforcement, range streaming, cleanup/reconciliation, storage usage, and the no-download read-only viewer.
-- Verification: Node 22 TypeScript compile, seven Workers Vitest integration tests against local D1/R2, zero `npm audit` vulnerabilities, and Wrangler production bundle dry-run (50.26 KiB raw/14.04 KiB gzip) pass.
-- Current checkpoint: backend source is locally complete but not deployed because Cloudflare account authentication/resources have not yet been audited.
-- Next action: commit/push backend checkpoint, then implement Android Room/share preparation/upload foundations.
+- Android Stage 3 is implemented: encrypted Room share drafts/parts/links/usage with schema 6 migration, Keystore-backed owner/PIN secrets, a validated HTTPS client, immutable per-set snapshots, resumable multipart checkpoints, sequential clip preparation, redaction-silence audio processing, WorkManager progress/retry/resume, and cleanup after confirmed upload.
+- The backend now exposes authenticated draft inspection so Android can recover remote object IDs after process death without creating duplicate drafts.
+- Verification: Android Kotlin compilation and the JVM test suite pass. Node 22 TypeScript compile and seven Workers integration tests against local D1/R2 also pass; the prior Wrangler production bundle dry-run and zero-vulnerability audit remain green.
+- Current checkpoint: source is not yet deployed because Cloudflare account authentication/resources have not been audited. No source recording is ever queued for upload; only private per-set metadata and derived audio are prepared.
+- Next action: add deterministic privacy/leakage tests, then build Chapters selection, the full-screen share review/progress UI, and Settings/Shared Links management.
 
 ## Shipped checkpoint
 
