@@ -71,10 +71,9 @@ health endpoint. Configure these once in the repository production environment:
 - Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
   `DEBRIEF_SHARE_BOOTSTRAP_SECRET`, `DEBRIEF_SHARE_TOKEN_PEPPER`, and
   `DEBRIEF_SHARE_PIN_PEPPER`.
-- Variable: `DEBRIEF_SHARE_BASE_URL`, containing the production HTTPS Worker URL.
+- Public configuration: the production Worker URL is committed in the single-user app and both workflows; override `DEBRIEF_SHARE_BASE_URL` only for local or staging builds.
 
-The Android release workflow consumes the same public URL variable and refuses
-to publish a production APK when it is absent or not HTTPS. Rotate the three
+Rotate the three
 Worker secrets deliberately: existing owner credentials and public/PIN links
 depend on their peppers and will stop validating after rotation.
 
@@ -88,4 +87,4 @@ depend on their peppers and will stop validating after rotation.
 - Expiry options: 30, 60, or 90 days.
 - Storage meter reference defaults to 10,000,000,000 bytes and remains server-configurable.
 
-Cloudflare's free storage allowance is currently 10 GB-month, calculated from average daily peak storage. The app's prominent bar is current bytes against the configured 10 GB reference and must retain the monthly-averaging explanation.
+Cloudflare's free storage allowance is currently 10 GB-month, calculated from average daily peak storage. The app's prominent bar is current bytes against the configured 10 GB reference, warns at 9 GB, escalates at 10 GB, and must retain the monthly-averaging explanation. Deleting objects reduces current storage and future daily peaks but does not erase usage already accrued earlier in the billing month.

@@ -2,7 +2,7 @@
 
 |  |  |
 | --- | --- |
-| **Status** | Approved; implementation in progress |
+| **Status** | Approved; implemented and in release verification |
 | **Date** | August 3, 2026 |
 | **Scope** | Expiring, privacy-safe sharing of completed manual sets; extends the Debrief PRD; targets Debrief v1.11.0 |
 | **Owner** | Andy Luu |
@@ -34,6 +34,7 @@ The service uses a private Cloudflare R2 bucket for derived audio, D1 for metada
 13. The recipient never receives the full source recording or a client-side reversible mute instruction.
 14. Cloud storage UI uses the full current 10 GB R2 Standard free-tier reference for consistency; there is no separate 8 GB Debrief cap.
 15. No permanent links, public directory, recipient accounts, view counts, or recipient analytics ship in v1.11.0.
+16. Storage warnings begin at 9 GB, escalate at the 10 GB reference, and show the current calendar-month deadline plus a plain-language GB-month explanation in-app and in an Android notification.
 
 ## User Story
 
@@ -207,7 +208,7 @@ Cloudflare currently grants 10 GB-month of R2 Standard storage per month, calcul
 
 The backend reports exact current Debrief object bytes, reconciled R2 bucket bytes/object count, estimated consumed/projected GB-month when available, and measurement source/time/staleness. The app displays current bytes against 10 GB prominently and a secondary monthly estimate.
 
-There is no 8 GB hard cap. Warning states occur at 80%, 90%, and 100%. At or above the current free-tier reference, Create link requires an explicit potential-charge confirmation and never implies that the operation is free.
+There is no 8 GB hard cap. The app stays quiet below 9 GB, warns at 9 GB, and escalates at or above the current free-tier reference. The warning shows the last day of the current calendar month, refreshes in the next month, and explains that reducing stored bytes lowers future daily peaks but cannot erase usage already accrued in the current month. The Android notification repeats at most daily while the state is unchanged and opens Shared Links so storage can be reduced.
 
 Provider allowances remain server-configurable. The v1.11.0 visual default is 10,000,000,000 bytes for Standard R2 storage.
 
@@ -355,14 +356,14 @@ This checklist is the authoritative resume point if work is interrupted. Update 
 - [x] Stage 3: Android Room share state/migration, pairing client, repository, and resumable upload worker. Room schema 6 is exported; Android JVM tests and Kotlin compilation pass. Commit: `32d7fbd`.
 - [x] Stage 4: Set-package builder, exact filtering, clip extraction, permanent redaction rendering, and leakage tests. Boundary, fail-closed untimed text, redacted-word leakage, and PCM silence tests pass. Commit: `32d7fbd`.
 - [x] Stage 5: Chapters set selection, full-screen review, progress/resume, success actions, and errors. Only completed manual sets are selectable; one link retains all selected sets. Commit: `4c4b6d4`.
-- [x] Stage 6: Settings storage card and Shared Links management page. The full 10 GB reference, monthly GB-month explanation, active/resumable state, copy/share/open, extend, revoke, and history are implemented. Commit: `4c4b6d4`.
+- [x] Stage 6: Settings storage card and Shared Links management page. The full 10 GB reference, 9 GB warning, month-end deadline, GB-month tooltip, daily-deduplicated notification, active/resumable state, copy/share/open, extend, revoke, and history are implemented. Commits: `4c4b6d4`, `87c7755`.
 - [x] Stage 7: Full backend/Android/device/privacy regression and recovery tests. Android 11 and Android 15/true-16-KB 32-test suites passed before the conditional live fixture was added. The final Android 11 suite passes all 33 registered tests (the live test safely skips without private arguments), with an empty crash buffer. A separate live test using an ignored real M4A fixture passed derived clip export, permanent text/audio redaction, upload, publication, transcript/comment/audio Range retrieval, 10 GB usage reconciliation, revoke, and immediate public denial. Android JVM/lint/androidTest compilation and seven Worker D1/R2 integration tests pass; Wrangler dry-run is 51.84 KiB raw/14.22 KiB gzip.
 - [ ] Stage 8: Release notes/status/version, signed build, Cloudflare deployment, tag, GitHub release, and public verification.
 
 Stage 8 partial checkpoint: version code 28/name 1.11.0, user guide, limitations,
-release body, release R8, and guarded GitHub deployment/release workflows are
-complete. Production deployment/tag/publication remain intentionally unchecked
-until Cloudflare OAuth is authorized and the real D1/R2/Worker URL is verified.
+release body, and guarded GitHub workflows are complete. Production D1/R2 and
+the Worker are deployed, and the real Android-to-production privacy flow passes.
+Only final release checks, tag/publication, and public signed-APK verification remain.
 
 ## Resume Protocol
 

@@ -23,7 +23,7 @@ Debrief is a local-first Android app for capturing and reviewing long field reco
 - Timestamped comment create/edit/delete and recording-wide speaker aliases
 - Markdown share-sheet export
 - Recording-bound comments, sets, redactions, and speaker names with an encrypted atomic app-private recovery snapshot plus two verified reinstall-safe JSON sidecars next to each recording
-- Privacy-safe Share Sets links containing one to ten completed manual sets from one recording, with separate redacted audio players, transcript, and all in-set comments; 30/60/90-day expiry, revoke/extend, resumable upload, and a 10 GB Cloudflare storage meter
+- Privacy-safe Share Sets links containing one to ten completed manual sets from one recording, with separate redacted audio players, transcript, and all in-set comments; 30/60/90-day expiry, revoke/extend, resumable upload, a 10 GB Cloudflare storage meter, and a 9 GB month-end charge warning with an explanatory tooltip
 
 ## Privacy and secrets
 
@@ -49,8 +49,9 @@ Release signing is supplied only through process environment variables:
 DEBRIEF_KEYSTORE_PATH
 DEBRIEF_KEYSTORE_PASSWORD
 DEBRIEF_KEY_ALIAS
-DEBRIEF_SHARE_BASE_URL
 ```
+
+Release builds default to the deployed Debrief Share Sets Worker. Local or staging builds can override it with `DEBRIEF_SHARE_BASE_URL`.
 
 Signing material and local tooling are ignored by Git.
 

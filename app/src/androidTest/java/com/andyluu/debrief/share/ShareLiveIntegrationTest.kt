@@ -27,6 +27,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.util.UUID
 
 @RunWith(AndroidJUnit4::class)
 class ShareLiveIntegrationTest {
@@ -45,8 +46,9 @@ class ShareLiveIntegrationTest {
         val services = app.services
         val dao = services.database.dao()
         val repository = services.shares
-        val recordingId = "live-share-recording"
-        val setId = "live-share-set"
+        val runId = UUID.randomUUID().toString()
+        val recordingId = "live-share-recording-$runId"
+        val setId = "live-share-set-$runId"
         dao.deleteRecording(recordingId)
         val audio = File(audioPath)
         dao.upsertRecording(

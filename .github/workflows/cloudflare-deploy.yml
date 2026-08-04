@@ -23,7 +23,7 @@ jobs:
       BOOTSTRAP_SECRET: ${{ secrets.DEBRIEF_SHARE_BOOTSTRAP_SECRET }}
       TOKEN_PEPPER: ${{ secrets.DEBRIEF_SHARE_TOKEN_PEPPER }}
       PIN_PEPPER: ${{ secrets.DEBRIEF_SHARE_PIN_PEPPER }}
-      DEBRIEF_SHARE_BASE_URL: ${{ vars.DEBRIEF_SHARE_BASE_URL }}
+      DEBRIEF_SHARE_BASE_URL: https://debrief-share.debrief-share-service.workers.dev
     steps:
       - uses: actions/checkout@v4
 
@@ -41,10 +41,6 @@ jobs:
           test -n "$BOOTSTRAP_SECRET"
           test -n "$TOKEN_PEPPER"
           test -n "$PIN_PEPPER"
-          case "$DEBRIEF_SHARE_BASE_URL" in
-            https://*) ;;
-            *) echo "DEBRIEF_SHARE_BASE_URL must be the deployed HTTPS Worker URL." >&2; exit 1 ;;
-          esac
 
       - run: npm ci
       - run: npm audit --audit-level=high

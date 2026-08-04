@@ -12,6 +12,7 @@ export default defineConfig({
       wrangler: { configPath: "./wrangler.jsonc" },
       miniflare: {
         bindings: {
+          PUBLIC_BASE_URL: "https://share.example.test",
           BOOTSTRAP_SECRET: "test-bootstrap-secret-with-enough-entropy",
           TOKEN_PEPPER: "test-token-pepper-with-enough-entropy",
           PIN_PEPPER: "test-pin-pepper-with-enough-entropy",

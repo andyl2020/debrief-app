@@ -17,7 +17,9 @@ android {
         versionCode = 28
         versionName = "1.11.0"
 
-        val shareBaseUrl = (System.getenv("DEBRIEF_SHARE_BASE_URL") ?: "")
+        val shareBaseUrl = (System.getenv("DEBRIEF_SHARE_BASE_URL")
+            ?.takeIf(String::isNotBlank)
+            ?: "https://debrief-share.debrief-share-service.workers.dev")
             .replace("\\", "\\\\")
             .replace("\"", "\\\"")
         buildConfigField("String", "DEBRIEF_SHARE_BASE_URL", "\"$shareBaseUrl\"")

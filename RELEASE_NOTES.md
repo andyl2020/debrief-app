@@ -82,6 +82,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Debrief never uploads the source recording. It snapshots the selection, exports only each selected time range, permanently renders every stored redaction as `[redacted]` plus silent audio, and includes every comment whose timestamp falls inside the set. The local source and reversible local redactions remain unchanged.
 - Preparation/upload runs in resumable WorkManager foreground work. Completed clips and multipart checkpoints survive app switching, network loss, and process death; errors name the cause and offer **Resume**. A share becomes public only after every expected object passes server size/hash validation.
 - Open **Settings -> Cloud sharing** to see current tracked bytes against the full 10 GB R2 Standard reference, active/resumable links, expiry dates, and per-link sizes. From **Shared links**, copy/share/open, extend to 30/60/90 days from now, or revoke immediately.
+- At 9 GB Debrief shows an amber near-limit warning with the current calendar-month deadline and posts a daily-deduplicated Android notification. At 10 GB it escalates to an exceeded warning. Tap the notification to open Shared Links or tap the info icon to learn how Cloudflare's average-daily-peak GB-month billing works.
 - Cloud setup uses a one-time pairing code. The owner credential is protected by Android Keystore; public-link and optional-PIN secrets are never written into transcript sidecars or uploaded source metadata.
 
 ### Usage, storage, and privacy
@@ -125,6 +126,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - If the Gemini key is missing, rate-limited, offline, or blocked by the **Send short clips** toggle, Enhance fails gracefully or runs only the available text stage.
 - Share links are bearer URLs: anyone who receives a non-PIN link can open it until expiry or revocation. Do not post a sensitive link publicly. Browser screen capture and network tools can still preserve media even though the viewer has no Download control.
 - The 10 GB display is a consistent R2 Standard free-tier reference, not a hard quota guaranteed by Debrief. Cloudflare measures GB-month from average daily peak storage and also applies request limits. Expired/revoked objects are deleted, while the history row remains locally visible.
+- Deleting shares lowers current storage and future daily peaks, but it does not erase GB-month usage already accrued earlier in the current month. The warning deadline is guidance to reduce charge risk, not a promise that deleting immediately resets Cloudflare billing.
 - A share is an immutable snapshot. Later edits, retranscription, comments, set-boundary changes, or local unredactions do not mutate an already published link; revoke and create a replacement.
 - Shares support one recording per link, at most ten completed sets, and at most three hours combined. Recipient comments, accounts, reactions, downloads, analytics, and multi-recording links are not included.
 - Debrief has no general-purpose cloud sync, recipient collaboration, iOS app, video support, or live transcription. Original audio and durable app data remain on the phone.
@@ -133,14 +135,16 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 
 ## Release history
 
-### v1.11.0 - Private Share Sets (2026-08-03)
+### v1.11.0 - Private Share Sets (2026-08-04)
 
 - Added privacy-safe, expiring sharing for one to ten completed manual sets from one recording, with separate audio players, transcript, and every in-set comment in one read-only link.
 - Added immutable local snapshots, exact start-inclusive/end-exclusive filtering, permanently rendered shared redactions, source-free derived clip export, private resumable multipart upload, atomic publication, and process-death reconciliation.
 - Added 30/60/90-day expiry, optional PIN, extend/revoke, public range playback, and exact expiry/revoke denial. The viewer has no Download control and discloses that screen capture cannot be prevented.
 - Added Settings **Cloud sharing** with active/resumable/history management and tracked storage against the full 10 GB R2 Standard reference.
+- Added 9 GB near-limit and 10 GB exceeded states, a current month-end deadline, a GB-month billing tooltip, and a daily-deduplicated Android warning notification that opens Shared Links.
 - Added a private Cloudflare Worker/D1/R2 service with one-time owner pairing, token hashing, PIN throttling, server-validated manifests, private object keys, cleanup/reconciliation, security headers, and a no-index web viewer.
-- Verification before tagging: Android JVM tests, lint, Android-test compilation, seven Worker D1/R2 integration tests, Wrangler dry run, complete Android 11 and Android 15/true-16-KB device suites, and a real ignored-M4A Android-to-Worker privacy test pass. The live test verified permanent redaction, boundary/comment non-leakage, audio Range playback, 10 GB usage reconciliation, revoke, deletion, and immediate public denial.
+- Deployed the production D1 database, private R2 bucket, hourly cleanup schedule, and Worker at `https://debrief-share.debrief-share-service.workers.dev`.
+- Verification before tagging: Android JVM tests, lint, release R8, 34-test Android 11 suite, seven Worker D1/R2 integration tests, Wrangler production dry run, the existing Android 15/true-16-KB device suite, and a real ignored-M4A Android-to-production privacy test pass. The live test verified permanent redaction, boundary/comment non-leakage, audio Range playback, 10 GB usage reconciliation, revoke, deletion, and immediate public denial.
 
 ### v1.10.2 - Faster long-recording saves (2026-08-02)
 
