@@ -31,7 +31,7 @@ class ShareUploadWorker(
             throw error
         } catch (error: CloudShareException) {
             val canRetry = error.retryable && runAttemptCount < 5
-            repository.recordFailure(draftId, error.message, resumable = true)
+            repository.recordFailure(draftId, error.message, resumable = error.retryable)
             if (canRetry) Result.retry() else Result.failure(workDataOf("error" to error.message))
         } catch (error: Throwable) {
             val message = error.message?.takeIf(String::isNotBlank) ?: "The private share could not be prepared."

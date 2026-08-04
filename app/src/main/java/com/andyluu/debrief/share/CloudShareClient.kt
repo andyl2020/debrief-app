@@ -22,7 +22,7 @@ class CloudShareClient(
         .retryOnConnectionFailure(true)
         .build(),
 ) {
-    private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
+    private val json = Json { ignoreUnknownKeys = true; explicitNulls = false; encodeDefaults = true }
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
     suspend fun pair(baseUrl: String, request: PairDeviceRequest): PairDeviceResponse =

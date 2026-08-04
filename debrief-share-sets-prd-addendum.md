@@ -352,11 +352,11 @@ This checklist is the authoritative resume point if work is interrupted. Update 
 - [x] Product questions resolved and PRD addendum written.
 - [x] Stage 1: Cloudflare skeleton, D1 schema, API contracts, security middleware, and backend tests. Commit: `fc9a232`; `npm run check` passes with 7 Worker integration tests.
 - [x] Stage 2: Private R2 upload/publish, range streaming, expiry/revoke/cleanup, storage metrics, and viewer. Wrangler dry-run passes at 50.26 KiB raw/14.04 KiB gzip.
-- [x] Stage 3: Android Room share state/migration, pairing client, repository, and resumable upload worker. Room schema 6 is exported; Android JVM tests and Kotlin compilation pass. Commit: this checkpoint.
-- [x] Stage 4: Set-package builder, exact filtering, clip extraction, permanent redaction rendering, and leakage tests. Boundary, fail-closed untimed text, redacted-word leakage, and PCM silence tests pass.
-- [x] Stage 5: Chapters set selection, full-screen review, progress/resume, success actions, and errors. Only completed manual sets are selectable; one link retains all selected sets.
-- [x] Stage 6: Settings storage card and Shared Links management page. The full 10 GB reference, monthly GB-month explanation, active/resumable state, copy/share/open, extend, revoke, and history are implemented.
-- [ ] Stage 7: Full backend/Android/device/privacy regression and recovery tests.
+- [x] Stage 3: Android Room share state/migration, pairing client, repository, and resumable upload worker. Room schema 6 is exported; Android JVM tests and Kotlin compilation pass. Commit: `32d7fbd`.
+- [x] Stage 4: Set-package builder, exact filtering, clip extraction, permanent redaction rendering, and leakage tests. Boundary, fail-closed untimed text, redacted-word leakage, and PCM silence tests pass. Commit: `32d7fbd`.
+- [x] Stage 5: Chapters set selection, full-screen review, progress/resume, success actions, and errors. Only completed manual sets are selectable; one link retains all selected sets. Commit: `4c4b6d4`.
+- [x] Stage 6: Settings storage card and Shared Links management page. The full 10 GB reference, monthly GB-month explanation, active/resumable state, copy/share/open, extend, revoke, and history are implemented. Commit: `4c4b6d4`.
+- [x] Stage 7: Full backend/Android/device/privacy regression and recovery tests. Android 11 and Android 15/true-16-KB 32-test suites passed before the conditional live fixture was added. The final Android 11 suite passes all 33 registered tests (the live test safely skips without private arguments), with an empty crash buffer. A separate live test using an ignored real M4A fixture passed derived clip export, permanent text/audio redaction, upload, publication, transcript/comment/audio Range retrieval, 10 GB usage reconciliation, revoke, and immediate public denial. Android JVM/lint/androidTest compilation and seven Worker D1/R2 integration tests pass; Wrangler dry-run is 51.84 KiB raw/14.22 KiB gzip.
 - [ ] Stage 8: Release notes/status/version, signed build, Cloudflare deployment, tag, GitHub release, and public verification.
 
 ## Resume Protocol

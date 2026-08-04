@@ -43,7 +43,7 @@ class RedactionSilenceAudioProcessorTest {
         processor.queueInput(singleSample(42))
 
         assertEquals(0, processor.output.order(ByteOrder.nativeOrder()).short.toInt())
-        assertEquals(1L, processor.mutedFrames)
+        assertEquals(2L, processor.mutedFrames)
     }
 
     private fun singleSample(value: Short): ByteBuffer =

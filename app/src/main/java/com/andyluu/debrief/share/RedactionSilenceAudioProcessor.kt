@@ -45,7 +45,8 @@ internal class RedactionSilenceAudioProcessor(
     override fun onFlush() {
         framesProcessed = 0L
         rangeIndex = 0
-        mutedFrames = 0L
+        // Transformer flushes while finalizing an export. Keep the lifetime
+        // verification count for samples that have already been written.
     }
 
     fun expectedMutedFrames(sampleRate: Int): Long = ranges.sumOf { range ->
