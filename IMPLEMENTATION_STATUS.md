@@ -26,7 +26,10 @@ Implement and release Debrief v1.11.0 with privacy-safe, expiring sharing of com
 - Production privacy verification: the ignored real M4A fixture passed Android export/upload against the deployed Worker, including redaction, comment/boundary isolation, public audio Range playback, usage refresh, revoke, immediate 404 denial, and object cleanup. No active test links or test objects remain.
 - Release candidate: Android version code 28/name 1.11.0, production endpoint default, cumulative release notes, and the detailed `docs/releases/v1.11.0.md` guide are prepared. Android JVM/lint/build/Android-test compilation, the targeted 9 GB warning UI test, dependency audit, Worker tests, and the production live flow pass.
 - Deployment automation: the manual Cloudflare workflow applies D1 migrations, uploads Worker secrets, deploys, and health-checks the service after its five production secrets are configured in GitHub. The public Worker URL is committed because it is app configuration, not a secret; staging/local builds can override it.
-- Remaining release action: run final release R8 and cloud checks, tag v1.11.0, wait for the signed GitHub build, then independently verify the public APK, signed upgrade, launch, and production health endpoint.
+- Release complete: annotated tag `v1.11.0` points to `6441fa9`. GitHub Actions runs 30939317098, 30939317099, and 30939331340 passed Cloudflare checks, Android CI, release lint/R8, production signing, 16 KB verification, and publication.
+- Public release: `https://github.com/andyl2020/debrief-app/releases/tag/v1.11.0`. The independently downloaded APK is 9,442,556 bytes with SHA-256 `839BD30D24DD57C77166579E2595A6A2F174866C0EB18CE07DBA1D422C332F66`.
+- Public-artifact verification passed: package `com.andyluu.debrief`, version code 28/name 1.11.0, production RSA-4096 certificate SHA-256 `32BB05383EBD2FE29B70306D607842F1AAED8066C193C720A35EA5B8B8F60FE0`, APK Signature Scheme v3, ARM64/x86-64 16 KB ELF alignment, signed v1.10.2 -> v1.11.0 upgrade with retained first-install time, clean launch, and empty crash buffer.
+- No implementation or release work remains for v1.11.0. The repeatable Cloudflare deployment workflow still requires its documented GitHub production secrets before a future workflow-driven redeploy; the live service itself is deployed and verified.
 
 ## Shipped checkpoint
 

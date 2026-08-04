@@ -358,18 +358,18 @@ This checklist is the authoritative resume point if work is interrupted. Update 
 - [x] Stage 5: Chapters set selection, full-screen review, progress/resume, success actions, and errors. Only completed manual sets are selectable; one link retains all selected sets. Commit: `4c4b6d4`.
 - [x] Stage 6: Settings storage card and Shared Links management page. The full 10 GB reference, 9 GB warning, month-end deadline, GB-month tooltip, daily-deduplicated notification, active/resumable state, copy/share/open, extend, revoke, and history are implemented. Commits: `4c4b6d4`, `87c7755`.
 - [x] Stage 7: Full backend/Android/device/privacy regression and recovery tests. Android 11 and Android 15/true-16-KB 32-test suites passed before the conditional live fixture was added. The final Android 11 suite passes all 33 registered tests (the live test safely skips without private arguments), with an empty crash buffer. A separate live test using an ignored real M4A fixture passed derived clip export, permanent text/audio redaction, upload, publication, transcript/comment/audio Range retrieval, 10 GB usage reconciliation, revoke, and immediate public denial. Android JVM/lint/androidTest compilation and seven Worker D1/R2 integration tests pass; Wrangler dry-run is 51.84 KiB raw/14.22 KiB gzip.
-- [ ] Stage 8: Release notes/status/version, signed build, Cloudflare deployment, tag, GitHub release, and public verification.
+- [x] Stage 8: Release notes/status/version, signed build, Cloudflare deployment, tag, GitHub release, and public verification. Tag `v1.11.0` points to `6441fa9`; the production service and public APK are independently verified.
 
-Stage 8 partial checkpoint: version code 28/name 1.11.0, user guide, limitations,
-release body, and guarded GitHub workflows are complete. Production D1/R2 and
-the Worker are deployed, and the real Android-to-production privacy flow passes.
-Only final release checks, tag/publication, and public signed-APK verification remain.
+Stage 8 is complete. GitHub Actions runs 30939317098, 30939317099, and
+30939331340 passed. The public 9,442,556-byte APK has SHA-256
+`839BD30D24DD57C77166579E2595A6A2F174866C0EB18CE07DBA1D422C332F66`;
+version/signature, 16 KB alignment, signed upgrade, launch, and crash-buffer checks pass.
 
 ## Resume Protocol
 
 1. Read this file and `IMPLEMENTATION_STATUS.md`.
 2. Run `git status --short --branch` and `git log -8 --oneline --decorate`.
-3. Continue the first unchecked implementation checkpoint. Stages 7 and 8 require deployed Cloudflare resources before end-to-end public-link verification.
+3. Continue the first unchecked implementation checkpoint. All v1.11.0 checkpoints are complete as of August 4, 2026.
 4. Never skip the privacy leakage contract to make a share appear functional.
 5. Before stopping, update this checklist and `IMPLEMENTATION_STATUS.md` with exact work, tests, commit, blocker, and next action.
 6. Commit and push each coherent stage. Do not tag or describe v1.11.0 as released until the public APK and deployed service are independently verified.

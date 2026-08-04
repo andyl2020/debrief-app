@@ -145,6 +145,9 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Added a private Cloudflare Worker/D1/R2 service with one-time owner pairing, token hashing, PIN throttling, server-validated manifests, private object keys, cleanup/reconciliation, security headers, and a no-index web viewer.
 - Deployed the production D1 database, private R2 bucket, hourly cleanup schedule, and Worker at `https://debrief-share.debrief-share-service.workers.dev`.
 - Verification before tagging: Android JVM tests, lint, release R8, 34-test Android 11 suite, seven Worker D1/R2 integration tests, Wrangler production dry run, the existing Android 15/true-16-KB device suite, and a real ignored-M4A Android-to-production privacy test pass. The live test verified permanent redaction, boundary/comment non-leakage, audio Range playback, 10 GB usage reconciliation, revoke, deletion, and immediate public denial.
+- GitHub Release: https://github.com/andyl2020/debrief-app/releases/tag/v1.11.0
+- GitHub Actions runs 30939317098, 30939317099, and 30939331340 passed independent Cloudflare checks, Android CI, release lint/R8, production signing, ARM64/x86-64 16 KB checks, and public release publication.
+- Independently verified public APK: 9,442,556 bytes; SHA-256 `839BD30D24DD57C77166579E2595A6A2F174866C0EB18CE07DBA1D422C332F66`. Package version 28/1.11.0, production RSA-4096 certificate, APK Signature Scheme v3, ARM64/x86-64 16 KB alignment, clean launch, empty crash buffer, and signed v1.10.2 -> v1.11.0 upgrade with retained first-install time passed.
 
 ### v1.10.2 - Faster long-recording saves (2026-08-02)
 
