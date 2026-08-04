@@ -143,6 +143,9 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Added pending-draft recovery. Opening Shared Links safely reattaches unfinished snapshot/upload/publish work with `ExistingWorkPolicy.KEEP`, preserving completed checkpoints and avoiding duplicate cloud drafts.
 - Added a regression assertion for the worker's runtime service type.
 - Reproduced the old fatal exception on an Android 15 true-16-KB emulator, then passed the same real ignored-M4A Android-to-production flow after the fix: clip export, permanent redaction, transcript/comment isolation, upload, public Range playback, revoke, object cleanup, and an empty crash buffer.
+- GitHub Release: https://github.com/andyl2020/debrief-app/releases/tag/v1.11.1
+- GitHub Actions runs 30943562869 and 30943574784 passed independent Android CI, release lint/R8, production signing, ARM64/x86-64 16 KB checks, and public release publication.
+- Independently verified public APK: 9,443,610 bytes; SHA-256 `7DB8977403B930120D155639E05916B2F307DFA7D61346D3432032B59CBF9360`. Package version 29/1.11.1, production RSA-4096 certificate, APK Signature Scheme v3, ARM64/x86-64 16 KB alignment, clean launch, empty Debrief crash buffer, and signed v1.11.0 -> v1.11.1 upgrade with retained first-install time passed.
 
 ### v1.11.0 - Private Share Sets (2026-08-04)
 

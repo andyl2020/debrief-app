@@ -13,6 +13,10 @@ Release Debrief v1.11.1 as a stability patch for Share Sets startup and interrup
 - Recovery strengthened: opening Shared Links re-enqueues pending READY_TO_UPLOAD/UPLOADING/PUBLISHING drafts with `ExistingWorkPolicy.KEEP`, so a draft left by the old crash resumes without replacing healthy active work or creating a duplicate cloud draft.
 - Regression coverage: a direct foreground-type instrumentation assertion passes. The exact real ignored-M4A Android-to-production flow that previously crashed now passes on Android 15/true-16-KB, including export, redaction, upload, publish, Range playback, revoke, cleanup, and an empty crash buffer.
 - Release candidate: version code 29/name 1.11.1. JVM tests, debug/release lint, debug build, release R8, Android-test compilation, all 35 registered Android 11/4-KB tests, and all 35 registered Android 15/true-16-KB tests pass. The credential-gated live fixture separately passes against production on Android 15. Tag/publication and public signed-upgrade verification remain.
+- Release complete: annotated tag `v1.11.1` points to `d29e6fa`. GitHub Actions runs 30943562869 and 30943574784 passed independent Android CI, release lint/R8, production signing, 16 KB verification, and publication.
+- Public release: `https://github.com/andyl2020/debrief-app/releases/tag/v1.11.1`. The independently downloaded APK is 9,443,610 bytes with SHA-256 `7DB8977403B930120D155639E05916B2F307DFA7D61346D3432032B59CBF9360`.
+- Public-artifact verification passed: package `com.andyluu.debrief`, version code 29/name 1.11.1, production RSA-4096 certificate SHA-256 `32BB05383EBD2FE29B70306D607842F1AAED8066C193C720A35EA5B8B8F60FE0`, APK Signature Scheme v3, ARM64/x86-64 16 KB ELF alignment, signed v1.11.0 -> v1.11.1 upgrade with retained first-install time, clean launch, and empty Debrief crash buffer.
+- No implementation or release work remains for v1.11.1.
 
 ## Shipped v1.11.0 checkpoint
 
