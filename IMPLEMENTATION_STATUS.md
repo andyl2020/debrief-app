@@ -1,10 +1,19 @@
 # Debrief implementation checkpoint
 
-Last updated: 2026-08-02
+Last updated: 2026-08-03
 
 ## Objective
 
-Implement and release Debrief v1.10.2 with substantially faster finalization for four-to-six-hour recordings while preserving protected crash-recovery parts.
+Implement and release Debrief v1.11.0 with privacy-safe, expiring sharing of completed manual sets, including derived audio, transcript, every in-set comment, Cloudflare storage visibility, and active-link management.
+
+## Active v1.11.0 checkpoint
+
+- Approved requirements, UX, privacy contract, Cloudflare architecture, data model, staged rollout, tests, and resume protocol are recorded in `debrief-share-sets-prd-addendum.md`.
+- One link contains up to ten completed sets/three hours from one recording. The recipient page is a read-only immutable snapshot with separate players, transcript, and all in-set comments.
+- The original recording never uploads. Stored redactions must be rendered permanently into derived shared clips/text before publication.
+- Settings uses the full current 10 GB R2 Standard free-tier reference; there is no separate 8 GB cap.
+- Current checkpoint: specification complete; implementation has not started.
+- Next action: Stage 1 Cloudflare Worker/R2/D1 skeleton, schema, security middleware, and tests.
 
 ## Shipped checkpoint
 
