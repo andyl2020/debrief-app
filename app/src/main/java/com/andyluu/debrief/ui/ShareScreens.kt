@@ -2,11 +2,17 @@
 
 package com.andyluu.debrief.ui
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
@@ -25,6 +32,7 @@ import androidx.compose.material.icons.automirrored.filled.Launch
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
@@ -34,6 +42,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -64,11 +73,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.core.content.ContextCompat
 import com.andyluu.debrief.data.ShareDraftEntity
 import com.andyluu.debrief.data.ShareDraftStatus
 import com.andyluu.debrief.data.SharedLinkEntity
 import com.andyluu.debrief.data.SharedLinkStatus
 import com.andyluu.debrief.share.SHARE_STORAGE_REFERENCE_BYTES
+import com.andyluu.debrief.share.CloudStorageWarningLevel
+import com.andyluu.debrief.share.cloudStorageWarning
 import java.text.DateFormat
 import java.util.Date
 import kotlin.math.ceil
@@ -240,11 +252,22 @@ fun SharedLinksScreen(viewModel: CloudSharingViewModel, onBack: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
+    val usageWarning = state.usage?.let { cloudStorageWarning(it.currentBytes, it.referenceBytes) }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var baseUrl by rememberSaveable(state.settings.cloudShareBaseUrl) { mutableStateOf(state.settings.cloudShareBaseUrl) }
     var pairingCode by rememberSaveable { mutableStateOf("") }
     var revokeTarget by remember { mutableStateOf<SharedLinkEntity?>(null) }
     var cancelTarget by remember { mutableStateOf<ShareDraftEntity?>(null) }
     LaunchedEffect(viewModel) { viewModel.messages.collect { snackbar.showSnackbar(it) } }
+    LaunchedEffect(usageWarning?.level) {
+        if (usageWarning != null && Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -367,10 +390,12 @@ fun SharedLinksScreen(viewModel: CloudSharingViewModel, onBack: () -> Unit) {
 }
 
 @Composable
-private fun CloudUsageCard(usage: com.andyluu.debrief.data.CloudUsageEntity?) {
+internal fun CloudUsageCard(usage: com.andyluu.debrief.data.CloudUsageEntity?) {
     val reference = usage?.referenceBytes?.takeIf { it > 0 } ?: SHARE_STORAGE_REFERENCE_BYTES
     val current = usage?.currentBytes?.coerceAtLeast(0) ?: 0L
     val ratio = (current.toDouble() / reference.toDouble()).coerceIn(0.0, 1.0).toFloat()
+    val warning = cloudStorageWarning(current, reference)
+    var showExplanation by remember { mutableStateOf(false) }
     val warningColor = when {
         ratio >= 1f -> MaterialTheme.colorScheme.errorContainer
         ratio >= .9f -> MaterialTheme.colorScheme.tertiaryContainer
@@ -381,6 +406,18 @@ private fun CloudUsageCard(usage: com.andyluu.debrief.data.CloudUsageEntity?) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Cloudflare storage", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 Text("${usage?.activeLinks ?: 0} active")
+                Box {
+                    IconButton(onClick = { showExplanation = true }) {
+                        Icon(Icons.Default.Info, "Explain Cloudflare storage billing")
+                    }
+                    DropdownMenu(expanded = showExplanation, onDismissRequest = { showExplanation = false }) {
+                        Text(
+                            "Warnings begin at 9 GB. Cloudflare's free 10 GB-month allowance uses average daily peak storage across the calendar month; it is not a hard capacity that resets instantly. Deleting earlier lowers the monthly average, but usage already accrued remains until the next month.",
+                            modifier = Modifier.width(300.dp).padding(16.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
             }
             Text("${formatBytes(current)} of ${formatBytes(reference)}")
             LinearProgressIndicator(progress = { ratio }, modifier = Modifier.fillMaxWidth())
@@ -389,6 +426,19 @@ private fun CloudUsageCard(usage: com.andyluu.debrief.data.CloudUsageEntity?) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            warning?.let {
+                val deadline = formatDate(it.deadlineMillis)
+                Text(
+                    if (it.level == CloudStorageWarningLevel.EXCEEDED) {
+                        "Free-tier reference exceeded. Reduce storage before $deadline to lower this month's average; Cloudflare may charge if monthly usage remains above its free allowance."
+                    } else {
+                        "Near the free allowance. Keep storage below 10 GB before $deadline to reduce the risk of R2 storage charges."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (it.level == CloudStorageWarningLevel.EXCEEDED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onTertiaryContainer,
+                )
+            }
             usage?.billingNote?.takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         }
     }

@@ -39,6 +39,7 @@ class ShareRepository(
     private val dao = database.dao()
     private val snapshots = ShareSnapshotBuilder(context, database)
     private val exporter = ShareAudioExporter(context)
+    private val storageWarnings = CloudStorageWarningNotifier(context)
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     val sharedLinks: Flow<List<SharedLinkEntity>> = dao.observeSharedLinks()
@@ -105,6 +106,7 @@ class ShareRepository(
                 billingNote = usage.billingNote,
             )
         )
+        storageWarnings.update(usage.currentBytes, usage.referenceBytes)
         val remote = client.shares(baseUrl, token)
         remote.shares.forEach { item ->
             val existing = dao.getSharedLink(item.id)

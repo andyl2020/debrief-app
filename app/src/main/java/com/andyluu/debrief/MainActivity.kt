@@ -46,11 +46,13 @@ class MainActivity : ComponentActivity() {
     private val appViewModel: AppViewModel by viewModels()
     private val recorderViewModel: RecorderViewModel by viewModels()
     private val openRecorderRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val openSharedLinksRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         (application as DebriefApplication).services.recorder.recoverInterruptedIfNeeded()
         val openRecorderOnLaunch = intent?.getBooleanExtra(EXTRA_OPEN_RECORDER, false) == true
+        val openSharedLinksOnLaunch = intent?.getBooleanExtra(EXTRA_OPEN_SHARED_LINKS, false) == true
         setContent {
             DebriefTheme {
                 val nav = rememberNavController()
@@ -118,10 +120,19 @@ class MainActivity : ComponentActivity() {
                         nav.navigate("recorder") { launchSingleTop = true }
                     }
                 }
+                LaunchedEffect(nav) {
+                    openSharedLinksRequests.collect {
+                        nav.navigate("shared-links") { launchSingleTop = true }
+                    }
+                }
 
                 NavHost(
                     navController = nav,
-                    startDestination = if (openRecorderOnLaunch) "recorder" else "library",
+                    startDestination = when {
+                        openRecorderOnLaunch -> "recorder"
+                        openSharedLinksOnLaunch -> "shared-links"
+                        else -> "library"
+                    },
                 ) {
                     composable("library") {
                         LibraryScreen(
@@ -258,10 +269,13 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         if (intent.getBooleanExtra(EXTRA_OPEN_RECORDER, false)) {
             openRecorderRequests.tryEmit(Unit)
+        } else if (intent.getBooleanExtra(EXTRA_OPEN_SHARED_LINKS, false)) {
+            openSharedLinksRequests.tryEmit(Unit)
         }
     }
 
     companion object {
         const val EXTRA_OPEN_RECORDER = "open_recorder"
+        const val EXTRA_OPEN_SHARED_LINKS = "open_shared_links"
     }
 }
