@@ -35,6 +35,9 @@ class ShareLiveIntegrationTest {
         val arguments = InstrumentationRegistry.getArguments()
         val pairingCode = arguments.getString("sharePairingCode").orEmpty()
         val audioPath = arguments.getString("shareAudioPath").orEmpty()
+        val baseUrl = arguments.getString("shareBaseUrl").orEmpty()
+            .ifBlank { DEFAULT_BASE_URL }
+            .trimEnd('/')
         assumeTrue("Live share test requires a pairing code", pairingCode.isNotBlank())
         assumeTrue("Live share test requires app-private sample audio", audioPath.isNotBlank() && File(audioPath).isFile)
 
@@ -75,7 +78,7 @@ class ShareLiveIntegrationTest {
         dao.upsertRedaction(RedactionEntity("private-word", recordingId, 1_600, 2_000, "private"))
         dao.insertConversationSets(listOf(ConversationSetEntity(setId, recordingId, 0, 1_000, 6_000, "Selected conversation")))
 
-        repository.pair(BASE_URL, pairingCode)
+        repository.pair(baseUrl, pairingCode)
         val draftId = repository.createAndEnqueue(recordingId, listOf(setId), "Live private share", 30, null)
         val outcome = withTimeout(180_000) {
             combine(repository.sharedLinks, repository.drafts) { links, drafts -> links to drafts }
@@ -88,10 +91,10 @@ class ShareLiveIntegrationTest {
         check(failed == null) { "Share worker failed at ${failed?.stageLabel}: ${failed?.errorMessage}" }
         val link = outcome.first.first { it.recordingId == recordingId }
         assertEquals(SharedLinkStatus.ACTIVE, link.status)
-        assertTrue(link.url.startsWith("$BASE_URL/s/"))
+        assertTrue(link.url.startsWith("$baseUrl/s/"))
         val token = link.url.substringAfterLast('/')
         val client = OkHttpClient()
-        val body = client.newCall(Request.Builder().url("$BASE_URL/v1/public/$token").build()).execute().use { response ->
+        val body = client.newCall(Request.Builder().url("$baseUrl/v1/public/$token").build()).execute().use { response ->
             assertEquals(200, response.code)
             response.body!!.string()
         }
@@ -105,7 +108,7 @@ class ShareLiveIntegrationTest {
             ?: error("Public set ID missing")
         client.newCall(
             Request.Builder()
-                .url("$BASE_URL/v1/public/$token/sets/$setCloudId/audio")
+                .url("$baseUrl/v1/public/$token/sets/$setCloudId/audio")
                 .header("Range", "bytes=0-1023")
                 .build()
         ).execute().use { response ->
@@ -118,7 +121,7 @@ class ShareLiveIntegrationTest {
         assertEquals(SHARE_STORAGE_REFERENCE_BYTES, usage.referenceBytes)
         assertTrue(usage.currentBytes > 0)
         repository.revoke(link.id)
-        client.newCall(Request.Builder().url("$BASE_URL/v1/public/$token").build()).execute().use { response ->
+        client.newCall(Request.Builder().url("$baseUrl/v1/public/$token").build()).execute().use { response ->
             assertEquals(404, response.code)
         }
         dao.deleteRecording(recordingId)
@@ -133,6 +136,6 @@ class ShareLiveIntegrationTest {
     )
 
     companion object {
-        private const val BASE_URL = "http://10.0.2.2:8787"
+        private const val DEFAULT_BASE_URL = "http://10.0.2.2:8787"
     }
 }
