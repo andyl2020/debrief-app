@@ -1,0 +1,175 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { App } from '../src/ui/App'
+import { OpfsStorageAdapter } from '../src/storage/opfs-adapter'
+import { Repository } from '../src/state/repository'
+import { FakeDirectoryHandle, audioFile } from './fake-fs'
+import { freshDatabase } from './fresh-db'
+
+/**
+ * End-to-end-ish smoke coverage in jsdom. Unit tests prove the ported logic is
+ * faithful; these prove the app actually mounts, picks a storage mode, lists a
+ * recording and opens it, rather than crashing on first render.
+ */
+describe('App', () => {
+  beforeEach(() => {
+    freshDatabase()
+    vi.unstubAllGlobals()
+    // jsdom has no media element playback and no object URLs for blobs.
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:audio', revokeObjectURL: () => {} }))
+  })
+
+  it('offers the storage choice when nothing is linked yet', async () => {
+    removeOpfs()
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: /Where should Debrief keep your recordings/i })).toBeInTheDocument()
+    // Safari has no folder linking, and the app should say so instead of
+    // showing a button that cannot work.
+    expect(screen.getByText(/Folder linking isn’t available in this browser/i)).toBeInTheDocument()
+  })
+
+  it('mounts into browser storage, lists an imported recording and opens it', async () => {
+    const root = installOpfs()
+    await seedRecording(root)
+
+    render(<App />)
+
+    // Library shows the recording and its status.
+    expect(await screen.findByText('Interview.m4a')).toBeInTheDocument()
+    expect(screen.getByText('New')).toBeInTheDocument()
+    expect(screen.getByText('Browser storage')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /Interview\.m4a/ }))
+
+    expect(await screen.findByRole('button', { name: '← Library' })).toBeInTheDocument()
+    expect(
+      screen.getByText(/No transcript yet\. Select this recording in the Library/i),
+    ).toBeInTheDocument()
+  })
+
+  it('renders a transcript with speakers, comments and tap-to-seek timestamps', async () => {
+    installOpfs()
+    await seedRecording(new FakeDirectoryHandle(), { withTranscript: true })
+
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: /Interview\.m4a/ }))
+
+    expect(await screen.findByText('Hey good to meet you.')).toBeInTheDocument()
+    expect(screen.getByText('The seawall route was solid.')).toBeInTheDocument()
+    expect(screen.getAllByText('Speaker A').length).toBeGreaterThan(0)
+    // A comment left in the gap after the final line must still be visible.
+    expect(screen.getByText('Left during silence')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '0:01' })).toBeInTheDocument()
+  })
+
+  it('masks redacted words in the transcript when redaction mode is on', async () => {
+    installOpfs()
+    await seedRecording(new FakeDirectoryHandle(), { withTranscript: true })
+
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: /Interview\.m4a/ }))
+    await screen.findByText('Hey good to meet you.')
+
+    await userEvent.click(screen.getByLabelText(/Redaction mode/i))
+    // Redact the first line, then confirm the words are gone from the DOM.
+    await userEvent.click(screen.getAllByRole('button', { name: 'Redact this line' })[0]!)
+
+    await waitFor(() => {
+      expect(screen.queryByText('Hey good to meet you.')).not.toBeInTheDocument()
+    })
+    expect(screen.getByText('[redacted]')).toBeInTheDocument()
+    expect(screen.getByText(/playback mutes from/i)).toBeInTheDocument()
+  })
+
+  it('shows the recorder Coming Soon wall instead of a broken recorder', async () => {
+    installOpfs()
+
+    render(<App />)
+    await screen.findByRole('button', { name: 'Record' })
+    await userEvent.click(screen.getByRole('button', { name: 'Record' }))
+
+    expect(await screen.findByRole('heading', { name: 'Recorder' })).toBeInTheDocument()
+    expect(
+      screen.getByText('Download the full app on Android to experience full features.'),
+    ).toBeInTheDocument()
+  })
+
+  it('asks for a vault passphrase before any key can be entered', async () => {
+    installOpfs()
+
+    render(<App />)
+    await screen.findByRole('button', { name: 'Settings' })
+    await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
+
+    expect(await screen.findByLabelText(/Choose a vault passphrase/i)).toBeInTheDocument()
+    // No key field is offered until the vault exists and is unlocked.
+    expect(screen.queryByLabelText(/AssemblyAI API key/i)).not.toBeInTheDocument()
+  })
+})
+
+function installOpfs(): FakeDirectoryHandle {
+  const root = new FakeDirectoryHandle('root')
+  Object.defineProperty(globalThis.navigator, 'storage', {
+    value: { getDirectory: async () => root, persist: async () => false, estimate: async () => ({ usage: 0, quota: 0 }) },
+    configurable: true,
+  })
+  return root
+}
+
+function removeOpfs(): void {
+  Object.defineProperty(globalThis.navigator, 'storage', { value: undefined, configurable: true })
+}
+
+async function seedRecording(
+  _root: FakeDirectoryHandle,
+  options: { withTranscript?: boolean } = {},
+): Promise<void> {
+  const adapter = new OpfsStorageAdapter()
+  const repository = new Repository(adapter)
+  const [source] = await adapter.add([audioFile('Interview.m4a')])
+  const recording = await repository.importSource(source!)
+  if (!options.withTranscript) return
+
+  await repository.replaceTranscript(
+    recording.id,
+    [
+      segment(recording.id, 1_000, 5_000, 'Speaker A', 'Hey good to meet you.'),
+      segment(recording.id, 6_000, 10_000, 'Speaker B', 'The seawall route was solid.'),
+    ],
+    [
+      word(recording.id, 'Hey', 1_000, 1_400),
+      word(recording.id, 'good', 1_400, 1_800),
+      word(recording.id, 'to', 1_800, 2_100),
+      word(recording.id, 'meet', 2_100, 2_500),
+      word(recording.id, 'you.', 2_500, 3_000),
+    ],
+  )
+  await repository.setComments(recording.id, [
+    {
+      id: 'c1',
+      recordingId: recording.id,
+      timestampMs: 40_000,
+      text: 'Left during silence',
+      createdAt: 0,
+      updatedAt: 0,
+    },
+  ])
+  await repository.updateRecording(recording.id, { status: 'READY', durationMs: 60_000 })
+}
+
+function segment(
+  recordingId: string,
+  startMs: number,
+  endMs: number,
+  speakerId: string,
+  text: string,
+) {
+  return { id: startMs, recordingId, speakerId, startMs, endMs, text }
+}
+
+function word(recordingId: string, text: string, startMs: number, endMs: number) {
+  return { id: startMs, recordingId, speakerId: 'Speaker A', startMs, endMs, text, confidence: 0.9 }
+}
