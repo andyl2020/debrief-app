@@ -9,8 +9,9 @@ import { IoError } from '../core/errors'
  * discloses that in Settings rather than implying parity it does not have.
  */
 
-const DB_NAME = 'debrief'
 const DB_VERSION = 1
+
+let databaseName = 'debrief'
 
 export const STORES = {
   recordings: 'recordings',
@@ -44,7 +45,7 @@ let connection: Promise<IDBDatabase> | null = null
 export function openDatabase(): Promise<IDBDatabase> {
   if (connection) return connection
   connection = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION)
+    const request = indexedDB.open(databaseName, DB_VERSION)
 
     request.onupgradeneeded = () => {
       const db = request.result
@@ -74,9 +75,19 @@ export function openDatabase(): Promise<IDBDatabase> {
   return connection
 }
 
-/** Test seam - drops the memoised connection so a fresh fake-indexeddb can be used. */
-export function resetDatabaseConnection(): void {
+/**
+ * Test seam - drops the memoised connection so a fresh fake-indexeddb can be
+ * used, optionally under a different database name.
+ *
+ * The name matters for isolation. A test that finishes can still have async
+ * work in flight; when the next test swaps in a clean IndexedDB, that straggler
+ * re-opens by name and writes the previous test's rows into it. Rotating the
+ * name means late writes land somewhere harmless instead of corrupting the next
+ * test's fixture.
+ */
+export function resetDatabaseConnection(name = 'debrief'): void {
   connection = null
+  databaseName = name
 }
 
 async function run<T>(

@@ -1,5 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import 'fake-indexeddb/auto'
+import { afterEach } from 'vitest'
+import { cleanup } from '@testing-library/react'
 import { Blob as NodeBlob, File as NodeFile } from 'node:buffer'
 import { webcrypto } from 'node:crypto'
 
@@ -12,6 +14,27 @@ import { webcrypto } from 'node:crypto'
  */
 Object.defineProperty(globalThis, 'Blob', { value: NodeBlob, configurable: true, writable: true })
 Object.defineProperty(globalThis, 'File', { value: NodeFile, configurable: true, writable: true })
+
+/**
+ * Unmount, then let the unmounted app's in-flight work finish.
+ *
+ * Two things bit here. Testing Library's automatic cleanup was not running, so
+ * a previous test's App stayed mounted and rendered a second tree. And even
+ * once unmounted, its async chains keep going: they call `openDatabase()` some
+ * awaits later, which by then resolves to the NEXT test's database, and write
+ * a stale sidecar into it. `importSource` then correctly adopts that sidecar
+ * and the recording turns up already transcribed - an intermittent failure
+ * that looked like a missing Transcribe button.
+ *
+ * Draining before the next test swaps databases keeps those writes where they
+ * belong.
+ */
+afterEach(async () => {
+  cleanup()
+  for (let tick = 0; tick < 8; tick += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  }
+})
 
 // jsdom exposes crypto.getRandomValues but not SubtleCrypto, which the key
 // vault needs.

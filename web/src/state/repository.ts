@@ -110,6 +110,19 @@ export class Repository {
    * Android uses so a rescan can never silently discard user-authored markers.
    */
   async rescan(): Promise<{ added: Recording[]; removed: string[] }> {
+    // Serialised because rescan is read-then-write across many awaits. Two
+    // concurrent runs — React's double-mounted effects in development, or a
+    // double-tapped "Rescan folder" — would each read an empty library and
+    // then both import the same file, leaving duplicate recordings.
+    this.rescanInFlight ??= this.runRescan().finally(() => {
+      this.rescanInFlight = null
+    })
+    return this.rescanInFlight
+  }
+
+  private rescanInFlight: Promise<{ added: Recording[]; removed: string[] }> | null = null
+
+  private async runRescan(): Promise<{ added: Recording[]; removed: string[] }> {
     const sources = await this.storage.list()
     const existing = await this.listRecordings()
     const byKey = new Map(existing.map((recording) => [recording.sourceKey, recording]))
@@ -117,7 +130,12 @@ export class Repository {
     const added: Recording[] = []
     for (const source of sources) {
       if (byKey.has(source.key)) continue
+      // Re-check immediately before writing: `existing` was read many awaits
+      // ago and another writer may have imported this source since.
+      const current = await this.listRecordings()
+      if (current.some((recording) => recording.sourceKey === source.key)) continue
       const recording = await this.importSource(source)
+      byKey.set(source.key, recording)
       added.push(recording)
     }
 
