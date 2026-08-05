@@ -8,6 +8,28 @@ export interface Env {
   BOOTSTRAP_SECRET: string;
   TOKEN_PEPPER: string;
   PIN_PEPPER: string;
+  /** Comma-separated origins allowed to call the owner API from a browser. */
+  ALLOWED_ORIGINS?: string;
+}
+
+/** A personal-library item. Every field here is opaque or a size; see 0002_library.sql. */
+export interface LibraryItemRow {
+  id: string;
+  version: number;
+  updated_at: number;
+  created_at: number;
+  created_by_device: string | null;
+  status: "PENDING" | "COMPLETE";
+  audio_key: string;
+  audio_nonce: string;
+  audio_bytes: number;
+  audio_upload_id: string | null;
+  audio_status: "PENDING" | "COMPLETE";
+  meta_key: string;
+  meta_nonce: string;
+  meta_bytes: number;
+  meta_upload_id: string | null;
+  meta_status: "PENDING" | "COMPLETE";
 }
 
 export interface OwnerDevice {

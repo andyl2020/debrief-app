@@ -85,6 +85,53 @@ export function bearer(request: Request): string | null {
   return token || null;
 }
 
+/**
+ * CORS, for the owner API only.
+ *
+ * The Android app is a native client and never needed this; the web app is a
+ * browser on a different origin, so without it every owner call is blocked
+ * before it is sent. The public share viewer deliberately does NOT get these
+ * headers - it is same-origin HTML served by this Worker, and opening it up
+ * would let any site read a share token holder's content.
+ *
+ * `Access-Control-Expose-Headers` matters more than it looks: without
+ * Content-Range and Accept-Ranges the client cannot see the response to a
+ * range request, which is exactly what encrypted seeking depends on.
+ */
+export function allowedOrigin(request: Request, env: { ALLOWED_ORIGINS?: string }): string | null {
+  const origin = request.headers.get("Origin");
+  if (!origin) return null;
+  const allowed = (env.ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  if (allowed.includes("*")) return origin;
+  return allowed.includes(origin) ? origin : null;
+}
+
+export function corsHeaders(origin: string): Record<string, string> {
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET, HEAD, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "authorization, content-type, range",
+    "Access-Control-Expose-Headers": "content-range, accept-ranges, content-length, etag",
+    "Access-Control-Max-Age": "86400",
+    Vary: "Origin",
+  };
+}
+
+export function preflight(origin: string): Response {
+  return new Response(null, { status: 204, headers: corsHeaders(origin) });
+}
+
+/** Copies CORS headers onto an already-built response. */
+export function withCors(response: Response, origin: string | null): Response {
+  if (!origin) return response;
+  const headers = new Headers(response.headers);
+  for (const [name, value] of Object.entries(corsHeaders(origin))) headers.set(name, value);
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 export function noLogTokenPath(pathname: string): string {
   return pathname
     .replace(/\/s\/[^/]+/, "/s/[secret]")

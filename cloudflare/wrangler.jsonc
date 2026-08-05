@@ -8,7 +8,11 @@
     "PUBLIC_BASE_URL": "https://debrief-share.debrief-share-service.workers.dev",
     "FREE_STORAGE_BYTES": "10000000000",
     "PIN_KDF_ITERATIONS": "25000",
-    "STAGING_TTL_HOURS": "24"
+    "STAGING_TTL_HOURS": "24",
+    // Origins allowed to call the owner API from a browser, comma separated.
+    // Needed by the web app; the Android client does not use CORS. Set this to
+    // wherever the web app is served from before deploying.
+    "ALLOWED_ORIGINS": "http://localhost:5173"
   },
   "secrets": {
     "required": ["BOOTSTRAP_SECRET", "TOKEN_PEPPER", "PIN_PEPPER"]
