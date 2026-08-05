@@ -710,3 +710,8 @@ label { display: block; font-size: 0.9rem; }
   align-items: start;
   font-size: 0.88rem;
 }
+
+.button--small {
+  font-size: 0.8rem;
+  padding: 5px 10px;
+}

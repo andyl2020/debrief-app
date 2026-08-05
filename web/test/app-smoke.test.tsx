@@ -141,6 +141,44 @@ describe('App', () => {
     expect(screen.getByText(/playback mutes from/i)).toBeInTheDocument()
   })
 
+  it('offers Transcribe on the recording itself, not only behind a checkbox', async () => {
+    // Regression: the only way to transcribe used to be ticking a checkbox with
+    // a visually-hidden label, and the toolbar button sat there permanently
+    // disabled. Clicking it did nothing and explained nothing.
+    installOpfs()
+    await seedRecording(new FakeDirectoryHandle())
+
+    render(<App />)
+    await screen.findByText('Interview.m4a')
+
+    expect(screen.getByRole('button', { name: 'Transcribe' })).toBeEnabled()
+    // No inert batch button when nothing is selected.
+    expect(screen.queryByRole('button', { name: /selected/ })).not.toBeInTheDocument()
+  })
+
+  it('says what is missing when transcription cannot start', async () => {
+    installOpfs()
+    await seedRecording(new FakeDirectoryHandle())
+
+    render(<App />)
+    await screen.findByText('Interview.m4a')
+    await userEvent.click(screen.getByRole('button', { name: 'Transcribe' }))
+
+    // Rather than failing silently, it names the next step.
+    expect(await screen.findByText(/create a key vault, and add your AssemblyAI or Deepgram API key/i)).toBeInTheDocument()
+  })
+
+  it('reveals the batch button once recordings are ticked', async () => {
+    installOpfs()
+    await seedRecording(new FakeDirectoryHandle())
+
+    render(<App />)
+    await screen.findByText('Interview.m4a')
+    await userEvent.click(screen.getByRole('checkbox'))
+
+    expect(await screen.findByRole('button', { name: 'Transcribe 1 selected' })).toBeEnabled()
+  })
+
   it('shows the recorder Coming Soon wall instead of a broken recorder', async () => {
     installOpfs()
 

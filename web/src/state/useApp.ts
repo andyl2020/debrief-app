@@ -298,7 +298,17 @@ export function useApp() {
       const repository = repositoryRef.current
       if (!repository) return
       if (!vault) {
-        notify('Unlock your key vault in Settings before transcribing.')
+        notify(
+          hasVault
+            ? 'Open Settings and unlock your key vault before transcribing.'
+            : 'Open Settings, create a key vault, and add your AssemblyAI or Deepgram API key before transcribing.',
+        )
+        return
+      }
+      if (!vault.has(settings.provider)) {
+        notify(
+          `No ${settings.provider === 'assemblyai' ? 'AssemblyAI' : 'Deepgram'} API key is saved. Add one in Settings.`,
+        )
         return
       }
 
@@ -329,7 +339,7 @@ export function useApp() {
         await refreshRecordings()
       }
     },
-    [notify, refreshRecordings, settings, vault],
+    [hasVault, notify, refreshRecordings, settings, vault],
   )
 
   return {

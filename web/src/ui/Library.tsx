@@ -82,17 +82,25 @@ export function Library({ app, onOpen }: { app: AppApi; onOpen: (id: string) => 
               Rescan folder
             </button>
           )}
-          <button
-            type="button"
-            className="button button--primary"
-            disabled={transcribable.length === 0}
-            onClick={() => {
-              void app.actions.transcribe(transcribable.map((recording) => recording.id))
-              setSelected(new Set())
-            }}
-          >
-            Transcribe{transcribable.length > 0 ? ` (${transcribable.length})` : ''}
-          </button>
+          {/*
+            Only offered once something is ticked. A permanently-visible
+            disabled "Transcribe" was the worst button in the app: with nothing
+            selected it did nothing at all and never said why, which read as the
+            whole feature being broken. Each card now carries its own Transcribe
+            action, and this one is purely for batches.
+          */}
+          {transcribable.length > 0 && (
+            <button
+              type="button"
+              className="button button--primary"
+              onClick={() => {
+                void app.actions.transcribe(transcribable.map((recording) => recording.id))
+                setSelected(new Set())
+              }}
+            >
+              Transcribe {transcribable.length} selected
+            </button>
+          )}
         </div>
       </div>
 
@@ -136,6 +144,7 @@ export function Library({ app, onOpen }: { app: AppApi; onOpen: (id: string) => 
                 progress={progress[recording.id]}
                 onToggle={() => toggle(recording.id)}
                 onOpen={() => onOpen(recording.id)}
+                onTranscribe={() => void app.actions.transcribe([recording.id])}
                 onDelete={() => void app.actions.deleteRecording(recording.id)}
               />
             </li>
@@ -160,6 +169,7 @@ function RecordingCard({
   progress,
   onToggle,
   onOpen,
+  onTranscribe,
   onDelete,
 }: {
   recording: Recording
@@ -167,13 +177,17 @@ function RecordingCard({
   progress?: { stage: string; fraction: number | null }
   onToggle: () => void
   onOpen: () => void
+  onTranscribe: () => void
   onDelete: () => void
 }) {
+  const busy = recording.status === 'QUEUED' || recording.status === 'TRANSCRIBING'
+  const canTranscribe = !busy
+
   return (
     <article className={`recording ${selected ? 'recording--selected' : ''}`}>
-      <label className="recording__select">
+      <label className="recording__select" title={`Select ${recording.displayName} for batch transcription`}>
         <input type="checkbox" checked={selected} onChange={onToggle} />
-        <span className="visually-hidden">Select {recording.displayName}</span>
+        <span className="visually-hidden">Select {recording.displayName} for batch transcription</span>
       </label>
 
       <button type="button" className="recording__body" onClick={onOpen}>
@@ -199,6 +213,15 @@ function RecordingCard({
         <span className={`status status--${recording.status.toLowerCase()}`}>
           {STATUS_LABEL[recording.status]}
         </span>
+        {canTranscribe && (
+          <button type="button" className="button button--primary button--small" onClick={onTranscribe}>
+            {recording.status === 'READY'
+              ? 'Retranscribe'
+              : recording.status === 'FAILED'
+                ? 'Try again'
+                : 'Transcribe'}
+          </button>
+        )}
         <button type="button" className="button button--quiet" onClick={onDelete}>
           Remove
         </button>
