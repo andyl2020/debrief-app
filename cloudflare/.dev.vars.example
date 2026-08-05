@@ -1,0 +1,3 @@
+BOOTSTRAP_SECRET=replace-with-at-least-32-random-bytes
+TOKEN_PEPPER=replace-with-an-independent-32-byte-random-secret
+PIN_PEPPER=replace-with-an-independent-32-byte-random-secret

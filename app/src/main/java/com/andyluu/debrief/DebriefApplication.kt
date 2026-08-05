@@ -14,6 +14,7 @@ import com.andyluu.debrief.ai.AiPassProcessor
 import com.andyluu.debrief.ai.RecordingRenamer
 import com.andyluu.debrief.enhance.AiEnhanceProcessor
 import com.andyluu.debrief.recording.RecordingRepository
+import com.andyluu.debrief.share.ShareRepository
 
 class AppServices(application: Application) {
     val database = DebriefDatabase.get(application)
@@ -29,6 +30,7 @@ class AppServices(application: Application) {
     val aiEnhance = AiEnhanceProcessor(application, database, settings, secrets, search, sidecars, usage)
     val folders = FolderRepository(application, database.dao(), sidecars)
     val recorder = RecordingRepository(application)
+    val shares = ShareRepository(application, database, settings, secrets)
 }
 
 class DebriefApplication : Application() {

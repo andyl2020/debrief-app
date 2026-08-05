@@ -14,8 +14,15 @@ android {
         applicationId = "com.andyluu.debrief"
         minSdk = 29
         targetSdk = 35
-        versionCode = 27
-        versionName = "1.10.2"
+        versionCode = 29
+        versionName = "1.11.1"
+
+        val shareBaseUrl = (System.getenv("DEBRIEF_SHARE_BASE_URL")
+            ?.takeIf(String::isNotBlank)
+            ?: "https://debrief-share.debrief-share-service.workers.dev")
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+        buildConfigField("String", "DEBRIEF_SHARE_BASE_URL", "\"$shareBaseUrl\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

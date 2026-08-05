@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "debrief-share",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "workers_dev": true,
+  "vars": {
+    "PUBLIC_BASE_URL": "https://debrief-share.debrief-share-service.workers.dev",
+    "FREE_STORAGE_BYTES": "10000000000",
+    "PIN_KDF_ITERATIONS": "25000",
+    "STAGING_TTL_HOURS": "24"
+  },
+  "secrets": {
+    "required": ["BOOTSTRAP_SECRET", "TOKEN_PEPPER", "PIN_PEPPER"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "debrief-share",
+      "database_id": "24068807-199a-4d36-bdac-2a2748728004",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "AUDIO",
+      "bucket_name": "debrief-share-private"
+    }
+  ],
+  "triggers": {
+    "crons": ["17 * * * *"]
+  }
+}

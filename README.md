@@ -23,12 +23,13 @@ Debrief is a local-first Android app for capturing and reviewing long field reco
 - Timestamped comment create/edit/delete and recording-wide speaker aliases
 - Markdown share-sheet export
 - Recording-bound comments, sets, redactions, and speaker names with an encrypted atomic app-private recovery snapshot plus two verified reinstall-safe JSON sidecars next to each recording
+- Privacy-safe Share Sets links containing one to ten completed manual sets from one recording, with separate redacted audio players, transcript, and all in-set comments; 30/60/90-day expiry, revoke/extend, resumable upload, a 10 GB Cloudflare storage meter, and a 9 GB month-end charge warning with an explanatory tooltip
 
 ## Privacy and secrets
 
 API keys are entered in Settings and encrypted with a non-exportable Android Keystore AES-GCM key. They are excluded from Android backup and never written to source, Gradle properties, logs, sidecars, or APK resources. The Room/FTS database is encrypted at rest with SQLCipher using a random passphrase protected by the same Keystore mechanism. Private developer fixtures and provider keys under `local-testing` are gitignored and never used by normal CI.
 
-The app does not provide cloud storage. Audio is prepared in the app cache, sent directly to the selected transcription provider over HTTPS, and deleted from the cache after the request completes. AI Enhance never sends whole recordings to Gemini; when enabled, it sends only short extracted clips for targeted re-listening. The optional Organize Recording pass sends transcript text, never audio, to the AI provider selected in Settings. Redaction mode stores timestamp metadata and mutes playback in-app; it does not edit source recordings. Original recordings and all durable app data remain on the phone. User-authored markers are stored in SQLCipher, mirrored to an encrypted app-private snapshot, and copied into paired sidecars beside their recording; sidecars are ordinary JSON so the linked phone folder's own storage protection applies.
+Cloud sharing is explicit and set-scoped. Debrief never uploads an original recording: it creates an immutable derived clip for each selected completed set, permanently applies every stored redaction to shared text/audio, includes only comments inside that set, and uploads those private derived files to Cloudflare R2 before atomically publishing an expiring bearer link. Revoking or expiring a share denies its metadata and audio byte ranges. Normal transcription still prepares audio in app cache, sends it directly to the selected provider over HTTPS, and deletes the temporary upload after completion. AI Enhance never sends whole recordings to Gemini; when enabled, it sends only short extracted clips. Original recordings and all durable app data remain on the phone. User-authored markers are stored in SQLCipher, mirrored to an encrypted app-private snapshot, and copied into paired sidecars beside their recording.
 
 Recording is completely offline. During an active session Debrief writes protected local M4A parts in app-specific device storage, then losslessly joins and copies the finished recording into the linked folder when Stop is tapped. Temporary parts are removed after a verified folder save. The Recorder trash action deliberately stops capture and deletes those private parts without writing a destination file.
 
@@ -49,6 +50,8 @@ DEBRIEF_KEYSTORE_PATH
 DEBRIEF_KEYSTORE_PASSWORD
 DEBRIEF_KEY_ALIAS
 ```
+
+Release builds default to the deployed Debrief Share Sets Worker. Local or staging builds can override it with `DEBRIEF_SHARE_BASE_URL`.
 
 Signing material and local tooling are ignored by Git.
 
@@ -72,6 +75,6 @@ If Android reports a package conflict, uninstall an older Debrief build and retr
 
 ## Scope
 
-Android 10 or newer. Video, live transcription, cloud sync, collaboration, and iOS are intentionally out of scope for v1.
+Android 10 or newer. Video, live transcription, general-purpose cloud sync, recipient collaboration, and iOS are intentionally out of scope for v1.
 
 The universal APK includes ARM64 libraries for devices such as the OnePlus 13. CI verifies that every ARM64 and x86-64 native load segment is aligned for Android devices using 16 KB memory pages.

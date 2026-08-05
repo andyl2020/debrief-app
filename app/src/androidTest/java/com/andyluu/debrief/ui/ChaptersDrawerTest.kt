@@ -53,6 +53,7 @@ class ChaptersDrawerTest {
                     onDeleteSet = {},
                     onMerge = {},
                     onSplit = { _, _ -> },
+                    onShareSets = {},
                 )
             }
         }
@@ -98,6 +99,7 @@ class ChaptersDrawerTest {
                     onDeleteSet = { deleted = it },
                     onMerge = {},
                     onSplit = { _, _ -> },
+                    onShareSets = {},
                 )
             }
         }
@@ -109,5 +111,44 @@ class ChaptersDrawerTest {
             assertEquals(set, edited)
             assertEquals(set, deleted)
         }
+    }
+
+    @Test
+    fun selectionSharesOnlyCompletedSets() {
+        var shared = emptyList<String>()
+        val finished = ConversationSetEntity("finished", "recording", 0, 1_000, 8_000, "Finished set")
+        val open = ConversationSetEntity("open", "recording", 1, 9_000, 9_000, "Open set")
+
+        compose.setContent {
+            DebriefTheme {
+                ChaptersDrawerContent(
+                    recording = null,
+                    ai = null,
+                    sets = listOf(finished, open),
+                    comments = emptyList(),
+                    suggestions = emptyList(),
+                    aliases = emptyMap(),
+                    positionMs = 2_000,
+                    onClose = {},
+                    onSkip = {},
+                    onUndoRename = {},
+                    onConfirmSuggestion = {},
+                    onSeek = {},
+                    onEditSet = {},
+                    onDeleteSet = {},
+                    onMerge = {},
+                    onSplit = { _, _ -> },
+                    onShareSets = { shared = it },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Select").performClick()
+        compose.onNodeWithText("Open set").performClick()
+        compose.onNodeWithText("0 selected / 1 available").assertIsDisplayed()
+        compose.onNodeWithText("Finished set").performClick()
+        compose.onNodeWithText("Review 1 selected").performClick()
+
+        compose.runOnIdle { assertEquals(listOf("finished"), shared) }
     }
 }

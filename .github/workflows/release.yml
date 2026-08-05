@@ -17,6 +17,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      DEBRIEF_SHARE_BASE_URL: https://debrief-share.debrief-share-service.workers.dev
     steps:
       - name: Resolve release tag
         id: release_tag

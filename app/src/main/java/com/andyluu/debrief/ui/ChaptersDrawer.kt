@@ -16,9 +16,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +30,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -127,10 +134,15 @@ internal fun ChaptersDrawerContent(
     onDeleteSet: (ConversationSetEntity) -> Unit,
     onMerge: (String) -> Unit,
     onSplit: (String, Long) -> Unit,
+    onShareSets: (List<String>) -> Unit,
 ) {
     val skipped = ai?.skipAiPass == true
     val entries = buildChapterEntries(sets, comments)
     val activeSet = sets.lastOrNull { it.containsPosition(positionMs) }
+    val completedSets = sets.filter { !it.isOpenManualSet() && it.endMs > it.startMs }
+    var selectingSets by rememberSaveable(recording?.id) { mutableStateOf(false) }
+    var selectedSetIds by rememberSaveable(recording?.id) { mutableStateOf(emptyList<String>()) }
+    val visibleEntries = if (selectingSets) entries.filter { it.type == ChapterEntryType.SET } else entries
 
     LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
@@ -141,10 +153,16 @@ internal fun ChaptersDrawerContent(
                 Column(Modifier.weight(1f)) {
                     Text("Chapters", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Text(
-                        "${sets.size} sets · ${comments.size} comments",
+                        if (selectingSets) "${selectedSetIds.size} selected / ${completedSets.size} available" else "${sets.size} sets / ${comments.size} comments",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                if (completedSets.isNotEmpty()) {
+                    TextButton(onClick = {
+                        selectingSets = !selectingSets
+                        selectedSetIds = emptyList()
+                    }) { Text(if (selectingSets) "Cancel" else "Select") }
                 }
                 IconButton(onClick = onClose) { Icon(Icons.Default.Close, "Close chapters") }
             }
@@ -171,29 +189,52 @@ internal fun ChaptersDrawerContent(
                 )
             }
         }
-        if (entries.isEmpty()) {
+        if (visibleEntries.isEmpty()) {
             item {
                 Text(
-                    "Add a comment or manual set marker to create chapter entries.",
+                    if (selectingSets) "Finish a manual set before sharing it." else "Add a comment or manual set marker to create chapter entries.",
                     Modifier.padding(20.dp),
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
         } else {
-            items(entries, key = ChapterEntry::id) { entry ->
+            items(visibleEntries, key = ChapterEntry::id) { entry ->
                 val set = if (entry.type == ChapterEntryType.SET) {
                     sets.firstOrNull { "set:${it.id}" == entry.id }
                 } else null
                 val setIndex = set?.let(sets::indexOf) ?: -1
+                val selectable = set != null && set in completedSets
                 ChapterEntryCard(
                     entry = entry,
                     active = set?.id == activeSet?.id,
                     canMerge = set != null && setIndex in 0 until sets.lastIndex,
+                    selecting = selectingSets,
+                    selectable = selectable,
+                    selected = set?.id in selectedSetIds,
+                    onToggleSelected = {
+                        val id = set?.id
+                        if (id != null) {
+                            selectedSetIds = if (id in selectedSetIds) selectedSetIds - id else (selectedSetIds + id).take(10)
+                        }
+                    },
                     onSeek = onSeek,
                     onEditSet = { set?.let(onEditSet) },
                     onDeleteSet = { set?.let(onDeleteSet) },
                     onMerge = { set?.let { onMerge(it.id) } },
                 )
+            }
+        }
+        if (selectingSets) {
+            item {
+                Button(
+                    onClick = { onShareSets(selectedSetIds) },
+                    enabled = selectedSetIds.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                ) {
+                    Icon(Icons.Default.Share, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (selectedSetIds.isEmpty()) "Select sets to share" else "Review ${selectedSetIds.size} selected")
+                }
             }
         }
         item {
@@ -272,6 +313,10 @@ private fun ChapterEntryCard(
     entry: ChapterEntry,
     active: Boolean,
     canMerge: Boolean,
+    selecting: Boolean,
+    selectable: Boolean,
+    selected: Boolean,
+    onToggleSelected: () -> Unit,
     onSeek: (Long) -> Unit,
     onEditSet: () -> Unit,
     onDeleteSet: () -> Unit,
@@ -286,11 +331,21 @@ private fun ChapterEntryCard(
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             .semantics { contentDescription = "Go to $entryLabel at ${formatTimestamp(entry.timestampMs)}" }
-            .clickable { onSeek(entry.timestampMs) },
+            .clickable(enabled = !selecting || selectable) {
+                if (selecting) onToggleSelected() else onSeek(entry.timestampMs)
+            },
         colors = CardDefaults.cardColors(containerColor = containerColor),
     ) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (selecting) {
+                    Checkbox(
+                        checked = selected,
+                        onCheckedChange = { onToggleSelected() },
+                        enabled = selectable,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                }
                 Text(
                     if (entry.type == ChapterEntryType.SET) "SET" else "COMMENT",
                     style = MaterialTheme.typography.labelSmall,
@@ -317,7 +372,7 @@ private fun ChapterEntryCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (entry.type == ChapterEntryType.SET) {
+            if (entry.type == ChapterEntryType.SET && !selecting) {
                 Row(
                     Modifier.fillMaxWidth().padding(top = 4.dp),
                     horizontalArrangement = Arrangement.End,

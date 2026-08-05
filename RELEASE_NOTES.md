@@ -74,6 +74,18 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Comments can be edited or deleted inline. Comments before the first segment, in transcript gaps, and after the last segment remain visible.
 - Export creates Markdown through Android's share sheet with timestamped transcript text and comments.
 
+### Share Sets
+
+- Open a ready recording, tap **Chapters**, then tap **Select to share**. Choose one to ten completed manual sets from that recording and tap **Review share**. Open/incomplete sets cannot be shared.
+- Review shows the exact set order, total duration, estimated upload size, included comments, and privacy rules before any cloud work begins. One share link contains every selected set, each with its own 0:00-based player.
+- Choose a 30-, 60-, or 90-day expiry; 30 days is the default. An optional PIN adds another recipient check. The page is read-only and intentionally has no Download button.
+- Debrief never uploads the source recording. It snapshots the selection, exports only each selected time range, permanently renders every stored redaction as `[redacted]` plus silent audio, and includes every comment whose timestamp falls inside the set. The local source and reversible local redactions remain unchanged.
+- Preparation/upload runs in resumable WorkManager foreground work. Completed clips and multipart checkpoints survive app switching, network loss, and process death; errors name the cause and offer **Resume**. A share becomes public only after every expected object passes server size/hash validation.
+- Android 14/15 share preparation declares and supplies the required `dataSync` foreground-service type. Pending drafts are reattached when Shared Links opens after a process interruption or app update.
+- Open **Settings -> Cloud sharing** to see current tracked bytes against the full 10 GB R2 Standard reference, active/resumable links, expiry dates, and per-link sizes. From **Shared links**, copy/share/open, extend to 30/60/90 days from now, or revoke immediately.
+- At 9 GB Debrief shows an amber near-limit warning with the current calendar-month deadline and posts a daily-deduplicated Android notification. At 10 GB it escalates to an exceeded warning. Tap the notification to open Shared Links or tap the info icon to learn how Cloudflare's average-daily-peak GB-month billing works.
+- Cloud setup uses a one-time pairing code. The owner credential is protected by Android Keystore; public-link and optional-PIN secrets are never written into transcript sidecars or uploaded source metadata.
+
 ### Usage, storage, and privacy
 
 - Settings tracks local per-key transcription and AI usage. Deepgram provider usage, spend, and balance appear when the key has the provider scopes required for those endpoints.
@@ -113,11 +125,38 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Audio re-listen clips are short derived cache files, not original recordings. They may be cleared by Android cache cleanup, and they are not written to sidecars.
 - Some noisy speech is unrecoverable. Debrief should mark `[inaudible]` rather than invent words when Gemini cannot hear the clip clearly.
 - If the Gemini key is missing, rate-limited, offline, or blocked by the **Send short clips** toggle, Enhance fails gracefully or runs only the available text stage.
-- Debrief has no cloud sync, collaboration, iOS app, video support, or live transcription. Original audio and durable app data remain on the phone.
+- Share links are bearer URLs: anyone who receives a non-PIN link can open it until expiry or revocation. Do not post a sensitive link publicly. Browser screen capture and network tools can still preserve media even though the viewer has no Download control.
+- The 10 GB display is a consistent R2 Standard free-tier reference, not a hard quota guaranteed by Debrief. Cloudflare measures GB-month from average daily peak storage and also applies request limits. Expired/revoked objects are deleted, while the history row remains locally visible.
+- Deleting shares lowers current storage and future daily peaks, but it does not erase GB-month usage already accrued earlier in the current month. The warning deadline is guidance to reduce charge risk, not a promise that deleting immediately resets Cloudflare billing.
+- A share is an immutable snapshot. Later edits, retranscription, comments, set-boundary changes, or local unredactions do not mutate an already published link; revoke and create a replacement.
+- Shares support one recording per link, at most ten completed sets, and at most three hours combined. Recipient comments, accounts, reactions, downloads, analytics, and multi-recording links are not included.
+- Debrief has no general-purpose cloud sync, recipient collaboration, iOS app, video support, or live transcription. Original audio and durable app data remain on the phone.
 - The encrypted app-private marker snapshot survives normal app upgrades and retranscription, but Android removes it if Debrief is uninstalled or its app data is cleared. The paired recording-folder sidecars are the reinstall-safe copy. Sidecars are normal JSON files beside the audio and are not encrypted independently of the phone/folder storage.
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.11.1 - Stable Share Sets startup (2026-08-04)
+
+- Fixed the reproducible Android 14/15 crash that occurred immediately after **Create private link**. The Share Sets worker declared `dataSync` in the manifest but omitted the same type from its runtime `ForegroundInfo`, causing `InvalidForegroundServiceTypeException` on target SDK 35 devices such as the OnePlus 13.
+- Added the required runtime `FOREGROUND_SERVICE_TYPE_DATA_SYNC` value and moved foreground initialization inside the worker's guarded failure path.
+- Added pending-draft recovery. Opening Shared Links safely reattaches unfinished snapshot/upload/publish work with `ExistingWorkPolicy.KEEP`, preserving completed checkpoints and avoiding duplicate cloud drafts.
+- Added a regression assertion for the worker's runtime service type.
+- Reproduced the old fatal exception on an Android 15 true-16-KB emulator, then passed the same real ignored-M4A Android-to-production flow after the fix: clip export, permanent redaction, transcript/comment isolation, upload, public Range playback, revoke, object cleanup, and an empty crash buffer.
+
+### v1.11.0 - Private Share Sets (2026-08-04)
+
+- Added privacy-safe, expiring sharing for one to ten completed manual sets from one recording, with separate audio players, transcript, and every in-set comment in one read-only link.
+- Added immutable local snapshots, exact start-inclusive/end-exclusive filtering, permanently rendered shared redactions, source-free derived clip export, private resumable multipart upload, atomic publication, and process-death reconciliation.
+- Added 30/60/90-day expiry, optional PIN, extend/revoke, public range playback, and exact expiry/revoke denial. The viewer has no Download control and discloses that screen capture cannot be prevented.
+- Added Settings **Cloud sharing** with active/resumable/history management and tracked storage against the full 10 GB R2 Standard reference.
+- Added 9 GB near-limit and 10 GB exceeded states, a current month-end deadline, a GB-month billing tooltip, and a daily-deduplicated Android warning notification that opens Shared Links.
+- Added a private Cloudflare Worker/D1/R2 service with one-time owner pairing, token hashing, PIN throttling, server-validated manifests, private object keys, cleanup/reconciliation, security headers, and a no-index web viewer.
+- Deployed the production D1 database, private R2 bucket, hourly cleanup schedule, and Worker at `https://debrief-share.debrief-share-service.workers.dev`.
+- Verification before tagging: Android JVM tests, lint, release R8, 34-test Android 11 suite, seven Worker D1/R2 integration tests, Wrangler production dry run, the existing Android 15/true-16-KB device suite, and a real ignored-M4A Android-to-production privacy test pass. The live test verified permanent redaction, boundary/comment non-leakage, audio Range playback, 10 GB usage reconciliation, revoke, deletion, and immediate public denial.
+- GitHub Release: https://github.com/andyl2020/debrief-app/releases/tag/v1.11.0
+- GitHub Actions runs 30939317098, 30939317099, and 30939331340 passed independent Cloudflare checks, Android CI, release lint/R8, production signing, ARM64/x86-64 16 KB checks, and public release publication.
+- Independently verified public APK: 9,442,556 bytes; SHA-256 `839BD30D24DD57C77166579E2595A6A2F174866C0EB18CE07DBA1D422C332F66`. Package version 28/1.11.0, production RSA-4096 certificate, APK Signature Scheme v3, ARM64/x86-64 16 KB alignment, clean launch, empty crash buffer, and signed v1.10.2 -> v1.11.0 upgrade with retained first-install time passed.
 
 ### v1.10.2 - Faster long-recording saves (2026-08-02)
 
@@ -131,7 +170,8 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Added a 40-part simulated long-recording device regression test that remuxes directly to a final file descriptor, reports every part, verifies playable output, and verifies the extended timeline. Added Recorder UI coverage for determinate save progress.
 - Verification before tagging: JVM unit tests, debug lint, all 31 Android 11/4 KB instrumentation tests, and all 31 Android 15/true-16 KB instrumentation tests passed. The matrix includes real microphone capture, pause/resume/discard/restart/save-failure recovery, 40-part direct remux, determinate progress, and all existing product regressions.
 - GitHub Release: https://github.com/andyl2020/debrief-app/releases/tag/v1.10.2
-- Production signing, release lint/R8, exact public APK size/hash, signature, 16 KB alignment, clean launch, and signed upgrade verification are completed during publication and recorded in `IMPLEMENTATION_STATUS.md`.
+- GitHub Actions runs 30747238999 and 30747245537 passed independent CI, unit tests, release lint/R8, production signing, ARM64/x86-64 16 KB checks, and public release publication.
+- Independently verified public APK: 9,246,204 bytes; SHA-256 `2F5E922A0EFED4DDA5D40951F3FDDD71F3B42053FF2B04F869AE39F275C44EA1`. Package version 27/1.10.2, the production RSA-4096 certificate, APK Signature Scheme v3, ARM64/x86-64 16 KB alignment, clean launch, empty crash buffer, retained first-install time/data directory, and a signed v1.10.1 -> v1.10.2 upgrade passed.
 
 ### v1.10.1 - Samsung recorder notification cleanup (2026-08-01)
 

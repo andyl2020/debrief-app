@@ -11,6 +11,9 @@ enum class AiPassStatus { NOT_RUN, RUNNING, READY, FAILED, SKIPPED }
 enum class RepairRunStatus { QUEUED, RUNNING, READY, FAILED, PARTIAL }
 enum class RepairRunMode { AUTO, SELECTION }
 enum class TranscriptQualityStatus { GOOD, CHECK, ISSUE }
+enum class ShareDraftStatus { PREPARING, READY_TO_UPLOAD, UPLOADING, PUBLISHING, READY, FAILED, CANCELLED }
+enum class SharePartStatus { SNAPSHOT_READY, PREPARING_AUDIO, READY_TO_UPLOAD, UPLOADING, COMPLETE, FAILED }
+enum class SharedLinkStatus { ACTIVE, REVOKED, EXPIRED, FAILED }
 
 @Entity(tableName = "recordings")
 data class RecordingEntity(
@@ -152,6 +155,106 @@ data class ConversationSetEntity(
     val title: String,
     val summary: String = "",
     val speakerIds: String = "",
+)
+
+@Entity(
+    tableName = "share_drafts",
+    foreignKeys = [ForeignKey(
+        entity = RecordingEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["recordingId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index("recordingId"), Index(value = ["status", "updatedAt"])],
+)
+data class ShareDraftEntity(
+    @PrimaryKey val id: String,
+    val recordingId: String,
+    val title: String,
+    val selectedSetIdsJson: String,
+    val expiryDays: Int = 30,
+    val pinEnabled: Boolean = false,
+    val status: ShareDraftStatus = ShareDraftStatus.PREPARING,
+    val stageLabel: String = "Preparing private snapshot",
+    val completedSteps: Int = 0,
+    val totalSteps: Int = 0,
+    val serverDraftId: String? = null,
+    val publicToken: String? = null,
+    val errorMessage: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+)
+
+@Entity(
+    tableName = "share_parts",
+    foreignKeys = [ForeignKey(
+        entity = ShareDraftEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["draftId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index("draftId"), Index(value = ["draftId", "position"], unique = true)],
+)
+data class SharePartEntity(
+    @PrimaryKey val id: String,
+    val draftId: String,
+    val setId: String,
+    val position: Int,
+    val title: String,
+    val sourceStartMs: Long,
+    val sourceEndMs: Long,
+    val durationMs: Long,
+    val metadataPath: String,
+    val redactionRangesJson: String = "[]",
+    val audioPath: String? = null,
+    val audioMimeType: String = "audio/mp4",
+    val audioObjectId: String? = null,
+    val metadataObjectId: String? = null,
+    val audioSizeBytes: Long = 0,
+    val metadataSizeBytes: Long = 0,
+    val audioSha256: String? = null,
+    val metadataSha256: String? = null,
+    val audioPartsJson: String = "[]",
+    val metadataPartsJson: String = "[]",
+    val audioUploaded: Boolean = false,
+    val metadataUploaded: Boolean = false,
+    val status: SharePartStatus = SharePartStatus.SNAPSHOT_READY,
+    val errorMessage: String? = null,
+    val updatedAt: Long = System.currentTimeMillis(),
+)
+
+@Entity(
+    tableName = "shared_links",
+    indices = [Index("recordingId"), Index(value = ["status", "expiresAt"])],
+)
+data class SharedLinkEntity(
+    @PrimaryKey val id: String,
+    val recordingId: String?,
+    val title: String,
+    val url: String,
+    val status: SharedLinkStatus = SharedLinkStatus.ACTIVE,
+    val expiryDays: Int,
+    val setCount: Int,
+    val totalDurationMs: Long,
+    val totalSizeBytes: Long,
+    val createdAt: Long,
+    val publishedAt: Long,
+    val expiresAt: Long,
+    val revokedAt: Long? = null,
+    val lastSyncedAt: Long = System.currentTimeMillis(),
+    val errorMessage: String? = null,
+)
+
+@Entity(tableName = "cloud_usage")
+data class CloudUsageEntity(
+    @PrimaryKey val id: Int = 1,
+    val currentBytes: Long,
+    val referenceBytes: Long,
+    val activeLinks: Int,
+    val providerBytes: Long? = null,
+    val measuredAt: Long,
+    val source: String,
+    val billingNote: String,
 )
 
 @Entity(

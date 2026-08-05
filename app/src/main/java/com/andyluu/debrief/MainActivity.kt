@@ -3,6 +3,7 @@ package com.andyluu.debrief
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -32,6 +33,10 @@ import com.andyluu.debrief.ui.GlobalSearchScreen
 import com.andyluu.debrief.ui.LibraryScreen
 import com.andyluu.debrief.ui.ReviewScreen
 import com.andyluu.debrief.ui.ReviewViewModel
+import com.andyluu.debrief.ui.ShareReviewScreen
+import com.andyluu.debrief.ui.ShareReviewViewModel
+import com.andyluu.debrief.ui.SharedLinksScreen
+import com.andyluu.debrief.ui.CloudSharingViewModel
 import com.andyluu.debrief.ui.RecorderScreen
 import com.andyluu.debrief.ui.RecorderViewModel
 import com.andyluu.debrief.ui.SettingsScreen
@@ -41,11 +46,13 @@ class MainActivity : ComponentActivity() {
     private val appViewModel: AppViewModel by viewModels()
     private val recorderViewModel: RecorderViewModel by viewModels()
     private val openRecorderRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val openSharedLinksRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         (application as DebriefApplication).services.recorder.recoverInterruptedIfNeeded()
         val openRecorderOnLaunch = intent?.getBooleanExtra(EXTRA_OPEN_RECORDER, false) == true
+        val openSharedLinksOnLaunch = intent?.getBooleanExtra(EXTRA_OPEN_SHARED_LINKS, false) == true
         setContent {
             DebriefTheme {
                 val nav = rememberNavController()
@@ -113,10 +120,19 @@ class MainActivity : ComponentActivity() {
                         nav.navigate("recorder") { launchSingleTop = true }
                     }
                 }
+                LaunchedEffect(nav) {
+                    openSharedLinksRequests.collect {
+                        nav.navigate("shared-links") { launchSingleTop = true }
+                    }
+                }
 
                 NavHost(
                     navController = nav,
-                    startDestination = if (openRecorderOnLaunch) "recorder" else "library",
+                    startDestination = when {
+                        openRecorderOnLaunch -> "recorder"
+                        openSharedLinksOnLaunch -> "shared-links"
+                        else -> "library"
+                    },
                 ) {
                     composable("library") {
                         LibraryScreen(
@@ -189,7 +205,11 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable("settings") {
-                        SettingsScreen(appViewModel, nav::popBackStack)
+                        SettingsScreen(appViewModel, nav::popBackStack) { nav.navigate("shared-links") }
+                    }
+                    composable("shared-links") {
+                        val cloudSharingViewModel: CloudSharingViewModel = viewModel()
+                        SharedLinksScreen(cloudSharingViewModel, nav::popBackStack)
                     }
                     composable(
                         route = "review/{recordingId}?at={timestamp}",
@@ -204,7 +224,40 @@ class MainActivity : ComponentActivity() {
                             key = id,
                             factory = ReviewViewModel.factory(application, id),
                         )
-                        ReviewScreen(reviewViewModel, timestamp, nav::popBackStack)
+                        ReviewScreen(
+                            reviewViewModel,
+                            timestamp,
+                            nav::popBackStack,
+                        ) { recordingId, setIds ->
+                            nav.navigate(
+                                "share-review/${Uri.encode(recordingId)}?sets=${Uri.encode(setIds.joinToString(","))}"
+                            )
+                        }
+                    }
+                    composable(
+                        route = "share-review/{recordingId}?sets={setIds}",
+                        arguments = listOf(
+                            navArgument("recordingId") { type = NavType.StringType },
+                            navArgument("setIds") { type = NavType.StringType; defaultValue = "" },
+                        ),
+                    ) { entry ->
+                        val id = entry.arguments?.getString("recordingId") ?: return@composable
+                        val setIds = entry.arguments?.getString("setIds")
+                            .orEmpty()
+                            .split(',')
+                            .filter(String::isNotBlank)
+                        val shareViewModel: ShareReviewViewModel = viewModel(
+                            key = "share-$id-${setIds.joinToString("-")}",
+                            factory = ShareReviewViewModel.factory(application, id, setIds),
+                        )
+                        ShareReviewScreen(
+                            viewModel = shareViewModel,
+                            onBack = nav::popBackStack,
+                            onCreated = {
+                                nav.popBackStack()
+                                nav.navigate("shared-links") { launchSingleTop = true }
+                            },
+                        )
                     }
                 }
             }
@@ -216,10 +269,13 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         if (intent.getBooleanExtra(EXTRA_OPEN_RECORDER, false)) {
             openRecorderRequests.tryEmit(Unit)
+        } else if (intent.getBooleanExtra(EXTRA_OPEN_SHARED_LINKS, false)) {
+            openSharedLinksRequests.tryEmit(Unit)
         }
     }
 
     companion object {
         const val EXTRA_OPEN_RECORDER = "open_recorder"
+        const val EXTRA_OPEN_SHARED_LINKS = "open_shared_links"
     }
 }

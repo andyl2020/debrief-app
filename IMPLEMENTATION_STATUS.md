@@ -1,10 +1,43 @@
 # Debrief implementation checkpoint
 
-Last updated: 2026-08-02
+Last updated: 2026-08-04
 
 ## Objective
 
-Implement and release Debrief v1.10.2 with substantially faster finalization for four-to-six-hour recordings while preserving protected crash-recovery parts.
+Release Debrief v1.11.1 as a stability patch for Share Sets startup and interrupted-draft recovery while preserving the v1.11.0 privacy and cloud contract.
+
+## Active v1.11.1 checkpoint
+
+- Root cause reproduced on Android 15/true-16-KB: Share Sets started WorkManager's foreground service with runtime type `none`, causing a fatal `InvalidForegroundServiceTypeException` immediately after link creation on target SDK 35.
+- Fix implemented: `ShareUploadWorker` now supplies `ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC`, matching the existing manifest declaration/permission and Android's long-running-worker contract.
+- Recovery strengthened: opening Shared Links re-enqueues pending READY_TO_UPLOAD/UPLOADING/PUBLISHING drafts with `ExistingWorkPolicy.KEEP`, so a draft left by the old crash resumes without replacing healthy active work or creating a duplicate cloud draft.
+- Regression coverage: a direct foreground-type instrumentation assertion passes. The exact real ignored-M4A Android-to-production flow that previously crashed now passes on Android 15/true-16-KB, including export, redaction, upload, publish, Range playback, revoke, cleanup, and an empty crash buffer.
+- Release candidate: version code 29/name 1.11.1. JVM tests, debug/release lint, debug build, release R8, Android-test compilation, all 35 registered Android 11/4-KB tests, and all 35 registered Android 15/true-16-KB tests pass. The credential-gated live fixture separately passes against production on Android 15. Tag/publication and public signed-upgrade verification remain.
+
+## Shipped v1.11.0 checkpoint
+
+- Approved requirements, UX, privacy contract, Cloudflare architecture, data model, staged rollout, tests, and resume protocol are recorded in `debrief-share-sets-prd-addendum.md`.
+- One link contains up to ten completed sets/three hours from one recording. The recipient page is a read-only immutable snapshot with separate players, transcript, and all in-set comments.
+- The original recording never uploads. Stored redactions must be rendered permanently into derived shared clips/text before publication.
+- Settings uses the full current 10 GB R2 Standard free-tier reference; there is no separate 8 GB cap.
+- Cloudflare Stages 1 and 2 are implemented under `cloudflare/`: D1 schema, private multipart R2 uploads, server-validated atomic publication, owner/pairing auth, optional PIN, exact expiry/revoke enforcement, range streaming, cleanup/reconciliation, storage usage, and the no-download read-only viewer.
+- Android Stage 3 is implemented: encrypted Room share drafts/parts/links/usage with schema 6 migration, Keystore-backed owner/PIN secrets, a validated HTTPS client, immutable per-set snapshots, resumable multipart checkpoints, sequential clip preparation, redaction-silence audio processing, WorkManager progress/retry/resume, and cleanup after confirmed upload.
+- Android Stages 4–6 are implemented: completed-set multi-selection in Chapters, a full-screen exact-content/privacy review, 30/60/90-day expiry and optional PIN, background preparation progress/resume/cancel, a Settings Cloud sharing entry, the full 10 GB storage meter, and active-link copy/share/open/extend/revoke/history management.
+- Storage protection is implemented: current tracked storage turns amber and warns at 9 GB, escalates at the 10 GB reference, shows the current calendar-month deadline, links an explanatory GB-month tooltip, and posts a daily-deduplicated Android notification that opens Shared Links. The warning clears below 9 GB and refreshes its deadline each month.
+- Privacy tests enforce start-inclusive/end-exclusive set boundaries, reject untimed partial transcript segments, exclude all outside words/comments, fail closed on ambiguous untimed redactions, and verify protected PCM frames become silence. The silence processor is linear in audio frames plus redaction ranges for long recordings.
+- The backend now exposes authenticated draft inspection so Android can recover remote object IDs after process death without creating duplicate drafts.
+- Recovery now also reconciles objects completed immediately before an Android crash and already-published links. Backend tests prove remote size/checksum recovery and idempotent repeat publication with the same retained public token.
+- Verification: Android JVM tests, debug lint, and Android-test compilation pass. Node 22 TypeScript compile and seven Workers integration tests against local D1/R2 pass; Wrangler production dry-run is 51.84 KiB raw/14.22 KiB gzip and the dependency audit remains at zero known vulnerabilities.
+- Device verification: the 32-test Android 11 and Android 15/true-16-KB suites passed before adding the conditional live fixture. The final Android 11 run registers and passes all 33 tests (the live fixture safely skips without private arguments) with an empty crash buffer.
+- Live privacy verification: an ignored real M4A fixture completed the actual Android -> local Worker/D1/private R2 pipeline. The test verified selected-boundary filtering, permanent `[redacted]` text, silent redaction processing, included in-set comments, no outside/end-boundary leakage, audio byte-range playback, full 10 GB usage reporting, revocation, immediate 404 denial, and deleted cloud objects. It caught and fixed default MIME serialization and final-flush silence-verification regressions before release.
+- Production deployment: D1 database `debrief-share`, private R2 bucket `debrief-share-private`, migrations, Worker secrets, and the hourly cleanup schedule are live. Health is verified at `https://debrief-share.debrief-share-service.workers.dev/health`.
+- Production privacy verification: the ignored real M4A fixture passed Android export/upload against the deployed Worker, including redaction, comment/boundary isolation, public audio Range playback, usage refresh, revoke, immediate 404 denial, and object cleanup. No active test links or test objects remain.
+- Release candidate: Android version code 28/name 1.11.0, production endpoint default, cumulative release notes, and the detailed `docs/releases/v1.11.0.md` guide are prepared. Android JVM/lint/build/Android-test compilation, the targeted 9 GB warning UI test, dependency audit, Worker tests, and the production live flow pass.
+- Deployment automation: the manual Cloudflare workflow applies D1 migrations, uploads Worker secrets, deploys, and health-checks the service after its five production secrets are configured in GitHub. The public Worker URL is committed because it is app configuration, not a secret; staging/local builds can override it.
+- Release complete: annotated tag `v1.11.0` points to `6441fa9`. GitHub Actions runs 30939317098, 30939317099, and 30939331340 passed Cloudflare checks, Android CI, release lint/R8, production signing, 16 KB verification, and publication.
+- Public release: `https://github.com/andyl2020/debrief-app/releases/tag/v1.11.0`. The independently downloaded APK is 9,442,556 bytes with SHA-256 `839BD30D24DD57C77166579E2595A6A2F174866C0EB18CE07DBA1D422C332F66`.
+- Public-artifact verification passed: package `com.andyluu.debrief`, version code 28/name 1.11.0, production RSA-4096 certificate SHA-256 `32BB05383EBD2FE29B70306D607842F1AAED8066C193C720A35EA5B8B8F60FE0`, APK Signature Scheme v3, ARM64/x86-64 16 KB ELF alignment, signed v1.10.2 -> v1.11.0 upgrade with retained first-install time, clean launch, and empty crash buffer.
+- No implementation or release work remains for v1.11.0. The repeatable Cloudflare deployment workflow still requires its documented GitHub production secrets before a future workflow-driven redeploy; the live service itself is deployed and verified.
 
 ## Shipped checkpoint
 
@@ -21,10 +54,14 @@ Implement and release Debrief v1.10.2 with substantially faster finalization for
 - Recorder finalization now displays and persists determinate percentage, current-part, and verification progress instead of an indefinite spinner.
 - A full Android 15 run exposed a `ForegroundServiceDidNotStartInTimeException` under emulator load. Pause/resume/stop/discard no longer create redundant foreground-service-start obligations; only start/retry/recover commands use `startForegroundService`.
 - A subsequent cold-boot matrix run exposed an old-session `stopSelf()` race when the next recording begins immediately after IDLE is published. Terminal cleanup is now main-looper serialized and guarded by `stopSelfResult`; an immediate-discard/restart regression is included.
-- Source implementation checkpoint `eaa4118` is pushed. Release documentation/version checkpoint and annotated `v1.10.2` tag are pending.
+- Source implementation checkpoint `eaa4118` and release checkpoint `7c06488` are pushed. Annotated tag `v1.10.2` points to the release checkpoint.
 - JVM unit tests and debug lint pass. All 31 Android 11/4 KB instrumentation tests and all 31 Android 15/true-16 KB instrumentation tests pass after the lifecycle hardening.
 - The device matrix covers real microphone capture, pause/resume, discard and immediate restart, folder-failure recovery, a 40-part direct-file-descriptor finalization with timeline/readability checks, determinate progress, and all existing app regressions.
-- Local release lint and R8 pass. Production signing, public publication, independent download/hash, signed upgrade, clean launch, and final 16 KB artifact verification remain pending.
+- Local release lint and R8 pass. GitHub Actions runs 30747238999 and 30747245537 passed independent CI, unit tests, release lint/R8, production signing, ARM64/x86-64 16 KB checks, and public release publication.
+- GitHub Release v1.10.2 is public: https://github.com/andyl2020/debrief-app/releases/tag/v1.10.2
+- The unauthenticated public APK is 9,246,204 bytes with SHA-256 `2F5E922A0EFED4DDA5D40951F3FDDD71F3B42053FF2B04F869AE39F275C44EA1`.
+- Public-artifact verification passed: package `com.andyluu.debrief`, version code 27/name 1.10.2, production RSA-4096 certificate SHA-256 `32BB05383EBD2FE29B70306D607842F1AAED8066C193C720A35EA5B8B8F60FE0`, APK Signature Scheme v3, ARM64/x86-64 16 KB ELF alignment, clean launch, empty crash buffer, retained data directory/first-install time, and a signed v1.10.1 -> v1.10.2 upgrade on Android 15 true-16 KB.
+- No implementation or release work remains for v1.10.2.
 
 - v1.10.1 removes the recorder notification on every terminal service path, including failed linked-folder saves. `STOP_FOREGROUND_REMOVE` is paired with an idempotent `NotificationManager.cancel`, and service startup clears stale notification id 8120 when no session is active.
 - The monitor no longer calls `notify()` every 500 ms. Android's system chronometer advances elapsed time without reposting; pause/resume, call/storage state, recorder restart, rollover, and microphone-silence transitions still update explicitly.

@@ -282,4 +282,55 @@ interface DebriefDao {
         deleteConversationSets(recordingId)
         if (sets.isNotEmpty()) insertConversationSets(sets)
     }
+
+    @Query("SELECT * FROM share_drafts ORDER BY updatedAt DESC")
+    fun observeShareDrafts(): Flow<List<ShareDraftEntity>>
+
+    @Query("SELECT * FROM share_drafts WHERE id = :draftId")
+    suspend fun getShareDraft(draftId: String): ShareDraftEntity?
+
+    @Upsert
+    suspend fun upsertShareDraft(draft: ShareDraftEntity)
+
+    @Query("DELETE FROM share_drafts WHERE id = :draftId")
+    suspend fun deleteShareDraft(draftId: String)
+
+    @Query("SELECT * FROM share_parts WHERE draftId = :draftId ORDER BY position")
+    fun observeShareParts(draftId: String): Flow<List<SharePartEntity>>
+
+    @Query("SELECT * FROM share_parts WHERE draftId = :draftId ORDER BY position")
+    suspend fun getShareParts(draftId: String): List<SharePartEntity>
+
+    @Query("SELECT * FROM share_parts WHERE id = :partId")
+    suspend fun getSharePart(partId: String): SharePartEntity?
+
+    @Upsert
+    suspend fun upsertSharePart(part: SharePartEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertShareParts(parts: List<SharePartEntity>)
+
+    @Query("SELECT * FROM shared_links ORDER BY CASE WHEN status = 'ACTIVE' THEN 0 ELSE 1 END, expiresAt ASC, createdAt DESC")
+    fun observeSharedLinks(): Flow<List<SharedLinkEntity>>
+
+    @Query("SELECT * FROM shared_links WHERE id = :shareId")
+    suspend fun getSharedLink(shareId: String): SharedLinkEntity?
+
+    @Upsert
+    suspend fun upsertSharedLink(link: SharedLinkEntity)
+
+    @Query("SELECT * FROM cloud_usage WHERE id = 1")
+    fun observeCloudUsage(): Flow<CloudUsageEntity?>
+
+    @Query("SELECT * FROM cloud_usage WHERE id = 1")
+    suspend fun getCloudUsage(): CloudUsageEntity?
+
+    @Upsert
+    suspend fun upsertCloudUsage(usage: CloudUsageEntity)
+
+    @Transaction
+    suspend fun createShareDraft(draft: ShareDraftEntity, parts: List<SharePartEntity>) {
+        upsertShareDraft(draft)
+        insertShareParts(parts)
+    }
 }

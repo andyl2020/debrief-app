@@ -1,0 +1,68 @@
+name: Deploy Cloudflare Share Service
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-share-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: cloudflare
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      BOOTSTRAP_SECRET: ${{ secrets.DEBRIEF_SHARE_BOOTSTRAP_SECRET }}
+      TOKEN_PEPPER: ${{ secrets.DEBRIEF_SHARE_TOKEN_PEPPER }}
+      PIN_PEPPER: ${{ secrets.DEBRIEF_SHARE_PIN_PEPPER }}
+      DEBRIEF_SHARE_BASE_URL: https://debrief-share.debrief-share-service.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: cloudflare/package-lock.json
+
+      - name: Verify production configuration
+        shell: bash
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$BOOTSTRAP_SECRET"
+          test -n "$TOKEN_PEPPER"
+          test -n "$PIN_PEPPER"
+
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: npm run check
+
+      - name: Apply D1 migrations
+        run: npx wrangler d1 migrations apply DB --remote
+
+      - name: Deploy Worker
+        shell: bash
+        run: |
+          SECRETS_FILE="$RUNNER_TEMP/debrief-worker-secrets.json"
+          jq -n '{
+            BOOTSTRAP_SECRET: env.BOOTSTRAP_SECRET,
+            TOKEN_PEPPER: env.TOKEN_PEPPER,
+            PIN_PEPPER: env.PIN_PEPPER
+          }' > "$SECRETS_FILE"
+          npx wrangler deploy \
+            --var "PUBLIC_BASE_URL:$DEBRIEF_SHARE_BASE_URL" \
+            --secrets-file "$SECRETS_FILE"
+          rm -f "$SECRETS_FILE"
+
+      - name: Verify production health
+        shell: bash
+        run: curl --fail --silent --show-error "$DEBRIEF_SHARE_BASE_URL/health"

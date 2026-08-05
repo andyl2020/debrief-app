@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.andyluu.debrief.BuildConfig
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.security.KeyStore
@@ -45,6 +46,7 @@ data class AppSettings(
     val openAiBaseUrl: String = "",
     val openAiModel: String = "",
     val anthropicModel: String = "claude-haiku-4-5",
+    val cloudShareBaseUrl: String = BuildConfig.DEBRIEF_SHARE_BASE_URL,
 )
 
 class SettingsStore(private val context: Context) {
@@ -62,6 +64,7 @@ class SettingsStore(private val context: Context) {
         val openAiBaseUrl = stringPreferencesKey("openai_base_url")
         val openAiModel = stringPreferencesKey("openai_model")
         val anthropicModel = stringPreferencesKey("anthropic_model")
+        val cloudShareBaseUrl = stringPreferencesKey("cloud_share_base_url")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -79,6 +82,7 @@ class SettingsStore(private val context: Context) {
             openAiBaseUrl = prefs[Keys.openAiBaseUrl] ?: "",
             openAiModel = prefs[Keys.openAiModel] ?: "",
             anthropicModel = prefs[Keys.anthropicModel] ?: "claude-haiku-4-5",
+            cloudShareBaseUrl = prefs[Keys.cloudShareBaseUrl] ?: BuildConfig.DEBRIEF_SHARE_BASE_URL,
         )
     }
 
@@ -97,6 +101,9 @@ class SettingsStore(private val context: Context) {
     suspend fun setOpenAiBaseUrl(value: String) = context.dataStore.edit { it[Keys.openAiBaseUrl] = value.trim() }
     suspend fun setOpenAiModel(value: String) = context.dataStore.edit { it[Keys.openAiModel] = value.trim() }
     suspend fun setAnthropicModel(value: String) = context.dataStore.edit { it[Keys.anthropicModel] = value.trim() }
+    suspend fun setCloudShareBaseUrl(value: String) = context.dataStore.edit {
+        it[Keys.cloudShareBaseUrl] = value.trim().trimEnd('/')
+    }
 }
 
 class SecureSecretStore(context: Context) {
