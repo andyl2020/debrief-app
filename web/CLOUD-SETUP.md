@@ -12,6 +12,14 @@ appears "broken" out of the box — `cloudflare/` is source code, not a running 
 
 ---
 
+## 0. Enable R2 (dashboard only)
+
+R2 has to be switched on once, in the Cloudflare dashboard, before the CLI can see it. There is no
+`wrangler` command for this — until you do it, `wrangler r2 bucket list` fails with
+`Please enable R2 through the Cloudflare Dashboard [code: 10042]`.
+
+Dashboard → **R2** → enable. The free tier still asks for a payment method on file.
+
 ## 1. Deploy the Worker
 
 From `cloudflare/`, with Node 22+ and a Cloudflare account:
@@ -51,10 +59,22 @@ browser blocks every call before it is sent:
 "ALLOWED_ORIGINS": "http://localhost:5173,https://your-web-app.example"
 ```
 
+Also set `PUBLIC_BASE_URL` to your own Worker origin — it ships pointing at the upstream author's
+hostname, which would put somebody else's domain into your share links.
+
+Check the config before deploying:
+
+```bash
+npm run preflight
+```
+
+That fails with a named fix for anything still unconfigured, rather than letting `wrangler` return a
+raw API error about a database in an account you do not own.
+
 Deploy and check:
 
 ```bash
-npx wrangler deploy
+npm run deploy          # runs preflight first
 curl https://<your-worker>.workers.dev/health
 ```
 
