@@ -122,6 +122,51 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '0:01' })).toBeInTheDocument()
   })
 
+  it('keeps the comment composer reachable below the transcript', async () => {
+    // Regression: the composer used to sit above the transcript, so on a long
+    // recording you had to scroll all the way back up to add a comment.
+    installOpfs()
+    await seedRecording(new FakeDirectoryHandle(), { withTranscript: true })
+
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: /Interview\.m4a/ }))
+    await screen.findByText('Hey good to meet you.')
+
+    const composer = document.querySelector('.composer')
+    const transcript = document.querySelector('.transcript')!
+    // Pinned to the viewport by `.composer` (jsdom does not apply the
+    // stylesheet, so the class is what can be asserted here)...
+    expect(composer).not.toBeNull()
+    // ...and after the transcript in reading and tab order, rather than above it.
+    expect(
+      transcript.compareDocumentPosition(composer!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('attaches a comment to where you started typing, not where the audio got to', async () => {
+    installOpfs()
+    await seedRecording(new FakeDirectoryHandle(), { withTranscript: true })
+
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: /Interview\.m4a/ }))
+    await screen.findByText('Hey good to meet you.')
+
+    // Seek to 0:06, then start writing.
+    await userEvent.click(screen.getByRole('button', { name: '0:06' }))
+    const input = screen.getByLabelText(/Add a comment at/i)
+    await userEvent.type(input, 'Check this')
+
+    // The composer should be committed to 0:06 even though playback may move on.
+    expect(screen.getByLabelText(/Add a comment at 0:06/i)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Check this')).toBeInTheDocument()
+    })
+    expect(screen.getAllByRole('button', { name: '0:06' }).length).toBeGreaterThan(0)
+  })
+
   it('masks redacted words in the transcript when redaction mode is on', async () => {
     installOpfs()
     await seedRecording(new FakeDirectoryHandle(), { withTranscript: true })

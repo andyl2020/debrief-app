@@ -411,8 +411,6 @@ export function Review({
         />
       )}
 
-      <AddComment positionMs={positionMs} onAdd={addComment} />
-
       <SpeakerAliases
         speakerIds={[...new Set(segments.map((segment) => segment.speakerId))]}
         aliasFor={aliasFor}
@@ -533,6 +531,13 @@ export function Review({
           )
         })}
       </div>
+
+      {/*
+        Last in the DOM so it follows the transcript in reading and tab order,
+        but pinned to the viewport so it is reachable no matter how far into a
+        long recording you have scrolled.
+      */}
+      <AddComment positionMs={positionMs} onAdd={addComment} />
     </section>
   )
 }
@@ -559,6 +564,19 @@ function CommentRow({
   )
 }
 
+/**
+ * The comment composer, pinned to the bottom of the review screen.
+ *
+ * It used to sit above the transcript, which meant that on a six-hour
+ * recording you could not add a comment without scrolling thousands of pixels
+ * back up - precisely when you were deepest into the audio and most likely to
+ * want one.
+ *
+ * It also pins its timestamp on the first keystroke rather than reading the
+ * playhead at submit time. Typing a sentence takes several seconds, and at 2x
+ * that is a long way from the thing you were reacting to. Android captures the
+ * position the instant you tap; this is the equivalent.
+ */
 function AddComment({
   positionMs,
   onAdd,
@@ -567,24 +585,60 @@ function AddComment({
   onAdd: (timestampMs: number, text: string) => void
 }) {
   const [text, setText] = useState('')
+  const [pinnedMs, setPinnedMs] = useState<number | null>(null)
+
+  const targetMs = pinnedMs ?? positionMs
+  const drifted = pinnedMs !== null && Math.abs(positionMs - pinnedMs) > 2_000
+
+  const submit = () => {
+    if (text.trim().length === 0) return
+    onAdd(targetMs, text.trim())
+    setText('')
+    setPinnedMs(null)
+  }
+
   return (
     <form
-      className="add-comment"
+      className="composer"
       onSubmit={(event) => {
         event.preventDefault()
-        if (text.trim().length === 0) return
-        onAdd(positionMs, text.trim())
-        setText('')
+        submit()
       }}
     >
+      <button
+        type="button"
+        className={`composer__stamp ${drifted ? 'composer__stamp--drifted' : ''}`}
+        onClick={() => setPinnedMs(positionMs)}
+        title={
+          drifted
+            ? `Comment will be saved at ${formatTimestamp(targetMs)}. Tap to move it to ${formatTimestamp(positionMs)}.`
+            : 'The point in the recording this comment will be attached to'
+        }
+      >
+        {formatTimestamp(targetMs)}
+        {drifted && <span className="composer__move">move</span>}
+      </button>
+
       <input
         value={text}
-        onChange={(event) => setText(event.target.value)}
-        placeholder={`Add a comment at ${formatTimestamp(positionMs)}`}
-        aria-label="Comment text"
+        onChange={(event) => {
+          // Capture the playhead as soon as the user starts writing, so the
+          // comment lands where they reacted, not where the audio got to.
+          if (pinnedMs === null && event.target.value.length > 0) setPinnedMs(positionMs)
+          setText(event.target.value)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            setText('')
+            setPinnedMs(null)
+          }
+        }}
+        placeholder="Add a comment here"
+        aria-label={`Add a comment at ${formatTimestamp(targetMs)}`}
       />
-      <button type="submit" className="button">
-        Add comment
+
+      <button type="submit" className="button button--primary" disabled={text.trim().length === 0}>
+        Add
       </button>
     </form>
   )
@@ -616,8 +670,20 @@ function SpeakerAliases({
   )
 }
 
+/**
+ * Keeps the active transcript line in view as playback advances.
+ *
+ * Guarded because `scrollIntoView` is not universal - older WebViews omit the
+ * options overload, and it is absent entirely in jsdom. Failing to scroll is a
+ * cosmetic loss; throwing from a ref callback takes the whole screen down.
+ */
 function scrollIntoView(element: HTMLElement | null) {
-  element?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  if (typeof element?.scrollIntoView !== 'function') return
+  try {
+    element.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  } catch {
+    element.scrollIntoView()
+  }
 }
 
 function download(filename: string, contents: string, type: string) {

@@ -431,6 +431,11 @@ label { display: block; font-size: 0.9rem; }
 
 /* --- review -------------------------------------------------------------*/
 
+/* Leaves room for the pinned composer, so it never covers the last line. */
+.review {
+  padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+}
+
 .review__header {
   display: flex;
   flex-wrap: wrap;
@@ -568,10 +573,62 @@ label { display: block; font-size: 0.9rem; }
 
 .chapter--comment .chapter__title { font-weight: 400; font-style: italic; }
 
-.add-comment {
+/*
+ * The comment composer is pinned to the viewport rather than sitting in the
+ * page flow. Reviewing a six-hour recording means scrolling a very long way,
+ * and a composer at the top of the transcript is unreachable exactly when it
+ * is most wanted.
+ */
+.composer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
   display: flex;
   gap: 8px;
-  margin-bottom: 16px;
+  align-items: center;
+  width: min(920px, 100%);
+  margin: 0 auto;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--line);
+}
+
+.composer input { flex: 1; }
+
+.composer__stamp {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font: inherit;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+/*
+ * Typing takes seconds, and at 3x the playhead travels a long way in that
+ * time. The timestamp is pinned on the first keystroke; when playback has
+ * since moved on, this highlights and offers to re-pin to the current spot.
+ */
+.composer__stamp--drifted {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.composer__move {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
 }
 
 .speakers {
