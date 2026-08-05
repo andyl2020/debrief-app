@@ -19,3 +19,14 @@ export function freshDatabase(): void {
   generation += 1
   resetDatabaseConnection(`debrief-test-${generation}`)
 }
+
+/**
+ * Switches which database subsequent calls use, keeping the same factory.
+ *
+ * Lets one test model two devices — upload from "desktop", read on "phone" —
+ * which is the whole point of the cloud library and cannot be expressed with a
+ * single shared database.
+ */
+export function useDatabase(name: string): void {
+  resetDatabaseConnection(name)
+}
