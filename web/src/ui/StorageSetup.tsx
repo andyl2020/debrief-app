@@ -32,6 +32,39 @@ export function StorageSetup({ app }: { app: AppApi }) {
     )
   }
 
+  // Neither mode can work here. Say so up front instead of showing two buttons
+  // that both fail — this is what a non-HTTPS origin looks like, and it is a
+  // very easy way to end up with an app that appears to do nothing.
+  if (!capabilities.fileSystemAccess && !capabilities.opfs) {
+    return (
+      <section className="setup">
+        <h2>This browser can’t store recordings</h2>
+        <div className="card card--highlight">
+          <p>
+            Debrief needs local storage to keep your audio and transcripts, and this browser is not
+            providing it.
+          </p>
+          {!window.isSecureContext ? (
+            <p>
+              <strong>Most likely cause:</strong> this page is being served over plain{' '}
+              <code>http://</code>. Browsers switch off local storage and encryption outside a secure
+              context. Open Debrief over <code>https://</code>, or via <code>localhost</code> on this
+              device.
+            </p>
+          ) : (
+            <p>
+              Your browser may be in private browsing mode, or may be too old. Debrief needs the
+              origin-private file system, which Safari has from version 16.4.
+            </p>
+          )}
+          <a className="button button--primary" href={GITHUB_URL} target="_blank" rel="noreferrer">
+            Get Debrief for Android on GitHub
+          </a>
+        </div>
+      </section>
+    )
+  }
+
   return (
     <section className="setup">
       <h2>Where should Debrief keep your recordings?</h2>

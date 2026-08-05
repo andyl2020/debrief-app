@@ -20,15 +20,72 @@ describe('App', () => {
     vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:audio', revokeObjectURL: () => {} }))
   })
 
-  it('offers the storage choice when nothing is linked yet', async () => {
+  it('explains itself when the browser can store nothing at all', async () => {
+    // This is what a page served over plain http:// looks like: the browser
+    // switches off OPFS and WebCrypto, and every button would fail. Saying so
+    // beats showing an app that appears to do nothing.
     removeOpfs()
 
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: /Where should Debrief keep your recordings/i })).toBeInTheDocument()
-    // Safari has no folder linking, and the app should say so instead of
-    // showing a button that cannot work.
-    expect(screen.getByText(/Folder linking isn’t available in this browser/i)).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: /This browser can’t store recordings/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/switch off local storage/i)).toBeInTheDocument()
+  })
+
+  it('asks which storage to use when the browser CAN link a folder', async () => {
+    // Regression: a browser that supports folder linking used to fall straight
+    // through to browser storage, so the user was never offered the mode with
+    // real Android parity.
+    installOpfs()
+    vi.stubGlobal('showDirectoryPicker', () => Promise.reject(new Error('not called')))
+
+    render(<App />)
+
+    expect(
+      await screen.findByRole('heading', { name: /Where should Debrief keep your recordings/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Link a folder' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Use browser storage' })).toBeInTheDocument()
+  })
+
+  it('remembers a choice of browser storage and stops asking', async () => {
+    installOpfs()
+    vi.stubGlobal('showDirectoryPicker', () => Promise.reject(new Error('not called')))
+    const { saveStorageMode } = await import('../src/storage')
+    await saveStorageMode('browser-storage')
+
+    render(<App />)
+
+    expect(await screen.findByRole('button', { name: 'Add audio' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: /Where should Debrief keep your recordings/i }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('says why a non-audio file was skipped instead of doing nothing', async () => {
+    installOpfs()
+
+    render(<App />)
+    await screen.findByRole('button', { name: 'Add audio' })
+    const input = document.querySelector('input[type=file]') as HTMLInputElement
+    await userEvent.upload(input, new File(['notes'], 'notes.txt', { type: 'text/plain' }))
+
+    expect(await screen.findByText(/Skipped notes\.txt/i)).toBeInTheDocument()
+    expect(screen.getByText(/MP3, M4A, WAV and AAC/i)).toBeInTheDocument()
+  })
+
+  it('does not filter the file picker, so iOS can reach files outside the media library', () => {
+    installOpfs()
+    render(<App />)
+
+    return waitFor(() => {
+      const input = document.querySelector('input[type=file]') as HTMLInputElement
+      // An `accept` list makes ordinary files unselectable on iOS, which looks
+      // exactly like the button being broken.
+      expect(input).not.toHaveAttribute('accept')
+    })
   })
 
   it('mounts into browser storage, lists an imported recording and opens it', async () => {

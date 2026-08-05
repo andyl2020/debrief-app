@@ -137,17 +137,56 @@ describe('OpfsStorageAdapter specifics', () => {
     expect(adapter.mode).toBe('browser-storage')
     expect(adapter.supportsAutomaticSidecars).toBe(false)
   })
+
+  it('still imports on a browser with OPFS but no createWritable (Safari 16)', async () => {
+    // Safari shipped OPFS in 16.4 and createWritable only in 17. Without the
+    // IndexedDB fallback, such a device passes the "storage supported" check
+    // and then fails at the exact moment the user tries to import.
+    const root = new FakeDirectoryHandle('root')
+    root.supportsCreateWritable = false
+    const child = (await root.getDirectoryHandle('recordings', {
+      create: true,
+    })) as unknown as FakeDirectoryHandle
+    child.supportsCreateWritable = false
+    installOpfsRoot(root)
+
+    const adapter = new OpfsStorageAdapter()
+    const [source] = await adapter.add([audioFile('Interview.m4a', 'safari-audio')])
+
+    expect(await adapter.list()).toHaveLength(1)
+    expect(await (await adapter.open(source!.key)).text()).toBe('safari-audio')
+  })
+
+  it('does not mistake a stored audio blob for a recording in the library', async () => {
+    const root = new FakeDirectoryHandle('root')
+    root.supportsCreateWritable = false
+    const child = (await root.getDirectoryHandle('recordings', {
+      create: true,
+    })) as unknown as FakeDirectoryHandle
+    child.supportsCreateWritable = false
+    installOpfsRoot(root)
+
+    const adapter = new OpfsStorageAdapter()
+    await adapter.add([audioFile('Interview.m4a')])
+
+    // The fallback keeps blobs in the same store as the metadata rows, so
+    // list() must return exactly one recording, not two entries.
+    expect(await adapter.list()).toHaveLength(1)
+  })
 })
 
 // --- adapter construction against the fake file system --------------------
 
 async function makeOpfs(): Promise<StorageAdapter> {
-  const root = new FakeDirectoryHandle('root')
+  installOpfsRoot(new FakeDirectoryHandle('root'))
+  return new OpfsStorageAdapter()
+}
+
+function installOpfsRoot(root: FakeDirectoryHandle): void {
   Object.defineProperty(globalThis.navigator, 'storage', {
     value: { getDirectory: async () => root },
     configurable: true,
   })
-  return new OpfsStorageAdapter()
 }
 
 async function makeFsa(

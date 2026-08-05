@@ -59,7 +59,13 @@ export function Library({ app, onOpen }: { app: AppApi; onOpen: (id: string) => 
           <input
             ref={fileInput}
             type="file"
-            accept="audio/*,.m4a,.mp3,.wav,.aac"
+            /*
+             * Deliberately unfiltered. On iOS an `accept` list routes the
+             * picker at the media library and greys out ordinary files, so a
+             * voice memo sitting in Files becomes unselectable and tapping
+             * "Add audio" appears to do nothing. Non-audio selections are
+             * rejected in `importFiles` with an explanation instead.
+             */
             multiple
             hidden
             onChange={(event) => {

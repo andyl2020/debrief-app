@@ -8,8 +8,13 @@ import {
   storageEstimate,
   type Capabilities,
 } from '../platform/capabilities'
-import { FileSystemAccessAdapter, OpfsStorageAdapter, resolveStorageAdapter } from '../storage'
-import type { StorageAdapter } from '../storage/adapter'
+import {
+  FileSystemAccessAdapter,
+  OpfsStorageAdapter,
+  resolveStorageAdapter,
+  saveStorageMode,
+} from '../storage'
+import { isAudioFileName, type StorageAdapter } from '../storage/adapter'
 import { KeyVault, vaultExists } from '../storage/keys'
 import { Repository } from './repository'
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, type AppSettings } from './settings'
@@ -25,6 +30,8 @@ export interface AppState {
   capabilities: Capabilities
   storage: StorageAdapter | null
   needsRelink: boolean
+  /** The browser can link a folder but the user has not chosen a mode yet. */
+  needsChoice: boolean
   persisted: boolean
   estimate: { usage: number; quota: number } | null
   recordings: Recording[]
@@ -42,6 +49,7 @@ export function useApp() {
   const [ready, setReady] = useState(false)
   const [storage, setStorage] = useState<StorageAdapter | null>(null)
   const [needsRelink, setNeedsRelink] = useState(false)
+  const [needsChoice, setNeedsChoice] = useState(false)
   const [persisted, setPersisted] = useState(false)
   const [estimate, setEstimate] = useState<{ usage: number; quota: number } | null>(null)
   const [recordings, setRecordings] = useState<Recording[]>([])
@@ -84,6 +92,7 @@ export function useApp() {
         const resolved = await resolveStorageAdapter()
         if (cancelled) return
         setNeedsRelink(resolved.needsRelink)
+        setNeedsChoice(resolved.needsChoice)
 
         if (resolved.adapter) {
           const repository = new Repository(resolved.adapter)
@@ -119,6 +128,8 @@ export function useApp() {
       repositoryRef.current = repository
       setStorage(adapter)
       setNeedsRelink(false)
+      setNeedsChoice(false)
+      await saveStorageMode('linked-folder')
       await repository.rescan()
       await repository.rebuildAllSearch()
       await refreshRecordings()
@@ -136,6 +147,8 @@ export function useApp() {
       repositoryRef.current = repository
       setStorage(adapter)
       setNeedsRelink(false)
+      setNeedsChoice(false)
+      await saveStorageMode('linked-folder')
       await repository.rescan()
       await repository.rebuildAllSearch()
       await refreshRecordings()
@@ -156,16 +169,54 @@ export function useApp() {
     repositoryRef.current = repository
     setStorage(adapter)
     setNeedsRelink(false)
+    setNeedsChoice(false)
+    await saveStorageMode('browser-storage')
     await repository.rebuildAllSearch()
     await refreshRecordings()
   }, [notify, refreshRecordings])
 
+  /**
+   * Import must never end in silence. Every path out of here either adds
+   * recordings or says why it did not - an earlier version returned quietly
+   * when there was no repository or nothing usable in the selection, which
+   * looked exactly like the button being broken.
+   */
   const importFiles = useCallback(
     async (files: File[]) => {
+      // An empty selection means the user cancelled the picker. That is the one
+      // case where saying nothing is right.
+      if (files.length === 0) return
+
       const repository = repositoryRef.current
-      if (!repository || files.length === 0) return
+      if (!repository) {
+        notify('Debrief has no storage open yet. Choose where to keep recordings first.')
+        return
+      }
+
+      const audio = files.filter(
+        (file) => file.type.startsWith('audio/') || isAudioFileName(file.name),
+      )
+      const rejected = files.filter((file) => !audio.includes(file))
+      if (rejected.length > 0) {
+        notify(
+          `Skipped ${rejected.map((file) => file.name).join(', ')} — Debrief reads MP3, M4A, WAV and AAC audio.`,
+        )
+      }
+      if (audio.length === 0) return
+
+      const empty = audio.filter((file) => file.size === 0)
+      if (empty.length > 0) {
+        notify(
+          `${empty.map((file) => file.name).join(', ')} came through empty. On iPhone, pick the file from Browse rather than a share sheet preview.`,
+        )
+      }
+
       try {
-        const sources = await repository.adapter.add(files)
+        const sources = await repository.adapter.add(audio.filter((file) => file.size > 0))
+        if (sources.length === 0) {
+          notify('Nothing was imported. The files could not be read from this device.')
+          return
+        }
         for (const source of sources) await repository.importSource(source)
         await repository.rebuildAllSearch()
         await refreshRecordings()
@@ -287,6 +338,7 @@ export function useApp() {
       capabilities,
       storage,
       needsRelink,
+      needsChoice,
       persisted,
       estimate,
       recordings,

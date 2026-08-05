@@ -23,8 +23,12 @@ import { STORES, get, getAll, put, remove } from './db'
 
 const AUDIO_DIRECTORY = 'recordings'
 
+type AudioLocation = 'opfs' | 'indexeddb'
+
 interface StoredAudioMeta extends AudioSource {
   fileName: string
+  /** Where the bytes actually landed. Older rows predate the fallback. */
+  location?: AudioLocation
 }
 
 export class OpfsStorageAdapter implements StorageAdapter {
@@ -52,46 +56,43 @@ export class OpfsStorageAdapter implements StorageAdapter {
   }
 
   async list(): Promise<AudioSource[]> {
-    const stored = await getAll<StoredAudioMeta>(STORES.audio)
+    const stored = await getAll<unknown>(STORES.audio)
     return stored
-      .map(({ fileName: _fileName, ...source }) => source)
+      // The store holds metadata rows AND, for the IndexedDB fallback, the raw
+      // audio blobs under `blob:` keys. Only the metadata rows are recordings.
+      .filter(isAudioMeta)
+      .map(({ fileName: _fileName, location: _location, ...source }) => source)
       .sort((a, b) => b.lastModified - a.lastModified)
   }
 
   async open(key: string): Promise<Blob> {
     const meta = await get<StoredAudioMeta>(STORES.audio, key)
     if (!meta) throw new IoError('That recording is no longer in browser storage.')
-    const directory = await this.audioDirectory()
-    try {
-      const handle = await directory.getFileHandle(meta.fileName)
-      return await handle.getFile()
-    } catch (error) {
-      throw new IoError(
-        'The audio for this recording is missing. The browser may have reclaimed storage; import the file again.',
-        { cause: error },
-      )
+
+    if (meta.location !== 'indexeddb') {
+      try {
+        const directory = await this.audioDirectory()
+        const handle = await directory.getFileHandle(meta.fileName)
+        return await handle.getFile()
+      } catch (error) {
+        // Rows written before the location field was recorded could be in
+        // either place, so try the blob store before giving up.
+        if (meta.location === 'opfs') throw missingAudio(error)
+      }
     }
+
+    const blob = await get<Blob>(STORES.audio, `blob:${meta.fileName}`)
+    if (!blob) throw missingAudio(null)
+    return blob
   }
 
   async add(files: File[]): Promise<AudioSource[]> {
-    const directory = await this.audioDirectory()
     const added: AudioSource[] = []
 
     for (const file of files) {
       const key = crypto.randomUUID()
       const fileName = `${key}-${sanitize(file.name)}`
-      try {
-        const handle = await directory.getFileHandle(fileName, { create: true })
-        const writable = await handle.createWritable()
-        // Streams the File straight through; a multi-hour recording is never
-        // materialised in memory.
-        await file.stream().pipeTo(writable)
-      } catch (error) {
-        throw new IoError(
-          `Could not save "${file.name}" to browser storage. Free space and try again.`,
-          { cause: error },
-        )
-      }
+      const stored = await this.writeAudio(fileName, file)
 
       const source: AudioSource = {
         key,
@@ -100,11 +101,52 @@ export class OpfsStorageAdapter implements StorageAdapter {
         lastModified: file.lastModified,
         mimeType: file.type || guessMimeType(file.name),
       }
-      await put(STORES.audio, { ...source, fileName } satisfies StoredAudioMeta, key)
+      await put(
+        STORES.audio,
+        { ...source, fileName, location: stored } satisfies StoredAudioMeta,
+        key,
+      )
       added.push(source)
     }
 
     return added
+  }
+
+  /**
+   * Writes the audio, preferring OPFS streaming and falling back to an
+   * IndexedDB blob.
+   *
+   * The fallback exists for a specific, common case: Safari shipped OPFS in
+   * 16.4 but did NOT add `createWritable` until 17. Without this, an iPhone on
+   * iOS 16 would pass the "is OPFS supported" check, then fail at the moment
+   * the user tried to import - which is the worst possible time to discover it.
+   */
+  private async writeAudio(fileName: string, file: File): Promise<AudioLocation> {
+    try {
+      const directory = await this.audioDirectory()
+      const handle = await directory.getFileHandle(fileName, { create: true })
+      if (typeof handle.createWritable === 'function') {
+        const writable = await handle.createWritable()
+        // Streams the File straight through; a multi-hour recording is never
+        // materialised in memory.
+        await file.stream().pipeTo(writable)
+        return 'opfs'
+      }
+    } catch (error) {
+      // Fall through to the blob store rather than failing the import. If that
+      // also fails, the error below is the one the user sees.
+      console.warn('Debrief: OPFS write unavailable, using IndexedDB instead.', error)
+    }
+
+    try {
+      await put(STORES.audio, file, `blob:${fileName}`)
+      return 'indexeddb'
+    } catch (error) {
+      throw new IoError(
+        `Could not save "${file.name}" on this device. It may be too large for the space this browser allows.`,
+        { cause: error },
+      )
+    }
   }
 
   async remove(key: string): Promise<void> {
@@ -116,6 +158,7 @@ export class OpfsStorageAdapter implements StorageAdapter {
     } catch {
       // Already gone is the desired end state, so this is not an error.
     }
+    await remove(STORES.audio, `blob:${meta.fileName}`).catch(() => undefined)
     await remove(STORES.audio, key)
   }
 
@@ -139,4 +182,21 @@ export class OpfsStorageAdapter implements StorageAdapter {
 
 function sanitize(name: string): string {
   return name.replace(/[^\w.\-]+/g, '_').slice(0, 120)
+}
+
+function isAudioMeta(value: unknown): value is StoredAudioMeta {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !(value instanceof Blob) &&
+    typeof (value as StoredAudioMeta).key === 'string' &&
+    typeof (value as StoredAudioMeta).fileName === 'string'
+  )
+}
+
+function missingAudio(cause: unknown): IoError {
+  return new IoError(
+    'The audio for this recording is missing. The browser may have reclaimed storage; import the file again.',
+    { cause },
+  )
 }

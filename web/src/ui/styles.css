@@ -694,3 +694,19 @@ label { display: block; font-size: 0.9rem; }
   .comment { margin-left: 0; }
   .player { position: static; }
 }
+
+.diagnostics {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.diagnostics li {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 10px;
+  align-items: start;
+  font-size: 0.88rem;
+}

@@ -91,6 +91,8 @@ export class FakeDirectoryHandle {
   readonly timestamps = new Map<string, number>()
   private readonly children = new Map<string, FakeDirectoryHandle>()
   private clock = 1_700_000_000_000
+  /** Set false to emulate Safari 16, which has OPFS but no `createWritable`. */
+  supportsCreateWritable = true
 
   constructor(readonly name = 'Recordings') {}
 
@@ -105,7 +107,17 @@ export class FakeDirectoryHandle {
       this.files.set(name, new Uint8Array())
       this.timestamps.set(name, this.nextTimestamp())
     }
-    return new FakeFileHandle(name, this) as unknown as FileSystemFileHandle
+    const handle = new FakeFileHandle(name, this)
+    if (this.supportsCreateWritable) return handle as unknown as FileSystemFileHandle
+    // Safari 16.4 shipped OPFS without `createWritable`; it only arrived in
+    // Safari 17. Hand back a handle genuinely lacking the method so the
+    // adapter's feature check is what decides, not a stubbed return value.
+    const { createWritable: _omitted, ...rest } = handle as unknown as Record<string, unknown>
+    return Object.assign(Object.create(null), rest, {
+      kind: 'file',
+      name,
+      getFile: () => handle.getFile(),
+    }) as unknown as FileSystemFileHandle
   }
 
   async getDirectoryHandle(name: string, options?: { create?: boolean }) {

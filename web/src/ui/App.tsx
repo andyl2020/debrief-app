@@ -22,7 +22,7 @@ export function App() {
     )
   }
 
-  const showSetup = !app.state.storage || app.state.needsRelink
+  const showSetup = !app.state.storage || app.state.needsRelink || app.state.needsChoice
 
   return (
     <div className="shell">

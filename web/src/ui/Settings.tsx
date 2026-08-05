@@ -6,6 +6,7 @@ import { confirmAacEncoder } from '../platform/capabilities'
 import { destroyVault } from '../storage/keys'
 import type { AppApi } from '../state/useApp'
 import { COMING_SOON_SCREENS, ComingSoon, GITHUB_URL } from './ComingSoon'
+import { Diagnostics } from './Diagnostics'
 
 const PROVIDERS: Array<{ id: ProviderId; label: string; blurb: string }> = [
   {
@@ -170,6 +171,8 @@ export function SettingsScreen({ app }: { app: AppApi }) {
           by your device, and nothing more.
         </p>
       </div>
+
+      <Diagnostics app={app} />
 
       <div className="card">
         <h3>Android-only features</h3>
