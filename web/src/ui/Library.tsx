@@ -2,13 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatBytes, formatTimestamp } from '../core/format'
 import type { Recording, SearchHit } from '../core/models'
 import type { AppApi } from '../state/useApp'
+import type { CloudApi } from '../state/useCloud'
 
 /**
  * Mirrors the Android Library tab: status per recording, multi-select batch
  * transcription, and a search that spans filenames, transcripts, summaries and
  * comments (unlike the in-player search, which is transcript-only).
  */
-export function Library({ app, onOpen }: { app: AppApi; onOpen: (id: string) => void }) {
+export function Library({ app, cloud, onOpen }: { app: AppApi; cloud: CloudApi; onOpen: (id: string) => void }) {
   const { recordings, progress, storage } = app.state
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [query, setQuery] = useState('')
@@ -146,6 +147,11 @@ export function Library({ app, onOpen }: { app: AppApi; onOpen: (id: string) => 
                 onOpen={() => onOpen(recording.id)}
                 onTranscribe={() => void app.actions.transcribe([recording.id])}
                 onDelete={() => void app.actions.deleteRecording(recording.id)}
+                inCloud={cloud.state.states[recording.id] !== undefined}
+                cloudReady={cloud.state.paired && cloud.state.unlocked}
+                cloudBusy={cloud.state.progress?.id === recording.id ? cloud.state.progress : null}
+                onUpload={() => void cloud.actions.upload(recording.id)}
+                onRemoveFromCloud={() => void cloud.actions.removeUpload(recording.id)}
               />
             </li>
           ))}
@@ -171,6 +177,11 @@ function RecordingCard({
   onOpen,
   onTranscribe,
   onDelete,
+  inCloud,
+  cloudReady,
+  cloudBusy,
+  onUpload,
+  onRemoveFromCloud,
 }: {
   recording: Recording
   selected: boolean
@@ -179,6 +190,11 @@ function RecordingCard({
   onOpen: () => void
   onTranscribe: () => void
   onDelete: () => void
+  inCloud: boolean
+  cloudReady: boolean
+  cloudBusy: { stage: string; fraction: number | null } | null
+  onUpload: () => void
+  onRemoveFromCloud: () => void
 }) {
   const busy = recording.status === 'QUEUED' || recording.status === 'TRANSCRIBING'
   const canTranscribe = !busy
@@ -207,6 +223,12 @@ function RecordingCard({
         {recording.status === 'FAILED' && recording.errorMessage && (
           <span className="recording__error">{recording.errorMessage}</span>
         )}
+        {cloudBusy && (
+          <span className="recording__progress">
+            {cloudBusy.stage}
+            {cloudBusy.fraction !== null ? ` · ${Math.round(cloudBusy.fraction * 100)}%` : ''}
+          </span>
+        )}
       </button>
 
       <div className="recording__side">
@@ -222,6 +244,17 @@ function RecordingCard({
                 : 'Transcribe'}
           </button>
         )}
+        {/* Opt-in per recording: nothing reaches the cloud without this. */}
+        {cloudReady &&
+          (inCloud ? (
+            <button type="button" className="button button--quiet" onClick={onRemoveFromCloud} title="Remove the cloud copy; the local file is untouched">
+              In cloud ✓
+            </button>
+          ) : (
+            <button type="button" className="button button--small" onClick={onUpload} disabled={cloudBusy !== null}>
+              Upload
+            </button>
+          ))}
         <button type="button" className="button button--quiet" onClick={onDelete}>
           Remove
         </button>

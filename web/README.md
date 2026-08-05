@@ -25,6 +25,19 @@ API key, exactly as the Android app does. It deploys as static files.
 - **Timestamped comments**, speaker aliases, Markdown export
 - **Sidecar interoperability** with Android (schema v4) — see below
 
+## Cloud library (optional)
+
+Keep chosen recordings in your own Cloudflare account and reach them from any device — the phone
+browser reads what the desktop uploaded. Audio and transcripts are encrypted in the browser before
+upload, so Cloudflare stores bytes it cannot read, and seeking still works because AES-CTR allows a
+byte range to be decrypted on its own.
+
+Opt-in per recording; nothing uploads unless you press Upload. See
+[CLOUD-SETUP.md](CLOUD-SETUP.md) for deployment and pairing.
+
+This is separate from the Android app's **Share Sets**, which publishes selected clips to somebody
+else on an expiring link. Both use the same Worker and neither interferes with the other.
+
 ## Android interoperability
 
 Debrief on Android writes `<recording>.debrief.json` and `<recording>.debrief.backup.json` beside each
@@ -62,6 +75,9 @@ These are honest gaps, surfaced in the UI rather than hidden:
   sidecars for anything you cannot lose.
 - **No SQLCipher.** Android encrypts its database at rest. IndexedDB is protected by the origin and
   your device, and nothing more.
+- **Cloud encryption is confidentiality, not integrity.** AES-CTR means your provider cannot read
+  your recordings, but it does not detect tampering. Losing the cloud passphrase loses the cloud
+  copy — nobody can recover it.
 - **API keys are weaker here.** Android seals them with a non-exportable hardware Keystore key. This
   app encrypts them with a passphrase you choose (PBKDF2 + AES-GCM via WebCrypto) and stores only the
   ciphertext — better than plaintext, still weaker than hardware. Settings says so.
@@ -86,7 +102,8 @@ web/src/storage/    StorageAdapter interface + the two implementations, key vaul
 web/src/state/      repository, transcription job runner, settings, app hook
 web/src/platform/   runtime capability detection
 web/src/ui/         React screens
-web/test/           108+ tests, incl. ~35 ported 1:1 from app/src/test
+web/public/sw.js    range-decrypting playback proxy for encrypted cloud audio
+web/test/           155 tests, incl. ~35 ported 1:1 from app/src/test
 ```
 
 `src/core/` deliberately has no DOM or React dependency, so it stays portable and directly
@@ -104,3 +121,8 @@ is auditable:
 Web-specific suites cover the storage adapters (both implementations against one contract), the key
 vault, sidecar v4 round-tripping against an Android-shaped fixture, search semantics, the
 transcription retry policy, capability detection, and the Coming Soon gating.
+
+The cloud suites cover AES-CTR range decryption at block boundaries, a 9 MiB push/pull round trip
+across an upload part boundary, and the shipped `public/sw.js` itself — evaluated directly and
+checked against known plaintext, because duplicated crypto that drifts yields audio that plays as
+noise rather than failing.

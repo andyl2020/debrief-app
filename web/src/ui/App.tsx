@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useApp } from '../state/useApp'
+import { useCloud } from '../state/useCloud'
 import { COMING_SOON_SCREENS, ComingSoon } from './ComingSoon'
 import { Library } from './Library'
 import { Review } from './Review'
@@ -11,6 +12,7 @@ type Tab = 'library' | 'record' | 'settings'
 
 export function App() {
   const app = useApp()
+  const cloud = useCloud(app.repository, app.actions.notify)
   const [tab, setTab] = useState<Tab>('library')
   const [reviewing, setReviewing] = useState<string | null>(null)
 
@@ -49,13 +51,13 @@ export function App() {
         {showSetup ? (
           <StorageSetup app={app} />
         ) : reviewing ? (
-          <Review app={app} recordingId={reviewing} onClose={() => setReviewing(null)} />
+          <Review app={app} cloud={cloud} recordingId={reviewing} onClose={() => setReviewing(null)} />
         ) : tab === 'library' ? (
-          <Library app={app} onOpen={setReviewing} />
+          <Library app={app} cloud={cloud} onOpen={setReviewing} />
         ) : tab === 'record' ? (
           <ComingSoon {...COMING_SOON_SCREENS.recorder!} />
         ) : (
-          <SettingsScreen app={app} />
+          <SettingsScreen app={app} cloud={cloud} />
         )}
       </main>
     </div>

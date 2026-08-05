@@ -5,8 +5,10 @@ import type { ProviderId } from '../core/transcription/provider'
 import { confirmAacEncoder } from '../platform/capabilities'
 import { destroyVault } from '../storage/keys'
 import type { AppApi } from '../state/useApp'
+import type { CloudApi } from '../state/useCloud'
 import { COMING_SOON_SCREENS, ComingSoon, GITHUB_URL } from './ComingSoon'
 import { Diagnostics } from './Diagnostics'
+import { CloudSettings } from './CloudSettings'
 
 const PROVIDERS: Array<{ id: ProviderId; label: string; blurb: string }> = [
   {
@@ -23,7 +25,7 @@ const PROVIDERS: Array<{ id: ProviderId; label: string; blurb: string }> = [
   },
 ]
 
-export function SettingsScreen({ app }: { app: AppApi }) {
+export function SettingsScreen({ app, cloud }: { app: AppApi; cloud: CloudApi }) {
   const { settings, capabilities, vault, persisted, estimate, storage } = app.state
   const [reencode, setReencode] = useState(false)
   const [section, setSection] = useState<'settings' | keyof typeof COMING_SOON_SCREENS>('settings')
@@ -171,6 +173,8 @@ export function SettingsScreen({ app }: { app: AppApi }) {
           by your device, and nothing more.
         </p>
       </div>
+
+      <CloudSettings cloud={cloud} />
 
       <Diagnostics app={app} />
 

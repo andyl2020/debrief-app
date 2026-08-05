@@ -237,6 +237,55 @@ describe('App', () => {
     ).toBeInTheDocument()
   })
 
+  it('offers no upload control until the cloud library is connected', async () => {
+    // Opt-in per recording means exactly that: with no cloud configured there
+    // is nothing on the card that could send audio anywhere.
+    installOpfs()
+    await seedRecording(new FakeDirectoryHandle())
+
+    render(<App />)
+    await screen.findByText('Interview.m4a')
+
+    expect(screen.queryByRole('button', { name: 'Upload' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /In cloud/ })).not.toBeInTheDocument()
+  })
+
+  it('asks to pair before asking for a cloud passphrase', async () => {
+    installOpfs()
+
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+
+    expect(await screen.findByRole('heading', { name: 'Cloud library' })).toBeInTheDocument()
+    expect(screen.getByLabelText(/Worker URL/i)).toBeInTheDocument()
+    // The passphrase step only appears once a device token exists, so a
+    // pairing failure and a wrong passphrase stay distinguishable.
+    expect(screen.queryByLabelText(/Cloud passphrase/i)).not.toBeInTheDocument()
+  })
+
+  it('states plainly that losing the cloud passphrase loses the data', async () => {
+    installOpfs()
+
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+    await screen.findByRole('heading', { name: 'Cloud library' })
+
+    expect(screen.getByText(/if you lose\s+the passphrase the cloud copy is gone/i)).toBeInTheDocument()
+    expect(screen.getByText(/stores bytes it cannot read/i)).toBeInTheDocument()
+  })
+
+  it('rejects a Worker URL that is not a full https address', async () => {
+    installOpfs()
+
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+    await userEvent.type(await screen.findByLabelText(/Worker URL/i), 'my-worker.dev')
+    await userEvent.type(screen.getByLabelText(/Pairing code/i), '123456')
+    await userEvent.click(screen.getByRole('button', { name: 'Pair this device' }))
+
+    expect(await screen.findByText(/including https:\/\//i)).toBeInTheDocument()
+  })
+
   it('asks for a vault passphrase before any key can be entered', async () => {
     installOpfs()
 

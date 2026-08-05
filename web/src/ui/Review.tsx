@@ -22,6 +22,9 @@ import {
 } from '../core/redactions'
 import { commentsForSegment, leadingComments } from '../core/comments'
 import type { AppApi } from '../state/useApp'
+import type { CloudApi } from '../state/useCloud'
+import { isCloudSourceKey } from '../state/cloud'
+import { cloudAudioUrl, type PlaybackMode } from '../state/cloud-playback'
 import { Chapters } from './Chapters'
 import { QualityReportCard } from './QualityReport'
 
@@ -30,10 +33,12 @@ const POSITION_POLL_MS = 75
 
 export function Review({
   app,
+  cloud,
   recordingId,
   onClose,
 }: {
   app: AppApi
+  cloud: CloudApi
   recordingId: string
   onClose: () => void
 }) {
@@ -50,6 +55,7 @@ export function Review({
   const [hits, setHits] = useState<SearchHit[]>([])
   const [chaptersOpen, setChaptersOpen] = useState(false)
   const [follow, setFollow] = useState(true)
+  const [playbackMode, setPlaybackMode] = useState<PlaybackMode | null>(null)
 
   const redactionMode = app.state.settings.redactionMode
 
@@ -62,26 +68,55 @@ export function Review({
     void reload()
   }, [reload])
 
-  // Load audio as an object URL. The Blob is never read into memory as bytes.
+  /**
+   * Resolves audio from wherever it actually lives.
+   *
+   * A recording pulled from the cloud has no local file, so it streams through
+   * the decrypting proxy instead. Local audio still becomes a plain object URL —
+   * the Blob is never read into memory as bytes either way.
+   */
   useEffect(() => {
     if (!repository || !bundle) return
-    let url: string | null = null
+    let release: (() => void) | null = null
     let cancelled = false
+
     void (async () => {
       try {
+        if (isCloudSourceKey(bundle.recording.sourceKey)) {
+          const state = await cloud.getState(recordingId)
+          if (!state || !cloud.client || !cloud.key) {
+            if (!cancelled) {
+              app.actions.notify('Unlock the cloud library in Settings to play this recording.')
+            }
+            return
+          }
+          const handle = await cloudAudioUrl(cloud.client, cloud.key, state, bundle.recording.mimeType)
+          if (cancelled) {
+            handle.release()
+            return
+          }
+          release = handle.release
+          setPlaybackMode(handle.mode)
+          setAudioUrl(handle.url)
+          return
+        }
+
         const blob = await repository.adapter.open(bundle.recording.sourceKey)
         if (cancelled) return
-        url = URL.createObjectURL(blob)
+        const url = URL.createObjectURL(blob)
+        release = () => URL.revokeObjectURL(url)
+        setPlaybackMode(null)
         setAudioUrl(url)
       } catch (error) {
         if (!cancelled) app.actions.notify(userMessage('Could not open the audio.', error))
       }
     })()
+
     return () => {
       cancelled = true
-      if (url) URL.revokeObjectURL(url)
+      release?.()
     }
-  }, [app.actions, bundle?.recording.sourceKey, repository])
+  }, [app.actions, bundle?.recording.sourceKey, cloud, recordingId, repository])
 
   const muteRanges = useMemo(
     () => (redactionMode ? redactionMuteRanges(bundle?.redactions ?? []) : []),
@@ -369,6 +404,12 @@ export function Review({
 
         {/* Safari clamps playbackRate; say so rather than showing a rate that isn't happening. */}
         {speedNotice && <p className="notice">{speedNotice}</p>}
+        {playbackMode === 'whole-file' && (
+          <p className="notice notice--warn">
+            This browser cannot stream encrypted audio, so the whole recording was downloaded and
+            decrypted before playing. Seeking works, but a long recording will be slow to start.
+          </p>
+        )}
         {redactionMode && (
           <p className="notice notice--privacy">
             Redaction mode is on. Redacted text is masked and playback mutes from{' '}
