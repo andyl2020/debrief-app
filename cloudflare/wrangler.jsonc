@@ -5,7 +5,7 @@
   "compatibility_date": "2026-08-01",
   "workers_dev": true,
   "vars": {
-    "PUBLIC_BASE_URL": "https://debrief-share.debrief-share-service.workers.dev",
+    "PUBLIC_BASE_URL": "https://debrief-share.YOUR-SUBDOMAIN.workers.dev",
     "FREE_STORAGE_BYTES": "10000000000",
     "PIN_KDF_ITERATIONS": "25000",
     "STAGING_TTL_HOURS": "24",
@@ -21,7 +21,7 @@
     {
       "binding": "DB",
       "database_name": "debrief-share",
-      "database_id": "24068807-199a-4d36-bdac-2a2748728004",
+      "database_id": "PUT-YOUR-D1-DATABASE-ID-HERE",
       "migrations_dir": "migrations"
     }
   ],

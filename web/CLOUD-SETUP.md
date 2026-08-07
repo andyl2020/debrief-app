@@ -20,6 +20,15 @@ R2 has to be switched on once, in the Cloudflare dashboard, before the CLI can s
 
 Dashboard → **R2** → enable. The free tier still asks for a payment method on file.
 
+## 0b. Claim your workers.dev subdomain (dashboard only)
+
+A brand-new account has no `*.workers.dev` subdomain until you open **Workers & Pages** in the
+dashboard once — loading that page mints it. Until then `wrangler deploy` cannot publish a
+workers.dev route, and the API answers `code: 10007` if you ask what the subdomain is.
+
+Dashboard → **Workers & Pages**. The subdomain it shows is what `PUBLIC_BASE_URL` is built from:
+`https://debrief-share.<subdomain>.workers.dev`.
+
 ## 1. Deploy the Worker
 
 From `cloudflare/`, with Node 22+ and a Cloudflare account:

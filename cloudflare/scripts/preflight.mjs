@@ -16,11 +16,18 @@ import { fileURLToPath } from 'node:url'
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const configPath = resolve(root, 'wrangler.jsonc')
 
-/** Values inherited from the upstream repository that must not be deployed as-is. */
-const UPSTREAM = {
-  databaseId: '24068807-199a-4d36-bdac-2a2748728004',
-  publicBaseUrl: 'https://debrief-share.debrief-share-service.workers.dev',
-}
+/**
+ * Values that must not be deployed as-is: the placeholders this file ships with,
+ * plus the upstream author's real ids, which earlier revisions carried.
+ */
+const PLACEHOLDER_DATABASE_IDS = new Set([
+  'PUT-YOUR-D1-DATABASE-ID-HERE',
+  '24068807-199a-4d36-bdac-2a2748728004',
+])
+const PLACEHOLDER_BASE_URLS = new Set([
+  'https://debrief-share.YOUR-SUBDOMAIN.workers.dev',
+  'https://debrief-share.debrief-share-service.workers.dev',
+])
 
 const problems = []
 const warnings = []
@@ -28,18 +35,18 @@ const warnings = []
 const config = parseJsonc(readFileSync(configPath, 'utf8'))
 
 const database = config.d1_databases?.[0]
-if (!database?.database_id || database.database_id === UPSTREAM.databaseId) {
+if (!database?.database_id || PLACEHOLDER_DATABASE_IDS.has(database.database_id)) {
   problems.push(
-    `d1_databases[0].database_id is still the upstream placeholder.\n` +
+    `d1_databases[0].database_id is still a placeholder.\n` +
       `    Run:  npx wrangler d1 create debrief-share\n` +
       `    then put the id it prints into wrangler.jsonc.`,
   )
 }
 
-if (!config.vars?.PUBLIC_BASE_URL || config.vars.PUBLIC_BASE_URL === UPSTREAM.publicBaseUrl) {
+if (!config.vars?.PUBLIC_BASE_URL || PLACEHOLDER_BASE_URLS.has(config.vars.PUBLIC_BASE_URL)) {
   problems.push(
-    `vars.PUBLIC_BASE_URL still points at the upstream deployment.\n` +
-      `    Share links would be generated with somebody else's hostname.\n` +
+    `vars.PUBLIC_BASE_URL is not your deployment.\n` +
+      `    Share links would be generated with a placeholder or somebody else's hostname.\n` +
       `    Set it to your own Worker or custom-domain origin.`,
   )
 }
