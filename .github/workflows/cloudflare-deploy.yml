@@ -66,3 +66,9 @@ jobs:
       - name: Verify production health
         shell: bash
         run: curl --fail --silent --show-error "$DEBRIEF_SHARE_BASE_URL/health"
+
+      - name: Install browser for public-viewer verification
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify public viewer end to end
+        run: npm run test:browser

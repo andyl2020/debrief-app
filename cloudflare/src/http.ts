@@ -6,6 +6,13 @@ const BASE_HEADERS: Record<string, string> = {
   "X-Frame-Options": "DENY",
 };
 
+function responseHeaders(contentType: string, overrides: HeadersInit): Headers {
+  const headers = new Headers(BASE_HEADERS);
+  headers.set("Content-Type", contentType);
+  new Headers(overrides).forEach((value, name) => headers.set(name, value));
+  return headers;
+}
+
 export class HttpError extends Error {
   constructor(
     readonly status: number,
@@ -19,11 +26,7 @@ export class HttpError extends Error {
 export function json(data: unknown, status = 200, headers: HeadersInit = {}): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: {
-      ...BASE_HEADERS,
-      "Content-Type": "application/json; charset=utf-8",
-      ...Object.fromEntries(new Headers(headers)),
-    },
+    headers: responseHeaders("application/json; charset=utf-8", headers),
   });
 }
 
@@ -35,11 +38,7 @@ export function textResponse(
 ): Response {
   return new Response(body, {
     status,
-    headers: {
-      ...BASE_HEADERS,
-      "Content-Type": contentType,
-      ...Object.fromEntries(new Headers(headers)),
-    },
+    headers: responseHeaders(contentType, headers),
   });
 }
 

@@ -87,7 +87,15 @@ describe("Debrief share service", () => {
 
     const viewer = await SELF.fetch(`${ORIGIN}/s/${token}`);
     expect(viewer.status).toBe(200);
+    expect(viewer.headers.get("Content-Security-Policy")).toBe(
+      "default-src 'none'; script-src 'self'; style-src 'self'; media-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+    );
     expect(await viewer.text()).not.toContain(">Download<");
+
+    const viewerScript = await SELF.fetch(`${ORIGIN}/assets/viewer.js`);
+    expect(viewerScript.status).toBe(200);
+    expect(viewerScript.headers.get("Cache-Control")).toBe("public, max-age=3600");
+    expect(viewerScript.headers.get("Content-Type")).toBe("text/javascript; charset=utf-8");
 
     const usage = await ownerFetch(owner, "/v1/owner/usage");
     const usageBody = await usage.json<any>();
