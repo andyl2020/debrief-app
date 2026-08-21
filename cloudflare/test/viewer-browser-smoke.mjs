@@ -95,6 +95,9 @@ try {
   });
   page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
   page.on("requestfailed", (request) => errors.push(`requestfailed: ${request.url()} ${request.failure()?.errorText ?? ""}`));
+  page.on("response", (response) => {
+    if (response.status() >= 400) errors.push(`response: ${response.status()} ${response.url()}`);
+  });
 
   const response = await page.goto(published.url, { waitUntil: "networkidle", timeout: 30_000 });
   assert.equal(response?.status(), 200);

@@ -39,6 +39,9 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   if (request.method === "GET" && path === "/health") {
     return json({ ok: true, service: "debrief-share", version: 1 });
   }
+  if (request.method === "GET" && path === "/favicon.ico") {
+    return textResponse("", 200, "image/x-icon", { "Cache-Control": "public, max-age=86400" });
+  }
   if (request.method === "GET" && path === "/assets/viewer.css") {
     return textResponse(VIEWER_CSS, 200, "text/css; charset=utf-8", { "Cache-Control": "public, max-age=3600" });
   }

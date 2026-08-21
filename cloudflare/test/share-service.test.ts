@@ -10,6 +10,10 @@ describe("Debrief share service", () => {
     expect(await response.json()).toEqual({ ok: true, service: "debrief-share", version: 1 });
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+
+    const favicon = await SELF.fetch(`${ORIGIN}/favicon.ico`);
+    expect(favicon.status).toBe(200);
+    expect(favicon.headers.get("Cache-Control")).toBe("public, max-age=86400");
   });
 
   it("requires a paired owner credential", async () => {
