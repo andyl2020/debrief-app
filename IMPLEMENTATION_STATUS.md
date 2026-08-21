@@ -6,13 +6,17 @@ Last updated: 2026-08-21
 
 Release Debrief v1.11.2 as a public Share Sets viewer repair, verify it in an actual mobile-sized browser, and preserve the v1.11.1 Android stability and privacy contract.
 
-## Active v1.11.2 checkpoint
+## Shipped v1.11.2 checkpoint
 
 - Reproduced the recipient failure in Chrome: the page remained on **Opening private share…** because two differently cased CSP header keys became two enforced policies and the global `default-src 'none'` blocked `/assets/viewer.js` and `/assets/viewer.css`.
 - Replaced object-spread response headers with case-insensitive `Headers.set` composition. Route-specific CSP and cache policies now replace defaults instead of being appended.
 - Added exact Worker header regression coverage plus a real deployed-browser smoke test that publishes a temporary share, renders it at a 412 x 915 Android viewport, verifies transcript/comments/audio controls and zero browser errors, and revokes it. Future production deployment runs execute this check.
 - Production Worker version `049285c7-c587-42d7-84bf-f90423548098` is live. Both a new test share and a share published before the fix render correctly in mobile-emulated Chrome. The pre-fix test fixture was revoked after verification.
-- Release candidate: Android version code 30/name 1.11.2. The Android build contains no behavioral/schema changes beyond its visible patch version. All 69 JVM tests, release lint/R8, debug/release compilation, Android-test compilation, all 35 registered Android 11/4-KB tests, and all 35 registered Android 15/true-16-KB tests pass. The credential-gated real-M4A Android-to-production flow also passes separately on Android 15; ARM64/x86-64 16-KB alignment, a cold launch, correct package version, and an empty post-launch crash buffer are verified. GitHub tag/publication and public signed-upgrade verification remain.
+- Release candidate: Android version code 30/name 1.11.2. The Android build contains no behavioral/schema changes beyond its visible patch version. All 69 JVM tests, release lint/R8, debug/release compilation, Android-test compilation, all 35 registered Android 11/4-KB tests, and all 35 registered Android 15/true-16-KB tests pass. The credential-gated real-M4A Android-to-production flow also passes separately on Android 15; ARM64/x86-64 16-KB alignment, a cold launch, correct package version, and an empty post-launch crash buffer are verified.
+- Release complete: annotated tag `v1.11.2` points to `4c36ec1`. GitHub Actions runs 32465655597, 32468565192, and 32468992624 passed Cloudflare checks, independent Android CI, production signing, release lint/R8, ARM64/x86-64 16-KB verification, and publication.
+- Public release: `https://github.com/andyl2020/debrief-app/releases/tag/v1.11.2`. The independently downloaded APK is 9,443,607 bytes with SHA-256 `A4BF65D59D7AC3FE9BF6B886499690A8CD0A7C720F2B7F389B73C10348E0E835`.
+- Public-artifact verification passed: package `com.andyluu.debrief`, version code 30/name 1.11.2, production RSA-4096 certificate SHA-256 `32BB05383EBD2FE29B70306D607842F1AAED8066C193C720A35EA5B8B8F60FE0`, APK Signature Scheme v3, ARM64/x86-64 16-KB ELF alignment, signed v1.11.1 -> v1.11.2 upgrade with retained first-install time/data directory, clean launch, and empty crash buffer.
+- No implementation or release work remains for v1.11.2.
 
 ## Shipped v1.11.1 checkpoint
 

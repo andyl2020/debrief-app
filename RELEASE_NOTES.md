@@ -146,6 +146,9 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Deployed Worker version `049285c7-c587-42d7-84bf-f90423548098`. Fresh and pre-fix links were both verified after deployment; the fix is server-side and does not require recipients or owners to recreate links.
 - Android package version is bumped to code 30/name 1.11.2 so the installed version is unambiguous. Android feature behavior, local data, pairing credentials, database schema, and share format remain compatible with v1.11.1.
 - Verification before tagging: 69 JVM tests, release lint/R8, debug/release compilation, Android-test compilation, all 35 registered tests on Android 11/4-KB, and all 35 registered tests on Android 15/true-16-KB pass. The credential-gated real-M4A Android-to-production Share Sets test also passes separately on Android 15, including clip preparation, upload, publication, public metadata/audio Range access, usage refresh, revoke, and immediate 404 denial. The v1.11.2 debug APK passes ARM64/x86-64 16-KB alignment, cold launch, package version 30/1.11.2, and an empty post-launch crash buffer.
+- GitHub Release: https://github.com/andyl2020/debrief-app/releases/tag/v1.11.2
+- GitHub Actions runs 32465655597, 32468565192, and 32468992624 passed Cloudflare checks, independent Android CI, production signing, release lint/R8, ARM64/x86-64 16-KB verification, and publication.
+- Independently verified public APK: 9,443,607 bytes; SHA-256 `A4BF65D59D7AC3FE9BF6B886499690A8CD0A7C720F2B7F389B73C10348E0E835`. Package version 30/1.11.2, production RSA-4096 certificate SHA-256 `32BB05383EBD2FE29B70306D607842F1AAED8066C193C720A35EA5B8B8F60FE0`, APK Signature Scheme v3, ARM64/x86-64 16-KB alignment, signed v1.11.1 -> v1.11.2 upgrade with retained first-install time/data directory, clean launch, and empty crash buffer passed.
 
 ### v1.11.1 - Stable Share Sets startup (2026-08-04)
 
