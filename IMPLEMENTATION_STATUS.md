@@ -1,12 +1,20 @@
 # Debrief implementation checkpoint
 
-Last updated: 2026-08-04
+Last updated: 2026-08-21
 
 ## Objective
 
-Release Debrief v1.11.1 as a stability patch for Share Sets startup and interrupted-draft recovery while preserving the v1.11.0 privacy and cloud contract.
+Release Debrief v1.11.2 as a public Share Sets viewer repair, verify it in an actual mobile-sized browser, and preserve the v1.11.1 Android stability and privacy contract.
 
-## Active v1.11.1 checkpoint
+## Active v1.11.2 checkpoint
+
+- Reproduced the recipient failure in Chrome: the page remained on **Opening private share…** because two differently cased CSP header keys became two enforced policies and the global `default-src 'none'` blocked `/assets/viewer.js` and `/assets/viewer.css`.
+- Replaced object-spread response headers with case-insensitive `Headers.set` composition. Route-specific CSP and cache policies now replace defaults instead of being appended.
+- Added exact Worker header regression coverage plus a real deployed-browser smoke test that publishes a temporary share, renders it at a 412 x 915 Android viewport, verifies transcript/comments/audio controls and zero browser errors, and revokes it. Future production deployment runs execute this check.
+- Production Worker version `049285c7-c587-42d7-84bf-f90423548098` is live. Both a new test share and a share published before the fix render correctly in mobile-emulated Chrome. The pre-fix test fixture was revoked after verification.
+- Release candidate: Android version code 30/name 1.11.2. The Android build contains no behavioral/schema changes beyond its visible patch version. All 69 JVM tests, release lint/R8, debug/release compilation, Android-test compilation, all 35 registered Android 11/4-KB tests, and all 35 registered Android 15/true-16-KB tests pass. The credential-gated real-M4A Android-to-production flow also passes separately on Android 15; ARM64/x86-64 16-KB alignment, a cold launch, correct package version, and an empty post-launch crash buffer are verified. GitHub tag/publication and public signed-upgrade verification remain.
+
+## Shipped v1.11.1 checkpoint
 
 - Root cause reproduced on Android 15/true-16-KB: Share Sets started WorkManager's foreground service with runtime type `none`, causing a fatal `InvalidForegroundServiceTypeException` immediately after link creation on target SDK 35.
 - Fix implemented: `ShareUploadWorker` now supplies `ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC`, matching the existing manifest declaration/permission and Android's long-running-worker contract.

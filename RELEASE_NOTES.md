@@ -76,6 +76,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 
 ### Share Sets
 
+- Public share links now load their stylesheet, JavaScript, transcript, comments, and audio player correctly in mobile Chrome. Existing links are repaired server-side; creating a replacement link is not required.
 - Open a ready recording, tap **Chapters**, then tap **Select to share**. Choose one to ten completed manual sets from that recording and tap **Review share**. Open/incomplete sets cannot be shared.
 - Review shows the exact set order, total duration, estimated upload size, included comments, and privacy rules before any cloud work begins. One share link contains every selected set, each with its own 0:00-based player.
 - Choose a 30-, 60-, or 90-day expiry; 30 days is the default. An optional PIN adds another recipient check. The page is read-only and intentionally has no Download button.
@@ -135,6 +136,16 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.11.2 - Working public Share Sets viewer (2026-08-21)
+
+- Fixed the recipient page getting stuck forever on **Opening private share…**. Two differently cased Content-Security-Policy header keys were serialized as two policies; Chrome enforced both and the stricter global policy blocked the viewer's own JavaScript and stylesheet.
+- Rebuilt response-header composition with the case-insensitive `Headers` API so a route-specific policy replaces the default instead of being appended to it. Asset cache overrides now replace `no-store` correctly for the same reason.
+- Added an exact CSP/cache-header regression test and a deployed browser smoke test. The smoke test creates a real private share, uploads its isolated transcript/comment/audio package, opens the public link in headless Chrome at a 412 x 915 OnePlus-sized Android viewport, asserts rendered content and an audio control with no browser errors, then revokes the fixture.
+- Added that real-browser check to every future production Cloudflare deployment. A harmless cached favicon response prevents a misleading 404 in the browser console.
+- Deployed Worker version `049285c7-c587-42d7-84bf-f90423548098`. Fresh and pre-fix links were both verified after deployment; the fix is server-side and does not require recipients or owners to recreate links.
+- Android package version is bumped to code 30/name 1.11.2 so the installed version is unambiguous. Android feature behavior, local data, pairing credentials, database schema, and share format remain compatible with v1.11.1.
+- Verification before tagging: 69 JVM tests, release lint/R8, debug/release compilation, Android-test compilation, all 35 registered tests on Android 11/4-KB, and all 35 registered tests on Android 15/true-16-KB pass. The credential-gated real-M4A Android-to-production Share Sets test also passes separately on Android 15, including clip preparation, upload, publication, public metadata/audio Range access, usage refresh, revoke, and immediate 404 denial. The v1.11.2 debug APK passes ARM64/x86-64 16-KB alignment, cold launch, package version 30/1.11.2, and an empty post-launch crash buffer.
 
 ### v1.11.1 - Stable Share Sets startup (2026-08-04)
 

@@ -14,8 +14,8 @@ android {
         applicationId = "com.andyluu.debrief"
         minSdk = 29
         targetSdk = 35
-        versionCode = 29
-        versionName = "1.11.1"
+        versionCode = 30
+        versionName = "1.11.2"
 
         val shareBaseUrl = (System.getenv("DEBRIEF_SHARE_BASE_URL")
             ?.takeIf(String::isNotBlank)
