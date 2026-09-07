@@ -13,7 +13,9 @@ Release Debrief v1.11.3 with reliable physical recording rename behavior while p
 - Rename root cause reproduced on Android 11: AndroidX `SingleDocumentFile.renameTo()` always throws `UnsupportedOperationException`. The implementation now uses `DocumentsContract.renameDocument`, persists its returned URI, performs file/database work off the main thread, reports provider/permission failures in the dialog, and rolls back the physical filename if the database update fails.
 - UX repair: the dialog edits the base name while visibly preserving the extension, shows an in-progress state, closes only after success, and leaves an actionable inline error on failure.
 - Regression replay passed against a real linked SAF folder: `Renamed_Fixed.m4a` became `Renamed_Final.m4a`; both `.debrief.json` and `.debrief.backup.json` followed it, the Library immediately displayed the final name, and rename/crash logcat stayed empty.
-- Release candidate: Android version code 31/name 1.11.3. JVM tests, debug build, and debug lint pass. Remaining release/device/public-artifact gates are tracked in this section until the release is independently verified.
+- Release candidate: Android version code 31/name 1.11.3. All 69 JVM tests, debug/release compilation, debug/release lint, release R8, Android-test compilation, all 35 registered Android 11/4-KB tests, and all 35 registered Android 15/true-16-KB tests pass. The debug APK passes ARM64/x86-64 alignment, reports version 31/1.11.3 on Android 15, cold-launches, and leaves empty crash/runtime-fatal buffers. GitHub Android run 34153942015 independently passed unit/build/alignment checks from source commit `6a73806`.
+- The first Android 15 attempt was discarded before completion after the emulator OS itself crashed and reported `DeadSystemException` from its audio service. A clean cold-booted true-16-KB image with 3 GB RAM completed all 35 tests; no app assertion was waived or counted from the aborted run.
+- Remaining gates: tag-triggered production signing/publication, unauthenticated public APK hash/signature verification, and signed v1.11.2 -> v1.11.3 upgrade retention.
 
 ## Shipped v1.11.2 checkpoint
 
