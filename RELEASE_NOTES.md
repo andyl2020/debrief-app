@@ -146,6 +146,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - No database schema, transcript, annotation, pairing, cloud-share, API-key, or signing-identity changes are included. Existing v1.11.2 data upgrades in place.
 - Verification before tagging: all 69 JVM tests, debug/release compilation, debug/release lint, release R8, Android-test compilation, all 35 registered tests on Android 11/4-KB, and all 35 registered tests on Android 15/true-16-KB pass. A real Android 11 linked-folder rename moved the source audio plus primary and backup sidecars together. The Android 15 build reports version 31/1.11.3, cold-launches, passes ARM64/x86-64 16-KB alignment, and leaves empty crash/runtime-fatal buffers. Signed upgrade and public APK verification follow publication.
 - GitHub Release: https://github.com/andyl2020/debrief-app/releases/tag/v1.11.3
+- Independently verified public APK: 9,448,117 bytes; SHA-256 `DC73C9A6F8F80383192668750055FFDDB055BA866C2CE3DEDBE7BADBD52C8B71`. Package version 31/1.11.3, production RSA-4096 certificate SHA-256 `32BB05383EBD2FE29B70306D607842F1AAED8066C193C720A35EA5B8B8F60FE0`, APK Signature Scheme v3, ARM64/x86-64 16-KB alignment, signed v1.11.2 -> v1.11.3 upgrade with retained first-install time, clean launch, and empty crash/runtime-fatal buffers passed.
 
 ### v1.11.2 - Working public Share Sets viewer (2026-08-21)
 

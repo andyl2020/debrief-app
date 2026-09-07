@@ -15,7 +15,10 @@ Release Debrief v1.11.3 with reliable physical recording rename behavior while p
 - Regression replay passed against a real linked SAF folder: `Renamed_Fixed.m4a` became `Renamed_Final.m4a`; both `.debrief.json` and `.debrief.backup.json` followed it, the Library immediately displayed the final name, and rename/crash logcat stayed empty.
 - Release candidate: Android version code 31/name 1.11.3. All 69 JVM tests, debug/release compilation, debug/release lint, release R8, Android-test compilation, all 35 registered Android 11/4-KB tests, and all 35 registered Android 15/true-16-KB tests pass. The debug APK passes ARM64/x86-64 alignment, reports version 31/1.11.3 on Android 15, cold-launches, and leaves empty crash/runtime-fatal buffers. GitHub Android run 34153942015 independently passed unit/build/alignment checks from source commit `6a73806`.
 - The first Android 15 attempt was discarded before completion after the emulator OS itself crashed and reported `DeadSystemException` from its audio service. A clean cold-booted true-16-KB image with 3 GB RAM completed all 35 tests; no app assertion was waived or counted from the aborted run.
-- Remaining gates: tag-triggered production signing/publication, unauthenticated public APK hash/signature verification, and signed v1.11.2 -> v1.11.3 upgrade retention.
+- Release complete: annotated tag `v1.11.3` points to `1da7cda`. GitHub Actions runs 34155206082, 34155380442, and 34155392986 passed independent Android CI, production signing, release lint/R8, ARM64/x86-64 16-KB verification, and publication.
+- Public release: `https://github.com/andyl2020/debrief-app/releases/tag/v1.11.3`. The independently downloaded APK is 9,448,117 bytes with SHA-256 `DC73C9A6F8F80383192668750055FFDDB055BA866C2CE3DEDBE7BADBD52C8B71`.
+- Public-artifact verification passed: package `com.andyluu.debrief`, version code 31/name 1.11.3, production RSA-4096 certificate SHA-256 `32BB05383EBD2FE29B70306D607842F1AAED8066C193C720A35EA5B8B8F60FE0`, APK Signature Scheme v3, ARM64/x86-64 16-KB ELF alignment, signed v1.11.2 -> v1.11.3 upgrade with retained first-install time, clean launch, and empty crash/runtime-fatal buffers.
+- No implementation or release work remains for v1.11.3.
 
 ## Shipped v1.11.2 checkpoint
 
