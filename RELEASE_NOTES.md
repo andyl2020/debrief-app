@@ -422,6 +422,21 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Rebuilt complete word timelines to prevent missing long-recording chunks.
 - Added transcript reload and sidecar recovery.
 
+### v1.1.0 — Batch transcription and usage visibility
+
+- Added long-press checkbox multi-select and disabled batch transcription until at least one eligible recording is selected.
+- Added on-device request/audio-duration tracking plus Deepgram monthly usage, spend, and balance when the key has the required scopes.
+- Added a permanent ARM64/x86-64 16-KB ELF alignment CI gate for modern devices including the OnePlus 13.
+- Verified Android 11/4-KB and Android 15/16-KB installs, tests, signed v1.0.1 upgrades, lint, R8, and native alignment.
+- APK SHA-256: `EE5543E3B64525276AD29D28FC53379C2199942A8A8322FAAA4A63D7513D18DB`.
+
+### v1.0.1 — Sideload compatibility
+
+- Packaged native libraries for extraction to improve Galaxy and other OEM installer compatibility and enabled every supported APK signing scheme.
+- Documented Samsung Auto Blocker and unknown-source setup.
+- Verified fresh Android 11/4-KB and Android 15/16-KB installs plus an in-place v1.0.0 upgrade.
+- APK SHA-256: `0F8C3F28800D2621F8D7EFADF18D58B573CD961ACF48C301BEA169D3BF9593B7`.
+
 ### v1.0.0 — Initial Android release
 
 - Added local-first folder linking, transcription, synchronized playback, search, timestamped comments, speaker aliases, Markdown export, encrypted storage, and reinstall-safe sidecars.
