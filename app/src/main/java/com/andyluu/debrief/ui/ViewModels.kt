@@ -144,11 +144,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun renameRecording(recordingId: String, requestedName: String) {
+    fun renameRecording(
+        recordingId: String,
+        requestedName: String,
+        onComplete: (Result<String>) -> Unit = {},
+    ) {
         viewModelScope.launch {
             val previous = dao.getRecording(recordingId)
             if (previous == null) {
-                _messages.emit("That recording is no longer available.")
+                val error = IllegalStateException("That recording is no longer available.")
+                _messages.emit(error.message.orEmpty())
+                onComplete(Result.failure(error))
                 return@launch
             }
             runCatching {
@@ -176,12 +182,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         "Renamed to $renamed."
                     }
                 )
+                onComplete(Result.success(renamed))
             }.onFailure { error ->
                 Log.e("DebriefRename", "Recording rename failed", error)
-                _messages.emit(
-                    error.message?.takeIf(String::isNotBlank)?.take(180)
-                        ?: "Android couldn't rename that recording."
-                )
+                val message = error.message?.takeIf(String::isNotBlank)?.take(180)
+                    ?: "Android couldn't rename that recording."
+                _messages.emit(message)
+                onComplete(Result.failure(IllegalStateException(message, error)))
             }
         }
     }

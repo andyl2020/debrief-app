@@ -31,7 +31,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Android call/communication mode pauses capture and resumes after the call. A user pause remains paused. If Android temporarily supplies silence because another app has higher microphone priority, Debrief shows a warning and keeps the recorder alive until microphone audio returns.
 - If the folder write fails, **Save needs attention** keeps the local recovery audio and offers **Retry save** or **Choose another folder**. An unfinished session with finalized parts is recovered on the next app open.
 - After a successful save, Debrief rescans the linked folder so the new recording appears in Library ready for playback or transcription.
-- In Library, tap the pencil beside a recording to physically rename the source file. Existing transcript/search metadata and the reinstall-safe sidecar are refreshed to the new name.
+- In Library, tap the pencil beside a recording to physically rename the source file. Edit the base name and tap **Save**; Debrief preserves the original extension, waits for Android storage to confirm the rename, then refreshes transcript/search metadata and both reinstall-safe sidecars. If the folder permission or provider rejects the operation, the dialog stays open with an actionable error.
 
 ### Review and playback
 
@@ -136,6 +136,16 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Releases signed by this repository upgrade in place. Debug or independently signed APKs must be uninstalled first because Android treats their signature as a different developer.
 
 ## Release history
+
+### v1.11.3 - Reliable recording rename (2026-09-07)
+
+- Fixed Library rename failing with `UnsupportedOperationException` on files discovered through Android's Storage Access Framework. Debrief now uses the platform document-provider rename contract and retains the provider's returned URI.
+- Fixed the post-rename search/sidecar refresh attempting direct database work on the UI thread. Search index rebuilds now run on the I/O dispatcher.
+- The rename dialog edits only the base filename, displays and preserves the existing extension, shows progress while saving, remains open on failure, and closes only after the physical file and local database are synchronized.
+- A failed local database update triggers a best-effort physical filename rollback, reducing the risk of a file/database mismatch. Missing permission, unavailable files, unsupported providers, and name collisions now produce readable errors instead of crashing.
+- No database schema, transcript, annotation, pairing, cloud-share, API-key, or signing-identity changes are included. Existing v1.11.2 data upgrades in place.
+- Verification before tagging: all JVM tests, debug build, debug lint, a real Android 11 linked-folder rename (source audio plus primary and backup sidecars), and an empty rename/crash log pass. Release lint/R8, the Android device matrix, 16-KB checks, signed upgrade, and public APK verification are completed by the release gates documented below.
+- GitHub Release: https://github.com/andyl2020/debrief-app/releases/tag/v1.11.3
 
 ### v1.11.2 - Working public Share Sets viewer (2026-08-21)
 

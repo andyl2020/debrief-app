@@ -1,10 +1,19 @@
 # Debrief implementation checkpoint
 
-Last updated: 2026-08-21
+Last updated: 2026-09-07
 
 ## Objective
 
-Release Debrief v1.11.2 as a public Share Sets viewer repair, verify it in an actual mobile-sized browser, and preserve the v1.11.1 Android stability and privacy contract.
+Release Debrief v1.11.3 with reliable physical recording rename behavior while preserving the v1.11.2 Android, privacy, and cloud-sharing contracts.
+
+## v1.11.3 checkpoint
+
+- Repository audit: `main` and `origin/main` started clean and synchronized at `a24fd9f`; v1.11.2 was the latest complete public release and its recent Android/release/Cloudflare workflows were green.
+- Pull-request audit: external PR #1 passed its own web and Worker tests but was not safe to merge. It used unauthenticated AES-CTR for private audio, replaced production Worker IDs/URLs with placeholders, carried vulnerable development dependencies, and bundled a stale 16,036-line cross-platform rewrite without repository CI. It was closed with a detailed remediation path; no open PRs remain.
+- Rename root cause reproduced on Android 11: AndroidX `SingleDocumentFile.renameTo()` always throws `UnsupportedOperationException`. The implementation now uses `DocumentsContract.renameDocument`, persists its returned URI, performs file/database work off the main thread, reports provider/permission failures in the dialog, and rolls back the physical filename if the database update fails.
+- UX repair: the dialog edits the base name while visibly preserving the extension, shows an in-progress state, closes only after success, and leaves an actionable inline error on failure.
+- Regression replay passed against a real linked SAF folder: `Renamed_Fixed.m4a` became `Renamed_Final.m4a`; both `.debrief.json` and `.debrief.backup.json` followed it, the Library immediately displayed the final name, and rename/crash logcat stayed empty.
+- Release candidate: Android version code 31/name 1.11.3. JVM tests, debug build, and debug lint pass. Remaining release/device/public-artifact gates are tracked in this section until the release is independently verified.
 
 ## Shipped v1.11.2 checkpoint
 

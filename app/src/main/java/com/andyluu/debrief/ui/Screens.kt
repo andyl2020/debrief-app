@@ -126,6 +126,7 @@ import com.andyluu.debrief.data.TranscriptQualityReportEntity
 import com.andyluu.debrief.data.TranscriptQualityStatus
 import com.andyluu.debrief.data.TranscriptSegmentEntity
 import com.andyluu.debrief.data.TranscriptionAudioQuality
+import com.andyluu.debrief.recording.RecordingNames
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -154,6 +155,8 @@ fun LibraryScreen(
     }
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var renamingRecording by remember { mutableStateOf<RecordingEntity?>(null) }
+    var renameInProgress by remember { mutableStateOf(false) }
+    var renameError by remember { mutableStateOf<String?>(null) }
     val selectableIds = recordings.filter { it.isTranscribable() }.mapTo(mutableSetOf()) { it.id }
     LaunchedEffect(selectableIds) { selectedIds = selectedIds.intersect(selectableIds) }
     val selectionMode = selectedIds.isNotEmpty()
@@ -251,7 +254,11 @@ fun LibraryScreen(
                                         selectedIds = if (recording.id in selectedIds) selectedIds - recording.id else selectedIds + recording.id
                                     }
                                 },
-                                onRename = { renamingRecording = recording },
+                                onRename = {
+                                    renamingRecording = recording
+                                    renameInProgress = false
+                                    renameError = null
+                                },
                             )
                         }
                         item { Spacer(Modifier.height(20.dp)) }
@@ -263,12 +270,23 @@ fun LibraryScreen(
     renamingRecording?.let { recording ->
         TextEntryDialog(
             title = "Rename recording",
-            confirm = "Rename",
-            initial = recording.displayName,
-            onDismiss = { renamingRecording = null },
+            confirm = "Save",
+            initial = RecordingNames.editableBase(recording.displayName),
+            onDismiss = { if (!renameInProgress) renamingRecording = null },
+            singleLine = true,
+            suffix = recording.displayName.substringAfterLast('.', "").takeIf(String::isNotBlank)?.let { ".$it" },
+            confirming = renameInProgress,
+            error = renameError,
         ) { requestedName ->
-            viewModel.renameRecording(recording.id, requestedName)
-            renamingRecording = null
+            renameInProgress = true
+            renameError = null
+            viewModel.renameRecording(recording.id, requestedName) { result ->
+                renameInProgress = false
+                result.fold(
+                    onSuccess = { renamingRecording = null },
+                    onFailure = { renameError = it.message ?: "Android couldn't rename that recording." },
+                )
+            }
         }
     }
 }
@@ -2095,15 +2113,42 @@ private fun TextEntryDialog(
     confirm: String,
     initial: String = "",
     onDismiss: () -> Unit,
+    singleLine: Boolean = false,
+    suffix: String? = null,
+    confirming: Boolean = false,
+    error: String? = null,
     onConfirm: (String) -> Unit,
 ) {
     var value by remember(initial) { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
-        text = { OutlinedTextField(value, { value = it }, modifier = Modifier.fillMaxWidth(), minLines = 2) },
-        confirmButton = { TextButton(onClick = { onConfirm(value) }, enabled = value.isNotBlank()) { Text(confirm) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        text = {
+            OutlinedTextField(
+                value = value,
+                onValueChange = { value = it },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = if (singleLine) 1 else 2,
+                singleLine = singleLine,
+                enabled = !confirming,
+                suffix = suffix?.let { extension -> ({ Text(extension) }) },
+                isError = error != null,
+                supportingText = error?.let { message -> ({ Text(message) }) },
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(value) },
+                enabled = value.isNotBlank() && !confirming,
+            ) {
+                if (confirming) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(if (confirming) "Saving" else confirm)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !confirming) { Text("Cancel") } },
     )
 }
 

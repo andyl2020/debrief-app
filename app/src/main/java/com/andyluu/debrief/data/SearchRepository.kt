@@ -1,12 +1,14 @@
 package com.andyluu.debrief.data
 
 import androidx.sqlite.db.SimpleSQLiteQuery
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class SearchRepository(private val database: DebriefDatabase) {
     private val dao = database.dao()
 
-    suspend fun rebuild(recordingId: String) {
-        val recording = dao.getRecording(recordingId) ?: return
+    suspend fun rebuild(recordingId: String) = withContext(Dispatchers.IO) {
+        val recording = dao.getRecording(recordingId) ?: return@withContext
         val db = database.openHelper.writableDatabase
         db.beginTransaction()
         try {
