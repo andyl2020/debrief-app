@@ -22,7 +22,10 @@ export interface LibraryItemRow {
   status: "PENDING" | "COMPLETE";
   audio_key: string;
   audio_nonce: string;
+  audio_plain_bytes: number;
   audio_bytes: number;
+  crypto_version: number;
+  chunk_bytes: number;
   audio_upload_id: string | null;
   audio_status: "PENDING" | "COMPLETE";
   meta_key: string;

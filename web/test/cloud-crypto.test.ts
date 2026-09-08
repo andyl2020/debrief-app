@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   CloudCryptoError,
+  GCM_TAG_BYTES,
   alignRange,
+  decryptChunk,
   decryptRange,
   decryptWhole,
+  encryptChunk,
   encryptWhole,
+  encryptedChunkedSize,
   generateLibraryKey,
   randomNonce,
   sha256Hex,
@@ -12,129 +16,88 @@ import {
   wrapLibraryKey,
 } from '../src/core/cloud-crypto'
 
-/**
- * The load-bearing property is range decryption. If it is wrong the audio does
- * not error, it plays as noise — so it is worth testing at boundaries rather
- * than once in the middle.
- */
-describe('cloud crypto', () => {
-  const plaintext = new Uint8Array(4096).map((_, index) => index % 251)
+describe('authenticated cloud crypto', () => {
+  const plaintext = new Uint8Array(257).map((_, index) => index % 251)
+  const chunkBytes = 32
+  const context = 'rec-1:audio'
 
-  it('round-trips a whole object', async () => {
+  async function encryptedChunks(key: CryptoKey, nonce: Uint8Array) {
+    const chunks: Uint8Array[] = []
+    for (let offset = 0, index = 0; offset < plaintext.length; offset += chunkBytes, index += 1) {
+      chunks.push(await encryptChunk(key, nonce, index, plaintext.slice(offset, offset + chunkBytes), context))
+    }
+    return concat(chunks)
+  }
+
+  it('authenticates and round-trips a whole metadata object', async () => {
     const key = await generateLibraryKey()
     const nonce = randomNonce()
-
-    const cipher = await encryptWhole(key, nonce, plaintext)
-
-    // CTR is a stream cipher: ciphertext is exactly as long as plaintext, which
-    // is what lets byte offsets map one to one.
-    expect(cipher.length).toBe(plaintext.length)
-    expect(Buffer.from(cipher).equals(Buffer.from(plaintext))).toBe(false)
-    expect(Buffer.from(await decryptWhole(key, nonce, cipher))).toEqual(Buffer.from(plaintext))
+    const cipher = await encryptWhole(key, nonce, plaintext, 'rec-1:metadata')
+    expect(cipher.length).toBe(plaintext.length + GCM_TAG_BYTES)
+    expect(await decryptWhole(key, nonce, cipher, 'rec-1:metadata')).toEqual(plaintext)
   })
 
-  it('decrypts an arbitrary byte range without the rest of the file', async () => {
-    // This is what makes seeking to 4:12:00 in a 350 MB recording possible.
+  it('decrypts arbitrary ranges while authenticating every covering chunk', async () => {
     const key = await generateLibraryKey()
     const nonce = randomNonce()
-    const cipher = await encryptWhole(key, nonce, plaintext)
-
-    for (const [start, end] of [
-      [0, 15],
-      [1, 100],
-      [1000, 2000],
-      [16, 31],
-      [4080, 4095],
-      [4095, 4095],
-      [17, 17],
-    ] as const) {
-      const aligned = alignRange(start, end, plaintext.length)
-      const slice = cipher.slice(aligned.fetchStart, aligned.fetchEnd + 1)
-      const got = await decryptRange(key, nonce, aligned, slice)
-
-      expect(Buffer.from(got)).toEqual(Buffer.from(plaintext.slice(start, end + 1)))
+    const cipher = await encryptedChunks(key, nonce)
+    for (const [start, end] of [[0, 15], [1, 100], [31, 65], [250, 256], [256, 256]] as const) {
+      const range = alignRange(start, end, plaintext.length, chunkBytes)
+      const got = await decryptRange(key, nonce, range, cipher.slice(range.fetchStart, range.fetchEnd + 1), plaintext.length, context, chunkBytes)
+      expect(got).toEqual(plaintext.slice(start, end + 1))
     }
   })
 
-  it('always fetches from a block boundary and reports the trim', async () => {
-    const aligned = alignRange(1000, 2000, 4096)
-
-    expect(aligned.fetchStart % 16).toBe(0)
-    expect(aligned.fetchStart).toBe(992)
-    expect(aligned.trimStart).toBe(8)
-    expect(aligned.length).toBe(1001)
+  it('maps plaintext ranges to complete authenticated ciphertext chunks', () => {
+    const range = alignRange(40, 70, plaintext.length, chunkBytes)
+    expect(range).toMatchObject({ firstChunk: 1, lastChunk: 2, fetchStart: 48, fetchEnd: 143, trimStart: 8, length: 31 })
+    expect(encryptedChunkedSize(plaintext.length, chunkBytes)).toBe(plaintext.length + 9 * GCM_TAG_BYTES)
   })
 
-  it('clamps a range that runs past the end of the object', async () => {
+  it('fails closed on tampering, truncation, reordering, or object swapping', async () => {
     const key = await generateLibraryKey()
     const nonce = randomNonce()
-    const cipher = await encryptWhole(key, nonce, plaintext)
-
-    const aligned = alignRange(4000, 999_999, plaintext.length)
-    const got = await decryptRange(key, nonce, aligned, cipher.slice(aligned.fetchStart, aligned.fetchEnd + 1))
-
-    expect(Buffer.from(got)).toEqual(Buffer.from(plaintext.slice(4000)))
+    const first = await encryptChunk(key, nonce, 0, plaintext.slice(0, chunkBytes), context)
+    const second = await encryptChunk(key, nonce, 1, plaintext.slice(chunkBytes, chunkBytes * 2), context)
+    const tampered = first.slice(); tampered[2] = tampered[2]! ^ 1
+    await expect(decryptChunk(key, nonce, 0, tampered, context)).rejects.toThrow(CloudCryptoError)
+    await expect(decryptChunk(key, nonce, 0, first.slice(0, -1), context)).rejects.toThrow(CloudCryptoError)
+    await expect(decryptChunk(key, nonce, 0, second, context)).rejects.toThrow(CloudCryptoError)
+    await expect(decryptChunk(key, nonce, 0, first, 'another-recording:audio')).rejects.toThrow(CloudCryptoError)
   })
 
-  it('rejects a nonsensical range rather than returning wrong bytes', () => {
-    expect(() => alignRange(-1, 10, 100)).toThrow(CloudCryptoError)
-    expect(() => alignRange(50, 10, 100)).toThrow(CloudCryptoError)
-  })
-
-  it('produces different ciphertext for the same plaintext under different nonces', async () => {
-    const key = await generateLibraryKey()
-
-    const first = await encryptWhole(key, randomNonce(), plaintext)
-    const second = await encryptWhole(key, randomNonce(), plaintext)
-
-    // Reusing a counter stream across objects would leak plaintext by XOR, so
-    // each object must get its own nonce.
-    expect(Buffer.from(first).equals(Buffer.from(second))).toBe(false)
+  it('rejects invalid ranges', () => {
+    expect(() => alignRange(-1, 10, 100, chunkBytes)).toThrow(CloudCryptoError)
+    expect(() => alignRange(50, 10, 100, chunkBytes)).toThrow(CloudCryptoError)
   })
 })
 
 describe('library key wrapping', () => {
-  it('unwraps with the right passphrase on a device that has never seen the key', async () => {
-    // The point of storing the wrapped key server-side: a new phone needs only
-    // the passphrase, with nothing transferred by hand.
+  it('unwraps only with the right passphrase', async () => {
     const key = await generateLibraryKey()
     const wrapped = await wrapLibraryKey(key, 'correct horse battery staple')
-
-    const recovered = await unwrapLibraryKey(
-      wrapped.wrappedKey,
-      'correct horse battery staple',
-      wrapped.salt,
-      wrapped.iterations,
-    )
-
+    const recovered = await unwrapLibraryKey(wrapped.wrappedKey, 'correct horse battery staple', wrapped.salt, wrapped.iterations)
     const nonce = randomNonce()
-    const cipher = await encryptWhole(key, nonce, new TextEncoder().encode('hello'))
-    expect(new TextDecoder().decode(await decryptWhole(recovered, nonce, cipher))).toBe('hello')
+    const cipher = await encryptWhole(key, nonce, new TextEncoder().encode('hello'), 'test')
+    expect(new TextDecoder().decode(await decryptWhole(recovered, nonce, cipher, 'test'))).toBe('hello')
+    await expect(unwrapLibraryKey(wrapped.wrappedKey, 'wrong', wrapped.salt, wrapped.iterations)).rejects.toThrow(CloudCryptoError)
   })
 
-  it('refuses the wrong passphrase instead of returning a useless key', async () => {
-    const wrapped = await wrapLibraryKey(await generateLibraryKey(), 'correct horse battery staple')
-
-    await expect(
-      unwrapLibraryKey(wrapped.wrappedKey, 'wrong passphrase', wrapped.salt, wrapped.iterations),
-    ).rejects.toThrow(CloudCryptoError)
-  })
-
-  it('never exposes the raw key in what gets uploaded', async () => {
+  it('never exposes the raw key in the wrapped payload', async () => {
     const key = await generateLibraryKey()
     const raw = new Uint8Array(await crypto.subtle.exportKey('raw', key))
     const wrapped = await wrapLibraryKey(key, 'correct horse battery staple')
-
-    const payload = atob(wrapped.wrappedKey)
-    const rawBinary = String.fromCharCode(...raw)
-    expect(payload.includes(rawBinary)).toBe(false)
+    expect(atob(wrapped.wrappedKey)).not.toContain(String.fromCharCode(...raw))
   })
 })
 
-describe('sha256Hex', () => {
-  it('produces a stable lowercase digest', async () => {
-    expect(await sha256Hex(new TextEncoder().encode('abc'))).toBe(
-      'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
-    )
-  })
+it('produces a stable sha256 digest', async () => {
+  expect(await sha256Hex(new TextEncoder().encode('abc'))).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad')
 })
+
+function concat(parts: Uint8Array[]): Uint8Array {
+  const output = new Uint8Array(parts.reduce((total, part) => total + part.length, 0))
+  let offset = 0
+  for (const part of parts) { output.set(part, offset); offset += part.length }
+  return output
+}

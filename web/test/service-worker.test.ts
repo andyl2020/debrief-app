@@ -1,16 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { encryptWhole, generateLibraryKey, randomNonce } from '../src/core/cloud-crypto'
+import { encryptChunk, generateLibraryKey, randomNonce } from '../src/core/cloud-crypto'
 
 /**
  * Drives the real `public/sw.js`.
  *
- * The service worker duplicates the AES-CTR counter arithmetic because it is a
- * classic worker and cannot import from src. Duplicated crypto that drifts
- * produces audio that plays as noise rather than an error, so this evaluates
- * the actual shipped file and checks it against the same plaintext the app's
- * own implementation produced.
+ * The service worker duplicates the authenticated chunk layout because it is a
+ * classic worker and cannot import from src. This evaluates the shipped file
+ * and verifies both range correctness and fail-closed authentication.
  */
 
 interface SwHarness {
@@ -63,7 +61,14 @@ describe('service worker playback proxy', () => {
   async function setup() {
     const key = await generateLibraryKey()
     const nonce = randomNonce()
-    const cipher = await encryptWhole(key, nonce, plaintext)
+    const chunkBytes = 16_384
+    const encrypted: Uint8Array[] = []
+    for (let offset = 0, index = 0; offset < plaintext.length; offset += chunkBytes, index += 1) {
+      encrypted.push(await encryptChunk(key, nonce, index, plaintext.slice(offset, offset + chunkBytes), 'rec-1:audio'))
+    }
+    const cipher = new Uint8Array(encrypted.reduce((total, part) => total + part.length, 0))
+    let cursor = 0
+    for (const part of encrypted) { cipher.set(part, cursor); cursor += part.length }
 
     // Stand in for the Cloudflare Worker: serve ciphertext byte ranges.
     vi.stubGlobal(
@@ -87,11 +92,14 @@ describe('service worker playback proxy', () => {
       id: 'rec-1',
       nonce,
       totalBytes: plaintext.length,
+      cipherBytes: cipher.length,
+      cryptoVersion: 2,
+      chunkBytes,
       url: 'https://cloud.test/object',
       token: 'owner-token',
       mimeType: 'audio/mp4',
     })
-    return { key, nonce }
+    return { key, nonce, cipher }
   }
 
   function send(data: unknown): void {
@@ -188,5 +196,17 @@ describe('service worker playback proxy', () => {
     const response = await request({ Range: 'bytes=0-99' })
 
     expect(response.status).toBe(502)
+  })
+
+  it('fails closed when stored audio is modified', async () => {
+    const { cipher } = await setup()
+    const modified = cipher.slice()
+    modified[10] = modified[10]! ^ 1
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => {
+      const header = (init?.headers as Record<string, string>)['Range']
+      const match = /^bytes=(\d+)-(\d+)$/.exec(header ?? '')!
+      return new Response(modified.slice(Number(match[1]), Number(match[2]) + 1) as BodyInit, { status: 206 })
+    }))
+    expect((await request({ Range: 'bytes=0-99' })).status).toBe(502)
   })
 })

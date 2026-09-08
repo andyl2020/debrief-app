@@ -43,9 +43,12 @@ export class FakeCloud {
   async beginItem(input: {
     id: string
     audioBytes: number
+    audioCipherBytes: number
     metadataBytes: number
     audioNonce: string
     metadataNonce: string
+    cryptoVersion: number
+    chunkBytes: number
   }): Promise<{ partBytes: number }> {
     const previous = this.items.get(input.id)
     this.items.set(input.id, {
@@ -54,6 +57,9 @@ export class FakeCloud {
       updatedAt: Date.now(),
       status: 'PENDING',
       audioBytes: input.audioBytes,
+      audioCipherBytes: input.audioCipherBytes,
+      cryptoVersion: input.cryptoVersion,
+      chunkBytes: input.chunkBytes,
       audioNonce: input.audioNonce,
       audioReady: false,
       metadataBytes: input.metadataBytes,
@@ -101,7 +107,7 @@ export class FakeCloud {
 
     const item = this.items.get(id)
     if (!item) throw new Error('Unknown item.')
-    const expected = kind === 'audio' ? item.audioBytes : item.metadataBytes
+    const expected = kind === 'audio' ? item.audioCipherBytes : item.metadataBytes
     if (merged.length !== expected) throw new Error('SIZE_MISMATCH')
 
     this.objects.set(`${id}:${kind}`, merged)

@@ -127,6 +127,8 @@ describe('cloud sync', () => {
       RECORDING_ID,
       'audio',
       (await getCloudState(RECORDING_ID))!.audioNonce,
+      (await getCloudState(RECORDING_ID))!.audioBytes,
+      (await getCloudState(RECORDING_ID))!.chunkBytes,
     )
     expect(restored.length).toBe(audioBytes.length)
     expect(Buffer.from(restored).equals(Buffer.from(audioBytes))).toBe(true)
@@ -153,6 +155,7 @@ describe('cloud sync', () => {
         state.audioBytes,
         start,
         end,
+        state.chunkBytes,
       )
       expect(Buffer.from(got)).toEqual(Buffer.from(audioBytes.slice(start, end + 1)))
     }
@@ -223,9 +226,12 @@ describe('cloud sync', () => {
     await cloud.beginItem({
       id: 'half-done',
       audioBytes: 10,
+      audioCipherBytes: 26,
       metadataBytes: 10,
       audioNonce: 'AAAAAAAAAAA=',
       metadataNonce: 'BBBBBBBBBBB=',
+      cryptoVersion: 2,
+      chunkBytes: 8 * 1024 * 1024,
     })
 
     const result = await pullAll(repository, cloud.asClient(), key)

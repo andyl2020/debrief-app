@@ -40,7 +40,7 @@ describe("Personal cloud library", () => {
     // one-tap accident.
     const owner = await pairOwner("Replace device");
     await putKey(owner);
-    await uploadItem(owner, "rec-replace", "audio-bytes-here", "{\"schemaVersion\":4}");
+    await uploadItem(owner, "rec-replace", "encrypted-audio-bytes-here", "{\"schemaVersion\":4}");
 
     const replace = await ownerFetch(owner, "/v1/owner/library/key", {
       method: "PUT",
@@ -93,7 +93,7 @@ describe("Personal cloud library", () => {
   it("rejects an unsatisfiable range instead of returning wrong bytes", async () => {
     const owner = await pairOwner("Bad range device");
     await putKey(owner);
-    await uploadItem(owner, "rec-bad-range", "short", "meta");
+    await uploadItem(owner, "rec-bad-range", "ciphertext-long-enough", "meta");
 
     const response = await ownerFetch(owner, "/v1/owner/library/items/rec-bad-range/objects/audio", {
       headers: { Range: "bytes=900-999" },
@@ -106,7 +106,7 @@ describe("Personal cloud library", () => {
     // browser to try to decode it and would leak what the object is.
     const owner = await pairOwner("Content type device");
     await putKey(owner);
-    await uploadItem(owner, "rec-type", "ciphertext", "meta");
+    await uploadItem(owner, "rec-type", "ciphertext-long-enough", "meta");
 
     const response = await ownerFetch(owner, "/v1/owner/library/items/rec-type/objects/audio");
     expect(response.headers.get("Content-Type")).toBe("application/octet-stream");
@@ -122,9 +122,12 @@ describe("Personal cloud library", () => {
       body: JSON.stringify({
         id: "rec-truncated",
         audioBytes: 1_000,
+        audioCipherBytes: 1_016,
         metadataBytes: 4,
         audioNonce: "AAAAAAAAAAA=",
         metadataNonce: "BBBBBBBBBBB=",
+        cryptoVersion: 2,
+        chunkBytes: 8 * 1024 * 1024,
       }),
     });
     expect(begin.status).toBe(201);
@@ -152,9 +155,12 @@ describe("Personal cloud library", () => {
       body: JSON.stringify({
         id: "rec-incomplete",
         audioBytes: 10,
+        audioCipherBytes: 26,
         metadataBytes: 4,
         audioNonce: "AAAAAAAAAAA=",
         metadataNonce: "BBBBBBBBBBB=",
+        cryptoVersion: 2,
+        chunkBytes: 8 * 1024 * 1024,
       }),
     });
 
@@ -168,7 +174,11 @@ describe("Personal cloud library", () => {
     const bad = async (body: Record<string, unknown>) =>
       (await ownerFetch(owner, "/v1/owner/library/items", { method: "POST", body: JSON.stringify(body) })).status;
 
-    const base = { id: "ok", audioBytes: 10, metadataBytes: 4, audioNonce: "AAAAAAAAAAA=", metadataNonce: "BBBBBBBBBBB=" };
+    const base = {
+      id: "ok", audioBytes: 10, audioCipherBytes: 26, metadataBytes: 4,
+      audioNonce: "AAAAAAAAAAA=", metadataNonce: "BBBBBBBBBBB=",
+      cryptoVersion: 2, chunkBytes: 8 * 1024 * 1024,
+    };
     expect(await bad({ ...base, id: "../escape" })).toBe(400);
     expect(await bad({ ...base, audioBytes: 0 })).toBe(400);
     expect(await bad({ ...base, audioBytes: 5_000_000_000 })).toBe(400);
@@ -178,7 +188,7 @@ describe("Personal cloud library", () => {
   it("re-uploading an item supersedes the previous attempt and bumps its version", async () => {
     const owner = await pairOwner("Resync device");
     await putKey(owner);
-    await uploadItem(owner, "rec-resync", "first-payload", "meta-1");
+    await uploadItem(owner, "rec-resync", "first-payload-long-enough", "meta-1");
     await uploadItem(owner, "rec-resync", "second-payload-longer", "meta-2");
 
     const list = await ownerFetch(owner, "/v1/owner/library");
@@ -195,7 +205,7 @@ describe("Personal cloud library", () => {
   it("deletes an item and reports usage", async () => {
     const owner = await pairOwner("Delete device");
     await putKey(owner);
-    await uploadItem(owner, "rec-delete", "payload", "meta");
+    await uploadItem(owner, "rec-delete", "payload-long-enough", "meta");
 
     const before = await (await ownerFetch(owner, "/v1/owner/library/usage")).json<{ bytes: number; items: number }>();
 
@@ -204,7 +214,7 @@ describe("Personal cloud library", () => {
 
     const after = await (await ownerFetch(owner, "/v1/owner/library/usage")).json<{ bytes: number; items: number }>();
     expect(after.items).toBe(before.items - 1);
-    expect(before.bytes - after.bytes).toBe("payload".length + "meta".length);
+    expect(before.bytes - after.bytes).toBe("payload-long-enough".length + "meta".length);
 
     const list = await (await ownerFetch(owner, "/v1/owner/library")).json<{ items: Array<{ id: string }> }>();
     expect(list.items.some((item) => item.id === "rec-delete")).toBe(false);
@@ -278,14 +288,18 @@ async function putKey(owner: string): Promise<void> {
 
 /** Runs the full begin -> part -> complete flow for both objects. */
 async function uploadItem(owner: string, id: string, audio: string, metadata: string): Promise<void> {
+  if (audio.length <= 16) throw new Error("Test ciphertext fixtures must include room for a GCM tag.");
   const begin = await ownerFetch(owner, "/v1/owner/library/items", {
     method: "POST",
     body: JSON.stringify({
       id,
-      audioBytes: audio.length,
+      audioBytes: audio.length - 16,
+      audioCipherBytes: audio.length,
       metadataBytes: metadata.length,
       audioNonce: "AAAAAAAAAAA=",
       metadataNonce: "BBBBBBBBBBB=",
+      cryptoVersion: 2,
+      chunkBytes: 8 * 1024 * 1024,
     }),
   });
   expect(begin.status).toBe(201);

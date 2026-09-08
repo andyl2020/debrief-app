@@ -13,7 +13,10 @@ export interface CloudItem {
   version: number
   updatedAt: number
   status: 'PENDING' | 'COMPLETE'
+  cryptoVersion: number
+  chunkBytes: number
   audioBytes: number
+  audioCipherBytes: number
   audioNonce: string
   audioReady: boolean
   metadataBytes: number
@@ -96,9 +99,12 @@ export class CloudClient {
   async beginItem(input: {
     id: string
     audioBytes: number
+    audioCipherBytes: number
     metadataBytes: number
     audioNonce: string
     metadataNonce: string
+    cryptoVersion: number
+    chunkBytes: number
   }): Promise<{ partBytes: number }> {
     return this.json<{ partBytes: number }>('POST', '/v1/owner/library/items', {
       body: JSON.stringify(input),

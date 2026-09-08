@@ -93,6 +93,9 @@ export async function cloudAudioUrl(
       id: state.recordingId,
       nonce: fromBase64(state.audioNonce),
       totalBytes: state.audioBytes,
+      cipherBytes: state.audioCipherBytes,
+      cryptoVersion: state.cryptoVersion,
+      chunkBytes: state.chunkBytes,
       url: client.objectUrl(state.recordingId, 'audio'),
       token: tokenFrom(client),
       mimeType: mimeType ?? 'audio/mp4',
@@ -113,7 +116,15 @@ export async function cloudAudioUrl(
     )
   }
 
-  const plain = await fetchDecryptedObject(client, key, state.recordingId, 'audio', state.audioNonce)
+  const plain = await fetchDecryptedObject(
+    client,
+    key,
+    state.recordingId,
+    'audio',
+    state.audioNonce,
+    state.audioBytes,
+    state.chunkBytes,
+  )
   const blobUrl = URL.createObjectURL(new Blob([plain as BlobPart], { type: mimeType ?? 'audio/mp4' }))
   return {
     url: blobUrl,

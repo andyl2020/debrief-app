@@ -1,9 +1,13 @@
 import { ValidationError } from '../core/errors'
 import {
+  AUTH_CHUNK_BYTES,
+  CLOUD_CRYPTO_VERSION,
   alignRange,
-  counterForOffset,
+  decryptChunkedObject,
   decryptRange,
   decryptWhole,
+  encryptChunk,
+  encryptedChunkedSize,
   encryptWhole,
   fromBase64,
   generateLibraryKey,
@@ -34,9 +38,6 @@ import { CloudClient, type CloudItem, type ObjectKind } from './cloud-client'
 
 const CLOUD_CONFIG_KEY = 'cloud-config'
 const CLOUD_STATE_PREFIX = 'cloud-state:'
-/** R2 requires every multipart part except the last to be at least 5 MiB. */
-const PART_BYTES = 8 * 1024 * 1024
-
 export interface CloudConfig {
   baseUrl: string
   token: string
@@ -51,6 +52,9 @@ export interface CloudState {
   audioNonce: string
   metadataNonce: string
   audioBytes: number
+  audioCipherBytes: number
+  cryptoVersion: number
+  chunkBytes: number
   syncedAt: number
 }
 
@@ -147,26 +151,42 @@ export async function pushRecording(
 
   const audioNonce = randomNonce()
   const metadataNonce = randomNonce()
-  const encryptedMetadata = await encryptWhole(key, metadataNonce, sidecar)
+  const encryptedMetadata = await encryptWhole(
+    key,
+    metadataNonce,
+    sidecar,
+    `${recordingId}:metadata`,
+  )
+  const audioCipherBytes = encryptedChunkedSize(audioBlob.size, AUTH_CHUNK_BYTES)
 
   onProgress?.('Preparing upload', null)
   await client.beginItem({
     id: recordingId,
     audioBytes: audioBlob.size,
+    audioCipherBytes,
     metadataBytes: encryptedMetadata.length,
     audioNonce: toBase64(audioNonce),
     metadataNonce: toBase64(metadataNonce),
+    cryptoVersion: CLOUD_CRYPTO_VERSION,
+    chunkBytes: AUTH_CHUNK_BYTES,
   })
 
-  // Audio, part by part. Each part is encrypted at its own plaintext offset,
-  // which is exactly the same arithmetic the player uses to seek.
+  // One authenticated encryption chunk per multipart part. At 8 MiB plus the
+  // 16-byte GCM tag every non-final part satisfies R2's 5 MiB minimum, while
+  // range playback can authenticate only the chunk(s) it needs.
   const audioParts: Array<{ partNumber: number; etag: string }> = []
   let offset = 0
   let partNumber = 1
   while (offset < audioBlob.size) {
-    const end = Math.min(offset + PART_BYTES, audioBlob.size)
+    const end = Math.min(offset + AUTH_CHUNK_BYTES, audioBlob.size)
     const plain = new Uint8Array(await audioBlob.slice(offset, end).arrayBuffer())
-    const cipher = await encryptAtOffset(key, audioNonce, offset, plain)
+    const cipher = await encryptChunk(
+      key,
+      audioNonce,
+      partNumber - 1,
+      plain,
+      `${recordingId}:audio`,
+    )
     audioParts.push(await client.uploadPart(recordingId, 'audio', partNumber, cipher))
     onProgress?.('Uploading audio', end / Math.max(1, audioBlob.size))
     offset = end
@@ -185,6 +205,9 @@ export async function pushRecording(
     audioNonce: toBase64(audioNonce),
     metadataNonce: toBase64(metadataNonce),
     audioBytes: audioBlob.size,
+    audioCipherBytes,
+    cryptoVersion: CLOUD_CRYPTO_VERSION,
+    chunkBytes: AUTH_CHUNK_BYTES,
     syncedAt: Date.now(),
   }
   await saveCloudState(state)
@@ -207,7 +230,15 @@ export async function pullRecording(
 
   const response = await client.fetchObject(item.id, 'metadata')
   const cipher = new Uint8Array(await response.arrayBuffer())
-  const plain = await decryptWhole(key, fromBase64(item.metadataNonce), cipher)
+  if (item.cryptoVersion !== CLOUD_CRYPTO_VERSION) {
+    throw new ValidationError('This cloud item uses an unsupported encryption version.')
+  }
+  const plain = await decryptWhole(
+    key,
+    fromBase64(item.metadataNonce),
+    cipher,
+    `${item.id}:metadata`,
+  )
   const document = parseSidecar(new TextDecoder().decode(plain))
 
   const existing = await repository.getRecording(item.id)
@@ -249,6 +280,9 @@ export async function pullRecording(
     audioNonce: item.audioNonce,
     metadataNonce: item.metadataNonce,
     audioBytes: item.audioBytes,
+    audioCipherBytes: item.audioCipherBytes,
+    cryptoVersion: item.cryptoVersion,
+    chunkBytes: item.chunkBytes,
     syncedAt: Date.now(),
   })
 
@@ -307,10 +341,22 @@ export async function fetchDecryptedObject(
   id: string,
   kind: ObjectKind,
   nonceBase64: string,
+  totalBytes: number,
+  chunkBytes = AUTH_CHUNK_BYTES,
 ): Promise<Uint8Array> {
   const response = await client.fetchObject(id, kind)
   const cipher = new Uint8Array(await response.arrayBuffer())
-  return decryptWhole(key, fromBase64(nonceBase64), cipher)
+  if (kind === 'metadata') {
+    return decryptWhole(key, fromBase64(nonceBase64), cipher, `${id}:metadata`)
+  }
+  return decryptChunkedObject(
+    key,
+    fromBase64(nonceBase64),
+    cipher,
+    totalBytes,
+    `${id}:audio`,
+    chunkBytes,
+  )
 }
 
 /** Fetches and decrypts one plaintext byte range. Used by the playback proxy. */
@@ -322,38 +368,23 @@ export async function fetchDecryptedRange(
   totalBytes: number,
   start: number,
   end: number,
+  chunkBytes = AUTH_CHUNK_BYTES,
 ): Promise<Uint8Array> {
-  const aligned = alignRange(start, end, totalBytes)
+  const aligned = alignRange(start, end, totalBytes, chunkBytes)
   const response = await client.fetchObject(id, 'audio', {
     start: aligned.fetchStart,
     end: aligned.fetchEnd,
   })
   const cipher = new Uint8Array(await response.arrayBuffer())
-  return decryptRange(key, fromBase64(nonceBase64), aligned, cipher)
-}
-
-/**
- * Encrypts a chunk that sits at `offset` within the plaintext.
- *
- * Uploading in parts means each part must be encrypted with the counter it will
- * later be decrypted with; encrypting each part as if it started at zero would
- * produce a file that only plays correctly for its first part.
- */
-async function encryptAtOffset(
-  key: CryptoKey,
-  nonce: Uint8Array,
-  offset: number,
-  plain: Uint8Array,
-): Promise<Uint8Array> {
-  if (offset % 16 !== 0) {
-    throw new ValidationError('Upload parts must start on a 16-byte boundary.')
-  }
-  const cipher = await crypto.subtle.encrypt(
-    { name: 'AES-CTR', counter: counterForOffset(nonce, offset), length: 64 },
+  return decryptRange(
     key,
-    plain as BufferSource,
+    fromBase64(nonceBase64),
+    aligned,
+    cipher,
+    totalBytes,
+    `${id}:audio`,
+    chunkBytes,
   )
-  return new Uint8Array(cipher)
 }
 
 function isCloudState(value: unknown): value is CloudState {
@@ -362,6 +393,8 @@ function isCloudState(value: unknown): value is CloudState {
     value !== null &&
     typeof (value as CloudState).recordingId === 'string' &&
     typeof (value as CloudState).audioNonce === 'string' &&
-    typeof (value as CloudState).metadataNonce === 'string'
+    typeof (value as CloudState).metadataNonce === 'string' &&
+    (value as CloudState).cryptoVersion === CLOUD_CRYPTO_VERSION &&
+    Number.isSafeInteger((value as CloudState).chunkBytes)
   )
 }

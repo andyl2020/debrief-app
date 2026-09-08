@@ -1,58 +1,36 @@
 /**
- * End-to-end encryption for the cloud library.
+ * Authenticated end-to-end encryption for the private cloud library.
  *
- * Cloudflare stores bytes it cannot read. That is what makes putting whole
- * recordings in a bucket defensible at all, given this app's premise that
- * originals stay on the device.
- *
- * AES-CTR rather than AES-GCM, and the reason is playback. GCM authenticates
- * the whole message, so you cannot decrypt the middle of a six-hour recording
- * without fetching all of it first. CTR is a keystream: block n depends only on
- * the counter, so any byte range can be decrypted on its own provided the range
- * starts on a 16-byte boundary and the counter is advanced by `offset / 16`.
- * That property is what lets you drag the scrubber to 4:12:00 and hear audio a
- * moment later instead of downloading 350 MB.
- *
- * The trade is that CTR provides no integrity: a tampered byte decrypts to a
- * different byte rather than to an error. What that does and does not buy is
- * worth being precise about. Confidentiality holds — the bucket operator
- * cannot read your recordings. Tamper-detection does not: someone who can
- * WRITE to your R2 bucket could corrupt audio without it failing loudly. The
- * Worker's size check on completion catches truncation but not substitution.
- *
- * The wrapped library key is the exception and uses AES-GCM, because it is
- * small, never range-read, and its authentication is what turns a wrong
- * passphrase into a clear error instead of a garbage key.
+ * Audio is split into independently authenticated AES-GCM chunks. A player can
+ * fetch and decrypt only the chunks covering a requested byte range, while a
+ * modified, truncated, reordered, or cross-recording chunk fails closed. The
+ * Worker stores ciphertext and public layout metadata only; the data key stays
+ * in browser memory and is wrapped with a passphrase-derived AES-GCM key.
  */
 
-const AES_BLOCK_BYTES = 16
-/** 8-byte nonce + 8-byte block counter. */
+export const CLOUD_CRYPTO_VERSION = 2
+export const AUTH_CHUNK_BYTES = 8 * 1024 * 1024
+export const GCM_TAG_BYTES = 16
 const NONCE_BYTES = 8
-const COUNTER_BITS = 64
+const IV_BYTES = 12
+const MAX_CHUNK_INDEX = 0xffff_ffff
+const AAD_PREFIX = 'debrief-cloud-v2'
 export const PBKDF2_ITERATIONS = 310_000
 
 export class CloudCryptoError extends Error {
   override readonly name = 'CloudCryptoError'
 }
 
-/** Generates the library data key. Random, and never derived from the passphrase directly. */
+/** Generates the random library data key; it is never derived from the passphrase. */
 export async function generateLibraryKey(): Promise<CryptoKey> {
-  return crypto.subtle.generateKey({ name: 'AES-CTR', length: 256 }, true, ['encrypt', 'decrypt'])
+  return crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt'])
 }
 
+/** Eight random bytes form the per-object nonce prefix; the chunk index completes the IV. */
 export function randomNonce(): Uint8Array<ArrayBuffer> {
   return crypto.getRandomValues(new Uint8Array(NONCE_BYTES))
 }
 
-/**
- * Wraps the data key with a passphrase-derived key.
- *
- * The wrapped form is what gets stored server-side, so a new device needs only
- * the passphrase. The data key itself is random and independent, which means
- * changing the passphrase later could re-wrap the same key without re-uploading
- * anything — whereas deriving the data key from the passphrase directly would
- * make a passphrase change equivalent to losing the library.
- */
 export async function wrapLibraryKey(
   key: CryptoKey,
   passphrase: string,
@@ -61,9 +39,7 @@ export async function wrapLibraryKey(
 ): Promise<{ wrappedKey: string; salt: string; iterations: number }> {
   const wrapping = await deriveWrappingKey(passphrase, salt, iterations)
   const raw = await crypto.subtle.exportKey('raw', key)
-  // AES-GCM for the wrapper: this one is small and never range-read, so the
-  // authentication it provides is free and detects a wrong passphrase.
-  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES))
   const wrapped = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, wrapping, raw)
   return {
     wrappedKey: toBase64(concat(iv, new Uint8Array(wrapped))),
@@ -82,11 +58,11 @@ export async function unwrapLibraryKey(
   const payload = fromBase64(wrappedKey)
   try {
     const raw = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv: payload.slice(0, 12) },
+      { name: 'AES-GCM', iv: payload.slice(0, IV_BYTES) },
       wrapping,
-      payload.slice(12),
+      payload.slice(IV_BYTES),
     )
-    return await crypto.subtle.importKey('raw', raw, { name: 'AES-CTR' }, true, [
+    return await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, true, [
       'encrypt',
       'decrypt',
     ])
@@ -116,95 +92,180 @@ async function deriveWrappingKey(
   )
 }
 
-/** Builds the 16-byte counter block for a given plaintext offset. */
-export function counterForOffset(nonce: Uint8Array, offsetBytes: number): Uint8Array<ArrayBuffer> {
-  if (offsetBytes % AES_BLOCK_BYTES !== 0) {
-    throw new CloudCryptoError('A counter offset must land on a 16-byte block boundary.')
+/** Builds a unique 96-bit GCM IV from an object nonce and a 32-bit chunk index. */
+export function ivForChunk(nonce: Uint8Array, chunkIndex: number): Uint8Array<ArrayBuffer> {
+  if (nonce.length !== NONCE_BYTES) throw new CloudCryptoError('Cloud object nonce is invalid.')
+  if (!Number.isSafeInteger(chunkIndex) || chunkIndex < 0 || chunkIndex > MAX_CHUNK_INDEX) {
+    throw new CloudCryptoError('Cloud chunk index is invalid.')
   }
-  const counter = new Uint8Array(AES_BLOCK_BYTES)
-  counter.set(nonce.slice(0, NONCE_BYTES), 0)
-  new DataView(counter.buffer).setBigUint64(NONCE_BYTES, BigInt(offsetBytes / AES_BLOCK_BYTES))
-  return counter
+  const iv = new Uint8Array(IV_BYTES)
+  iv.set(nonce, 0)
+  new DataView(iv.buffer).setUint32(NONCE_BYTES, chunkIndex)
+  return iv
 }
 
-/** Encrypts a whole object. Ciphertext is the same length as plaintext. */
-export async function encryptWhole(
+function additionalData(context: string, chunkIndex: number): Uint8Array<ArrayBuffer> {
+  if (!context.trim()) throw new CloudCryptoError('Cloud encryption context is missing.')
+  return new TextEncoder().encode(`${AAD_PREFIX}:${context}:${chunkIndex}`)
+}
+
+export async function encryptChunk(
   key: CryptoKey,
   nonce: Uint8Array,
+  chunkIndex: number,
   plaintext: Uint8Array,
+  context: string,
 ): Promise<Uint8Array<ArrayBuffer>> {
   const cipher = await crypto.subtle.encrypt(
-    { name: 'AES-CTR', counter: counterForOffset(nonce, 0), length: COUNTER_BITS },
+    {
+      name: 'AES-GCM',
+      iv: ivForChunk(nonce, chunkIndex),
+      additionalData: additionalData(context, chunkIndex),
+      tagLength: 128,
+    },
     key,
     plaintext as BufferSource,
   )
   return new Uint8Array(cipher)
 }
 
-export async function decryptWhole(
+export async function decryptChunk(
+  key: CryptoKey,
+  nonce: Uint8Array,
+  chunkIndex: number,
+  ciphertext: Uint8Array,
+  context: string,
+): Promise<Uint8Array<ArrayBuffer>> {
+  try {
+    const plain = await crypto.subtle.decrypt(
+      {
+        name: 'AES-GCM',
+        iv: ivForChunk(nonce, chunkIndex),
+        additionalData: additionalData(context, chunkIndex),
+        tagLength: 128,
+      },
+      key,
+      ciphertext as BufferSource,
+    )
+    return new Uint8Array(plain)
+  } catch {
+    throw new CloudCryptoError('Cloud data failed authentication and was not opened.')
+  }
+}
+
+/** Single authenticated payload, used for the comparatively small sidecar. */
+export function encryptWhole(
+  key: CryptoKey,
+  nonce: Uint8Array,
+  plaintext: Uint8Array,
+  context = 'metadata',
+): Promise<Uint8Array<ArrayBuffer>> {
+  return encryptChunk(key, nonce, 0, plaintext, context)
+}
+
+export function decryptWhole(
   key: CryptoKey,
   nonce: Uint8Array,
   ciphertext: Uint8Array,
+  context = 'metadata',
 ): Promise<Uint8Array<ArrayBuffer>> {
-  const plain = await crypto.subtle.decrypt(
-    { name: 'AES-CTR', counter: counterForOffset(nonce, 0), length: COUNTER_BITS },
-    key,
-    ciphertext as BufferSource,
-  )
-  return new Uint8Array(plain)
+  return decryptChunk(key, nonce, 0, ciphertext, context)
 }
 
-/**
- * The range a ciphertext fetch must ask for in order to satisfy a plaintext
- * range, together with where the wanted bytes sit inside the result.
- *
- * Callers should not do this arithmetic inline — getting it wrong yields audio
- * that plays as noise rather than an error, which is miserable to debug.
- */
+export function encryptedChunkedSize(
+  plaintextBytes: number,
+  chunkBytes = AUTH_CHUNK_BYTES,
+): number {
+  if (!Number.isSafeInteger(plaintextBytes) || plaintextBytes < 0 || chunkBytes <= 0) {
+    throw new CloudCryptoError('Cloud object size is invalid.')
+  }
+  if (plaintextBytes === 0) return 0
+  return plaintextBytes + Math.ceil(plaintextBytes / chunkBytes) * GCM_TAG_BYTES
+}
+
 export interface AlignedRange {
-  /** First ciphertext byte to fetch; always a multiple of 16. */
   fetchStart: number
-  /** Last ciphertext byte to fetch, inclusive. */
   fetchEnd: number
-  /** Offset of the wanted bytes within the decrypted fetched block. */
   trimStart: number
-  /** Number of wanted bytes. */
   length: number
+  firstChunk: number
+  lastChunk: number
 }
 
-export function alignRange(start: number, end: number, totalBytes: number): AlignedRange {
-  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start) {
+/** Maps a plaintext media range to the authenticated ciphertext chunks covering it. */
+export function alignRange(
+  start: number,
+  end: number,
+  totalBytes: number,
+  chunkBytes = AUTH_CHUNK_BYTES,
+): AlignedRange {
+  if (
+    !Number.isSafeInteger(start) ||
+    !Number.isSafeInteger(end) ||
+    !Number.isSafeInteger(totalBytes) ||
+    start < 0 ||
+    end < start ||
+    start >= totalBytes ||
+    chunkBytes <= 0
+  ) {
     throw new CloudCryptoError('Invalid byte range.')
   }
-  const clampedEnd = Math.min(end, Math.max(0, totalBytes - 1))
-  const fetchStart = Math.floor(start / AES_BLOCK_BYTES) * AES_BLOCK_BYTES
+  const clampedEnd = Math.min(end, totalBytes - 1)
+  const firstChunk = Math.floor(start / chunkBytes)
+  const lastChunk = Math.floor(clampedEnd / chunkBytes)
+  const stride = chunkBytes + GCM_TAG_BYTES
+  const lastPlainStart = lastChunk * chunkBytes
+  const lastPlainLength = Math.min(chunkBytes, totalBytes - lastPlainStart)
   return {
-    fetchStart,
-    fetchEnd: clampedEnd,
-    trimStart: start - fetchStart,
+    fetchStart: firstChunk * stride,
+    fetchEnd: lastChunk * stride + lastPlainLength + GCM_TAG_BYTES - 1,
+    trimStart: start - firstChunk * chunkBytes,
     length: clampedEnd - start + 1,
+    firstChunk,
+    lastChunk,
   }
 }
 
-/** Decrypts a ciphertext slice that began at `fetchStart`, returning the wanted bytes. */
+/** Authenticates every fetched chunk before returning the requested plaintext bytes. */
 export async function decryptRange(
   key: CryptoKey,
   nonce: Uint8Array,
   aligned: AlignedRange,
   ciphertextSlice: Uint8Array,
+  totalBytes: number,
+  context: string,
+  chunkBytes = AUTH_CHUNK_BYTES,
 ): Promise<Uint8Array<ArrayBuffer>> {
-  const plain = new Uint8Array(
-    await crypto.subtle.decrypt(
-      {
-        name: 'AES-CTR',
-        counter: counterForOffset(nonce, aligned.fetchStart),
-        length: COUNTER_BITS,
-      },
-      key,
-      ciphertextSlice as BufferSource,
-    ),
-  )
+  const chunks: Uint8Array[] = []
+  let cursor = 0
+  for (let index = aligned.firstChunk; index <= aligned.lastChunk; index += 1) {
+    const plainStart = index * chunkBytes
+    const plainLength = Math.min(chunkBytes, totalBytes - plainStart)
+    const cipherLength = plainLength + GCM_TAG_BYTES
+    const cipher = ciphertextSlice.slice(cursor, cursor + cipherLength)
+    if (cipher.length !== cipherLength) {
+      throw new CloudCryptoError('Cloud data is truncated and was not opened.')
+    }
+    chunks.push(await decryptChunk(key, nonce, index, cipher, context))
+    cursor += cipherLength
+  }
+  if (cursor !== ciphertextSlice.length) {
+    throw new CloudCryptoError('Cloud data layout is invalid and was not opened.')
+  }
+  const plain = concatMany(chunks)
   return plain.slice(aligned.trimStart, aligned.trimStart + aligned.length)
+}
+
+export async function decryptChunkedObject(
+  key: CryptoKey,
+  nonce: Uint8Array,
+  ciphertext: Uint8Array,
+  totalBytes: number,
+  context: string,
+  chunkBytes = AUTH_CHUNK_BYTES,
+): Promise<Uint8Array<ArrayBuffer>> {
+  const range = alignRange(0, totalBytes - 1, totalBytes, chunkBytes)
+  return decryptRange(key, nonce, range, ciphertext, totalBytes, context, chunkBytes)
 }
 
 export async function sha256Hex(bytes: Uint8Array): Promise<string> {
@@ -229,5 +290,15 @@ function concat(left: Uint8Array, right: Uint8Array): Uint8Array<ArrayBuffer> {
   const merged = new Uint8Array(left.length + right.length)
   merged.set(left, 0)
   merged.set(right, left.length)
+  return merged
+}
+
+function concatMany(parts: Uint8Array[]): Uint8Array<ArrayBuffer> {
+  const merged = new Uint8Array(parts.reduce((total, part) => total + part.length, 0))
+  let offset = 0
+  for (const part of parts) {
+    merged.set(part, offset)
+    offset += part.length
+  }
   return merged
 }

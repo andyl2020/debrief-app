@@ -11,16 +11,18 @@ import { MULTIPART_MAX_PARTS, validateParts } from "./validation";
  * sharing one.
  *
  * The server is deliberately incapable of reading anything it stores. Audio and
- * the sidecar-v4 metadata are encrypted in the browser with AES-CTR before they
- * are uploaded; this module moves opaque bytes and records their sizes. AES-CTR
- * is the specific choice because it allows a byte range to be decrypted on its
- * own, which is what makes seeking inside a six-hour recording possible without
- * downloading it first.
+ * the sidecar-v4 metadata are encrypted in the browser with AES-GCM before they
+ * are uploaded; this module moves opaque bytes and records their sizes. Audio
+ * uses independently authenticated chunks, preserving range seeking without
+ * accepting mutable or truncated ciphertext.
  */
 
 export const LIBRARY_MAX_AUDIO_BYTES = 2_000_000_000;
 export const LIBRARY_MAX_METADATA_BYTES = 50_000_000;
 export const LIBRARY_PART_BYTES = 10 * 1024 * 1024;
+export const LIBRARY_CRYPTO_VERSION = 2;
+export const LIBRARY_CHUNK_BYTES = 8 * 1024 * 1024;
+const GCM_TAG_BYTES = 16;
 
 /** Nonces are base64 of 8 bytes; they are not secret but must be well-formed. */
 const NONCE_PATTERN = /^[A-Za-z0-9+/]{10,16}={0,2}$/;
@@ -38,7 +40,10 @@ export async function listLibrary(env: Env): Promise<Response> {
       version: row.version,
       updatedAt: row.updated_at,
       status: row.status,
-      audioBytes: row.audio_bytes,
+      audioBytes: row.audio_plain_bytes,
+      audioCipherBytes: row.audio_bytes,
+      cryptoVersion: row.crypto_version,
+      chunkBytes: row.chunk_bytes,
       audioNonce: row.audio_nonce,
       audioReady: row.audio_status === "COMPLETE",
       metadataBytes: row.meta_bytes,
@@ -134,9 +139,12 @@ export async function beginItem(request: Request, env: Env, owner: OwnerDevice):
   const body = await readJson<{
     id?: string;
     audioBytes?: number;
+    audioCipherBytes?: number;
     metadataBytes?: number;
     audioNonce?: string;
     metadataNonce?: string;
+    cryptoVersion?: number;
+    chunkBytes?: number;
   }>(request, 20_000);
 
   const id = body.id;
@@ -144,9 +152,19 @@ export async function beginItem(request: Request, env: Env, owner: OwnerDevice):
     throw new HttpError(400, "INVALID_ITEM_ID", "The recording id is invalid.");
   }
   validateSize(body.audioBytes, LIBRARY_MAX_AUDIO_BYTES, "audio");
-  validateSize(body.metadataBytes, LIBRARY_MAX_METADATA_BYTES, "metadata");
+  validateSize(body.audioCipherBytes, encryptedMaximum(LIBRARY_MAX_AUDIO_BYTES), "encrypted audio");
+  validateSize(body.metadataBytes, LIBRARY_MAX_METADATA_BYTES + GCM_TAG_BYTES, "metadata");
   validateNonce(body.audioNonce, "audio");
   validateNonce(body.metadataNonce, "metadata");
+  if (body.cryptoVersion !== LIBRARY_CRYPTO_VERSION || body.chunkBytes !== LIBRARY_CHUNK_BYTES) {
+    throw new HttpError(400, "UNSUPPORTED_CRYPTO", "Use the current authenticated cloud format.");
+  }
+  const expectedCipherBytes =
+    (body.audioBytes as number) +
+    Math.ceil((body.audioBytes as number) / LIBRARY_CHUNK_BYTES) * GCM_TAG_BYTES;
+  if (body.audioCipherBytes !== expectedCipherBytes) {
+    throw new HttpError(400, "INVALID_CIPHER_SIZE", "The encrypted audio size is inconsistent.");
+  }
 
   const previous = await env.DB.prepare("SELECT * FROM library_items WHERE id = ?")
     .bind(id).first<LibraryItemRow>();
@@ -165,15 +183,18 @@ export async function beginItem(request: Request, env: Env, owner: OwnerDevice):
   await env.DB.prepare(
     `INSERT INTO library_items (
        id, version, updated_at, created_at, created_by_device, status,
-       audio_key, audio_nonce, audio_bytes, audio_upload_id, audio_status,
+       audio_key, audio_nonce, audio_plain_bytes, audio_bytes, crypto_version, chunk_bytes,
+       audio_upload_id, audio_status,
        meta_key, meta_nonce, meta_bytes, meta_upload_id, meta_status
-     ) VALUES (?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, 'PENDING')
+     ) VALUES (?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, 'PENDING')
      ON CONFLICT(id) DO UPDATE SET
        version = excluded.version,
        updated_at = excluded.updated_at, created_by_device = excluded.created_by_device,
        status = 'PENDING',
        audio_key = excluded.audio_key, audio_nonce = excluded.audio_nonce,
-       audio_bytes = excluded.audio_bytes, audio_upload_id = excluded.audio_upload_id,
+       audio_plain_bytes = excluded.audio_plain_bytes, audio_bytes = excluded.audio_bytes,
+       crypto_version = excluded.crypto_version, chunk_bytes = excluded.chunk_bytes,
+       audio_upload_id = excluded.audio_upload_id,
        audio_status = 'PENDING',
        meta_key = excluded.meta_key, meta_nonce = excluded.meta_nonce,
        meta_bytes = excluded.meta_bytes, meta_upload_id = excluded.meta_upload_id,
@@ -187,6 +208,9 @@ export async function beginItem(request: Request, env: Env, owner: OwnerDevice):
     audioKey,
     body.audioNonce,
     body.audioBytes,
+    body.audioCipherBytes,
+    body.cryptoVersion,
+    body.chunkBytes,
     audioUpload.uploadId,
     metaKey,
     body.metadataNonce,
@@ -251,8 +275,7 @@ export async function completeItemObject(
 
   const head = await env.AUDIO.head(key);
   if (!head || head.size !== expectedBytes) {
-    // A truncated object would decrypt to silence rather than error, so refuse
-    // it here instead of letting it look like a successful upload.
+    // Refuse truncated objects before they can be presented as complete.
     await env.AUDIO.delete(key);
     throw new HttpError(409, "SIZE_MISMATCH", "Cloud storage did not retain the complete expected object.");
   }
@@ -273,8 +296,7 @@ export async function completeItemObject(
  * Serves ciphertext, honouring Range.
  *
  * The browser's audio element issues its own Range requests; a service worker
- * on the client widens them to an AES block boundary and decrypts what comes
- * back. This end only has to return exactly the bytes asked for.
+ * widens them to complete authenticated chunks and decrypts them locally.
  */
 export async function getItemObject(
   request: Request,
@@ -387,6 +409,10 @@ function validateNonce(value: unknown, label: string): void {
   if (typeof value !== "string" || !NONCE_PATTERN.test(value)) {
     throw new HttpError(400, "INVALID_NONCE", `The ${label} nonce is invalid.`);
   }
+}
+
+function encryptedMaximum(plainMaximum: number): number {
+  return plainMaximum + Math.ceil(plainMaximum / LIBRARY_CHUNK_BYTES) * GCM_TAG_BYTES;
 }
 
 function partUrl(id: string, kind: ObjectKind): string {

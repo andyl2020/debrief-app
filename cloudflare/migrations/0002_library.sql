@@ -7,7 +7,7 @@
 -- Everything of substance is encrypted client-side before upload, so this
 -- schema holds no titles, no durations, no transcript text and no filenames --
 -- only sizes, nonces, versions and object keys. The nonces are not secret;
--- AES-CTR requires them to decrypt and they reveal nothing on their own.
+-- AES-GCM requires them to decrypt and they reveal nothing on their own.
 --
 -- Items are scoped to the deployment rather than to a device. That is the
 -- point: a recording uploaded from the desktop browser has to be readable by
@@ -27,7 +27,11 @@ CREATE TABLE library_items (
 
     audio_key TEXT NOT NULL,
     audio_nonce TEXT NOT NULL,
+    -- Plain size drives player ranges; stored size includes one GCM tag/chunk.
+    audio_plain_bytes INTEGER NOT NULL DEFAULT 0,
     audio_bytes INTEGER NOT NULL DEFAULT 0,
+    crypto_version INTEGER NOT NULL DEFAULT 2,
+    chunk_bytes INTEGER NOT NULL DEFAULT 8388608,
     audio_upload_id TEXT,
     audio_status TEXT NOT NULL DEFAULT 'PENDING' CHECK (audio_status IN ('PENDING', 'COMPLETE')),
 
