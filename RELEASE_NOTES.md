@@ -6,6 +6,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 
 - Corrected first-run copy that mistakenly described the implemented web recorder as Android-only.
 - Prefilled the official cloud service URL so iPhone and desktop users only need their pairing code and passphrase.
+- Fixed intermittent invalid pairing codes caused by stripping URL-safe Base64 characters after generation.
 - Version-aligned the Android companion build; native behavior is unchanged from v1.12.0.
 
 ### v1.12.0 - Cross-platform web/PWA (2026-09-07)
