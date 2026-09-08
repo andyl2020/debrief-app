@@ -30,10 +30,9 @@ type PermissionMode = 'read' | 'readwrite'
  * `entries()` iterator, both of which are shipped in Chromium and required
  * here: permissions to survive a restart, `entries()` to scan the folder.
  */
-interface DirectoryHandleWithPermissions extends FileSystemDirectoryHandle {
+type DirectoryHandleWithPermissions = FileSystemDirectoryHandle & {
   queryPermission?: (descriptor: { mode: PermissionMode }) => Promise<PermissionState>
   requestPermission?: (descriptor: { mode: PermissionMode }) => Promise<PermissionState>
-  entries: () => AsyncIterableIterator<[string, FileSystemHandle]>
 }
 
 export class FileSystemAccessAdapter implements StorageAdapter {
