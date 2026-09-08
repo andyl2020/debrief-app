@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "check": "npm run typecheck && npm test",
+    "predeploy": "node scripts/preflight.mjs",
     "deploy": "wrangler deploy",
+    "preflight": "node scripts/preflight.mjs",
     "dev": "wrangler dev",
     "test": "vitest run",
     "test:browser": "node test/viewer-browser-smoke.mjs",

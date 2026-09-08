@@ -1,5 +1,28 @@
 import { derivePinHash, keyedHash, randomId, randomPairingCode, randomToken, safeEqual } from "./crypto";
-import { bearer, errorResponse, HttpError, json, readJson, textResponse, unavailable } from "./http";
+import {
+  allowedOrigin,
+  bearer,
+  errorResponse,
+  HttpError,
+  json,
+  preflight,
+  readJson,
+  textResponse,
+  unavailable,
+  withCors,
+} from "./http";
+import {
+  beginItem,
+  completeItemObject,
+  deleteItem,
+  getItemObject,
+  getLibraryKey,
+  isObjectKind,
+  libraryUsage,
+  listLibrary,
+  putLibraryKey,
+  uploadItemPart,
+} from "./library";
 import type { Env, OwnerDevice, ShareMetadata, ShareObjectRow, ShareRow, ShareSetRow } from "./types";
 import {
   MAX_METADATA_BYTES,
@@ -21,10 +44,17 @@ const PIN_MAX_FAILURES = 5;
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    // CORS applies to the owner API only. The public share viewer stays
+    // same-origin so a share token cannot be read cross-site.
+    const isOwnerApi = new URL(request.url).pathname.startsWith("/v1/owner/");
+    const origin = isOwnerApi ? allowedOrigin(request, env) : null;
+    if (isOwnerApi && request.method === "OPTIONS") {
+      return origin ? preflight(origin) : new Response(null, { status: 403 });
+    }
     try {
-      return await route(request, env, ctx);
+      return withCors(await route(request, env, ctx), origin);
     } catch (error) {
-      return errorResponse(error);
+      return withCors(errorResponse(error), origin);
     }
   },
 
@@ -101,6 +131,40 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     if (request.method === "POST" && extendMatch?.[1]) return extendShare(request, env, owner, extendMatch[1]);
     const shareMatch = path.match(/^\/v1\/owner\/shares\/([^/]+)$/);
     if (request.method === "DELETE" && shareMatch?.[1]) return revokeShare(env, owner, shareMatch[1], ctx);
+
+    // Personal cloud library. Additive: no existing route, table or Android
+    // behaviour changes, so Share Sets keeps working exactly as before.
+    if (request.method === "GET" && path === "/v1/owner/library") return listLibrary(env);
+    if (request.method === "GET" && path === "/v1/owner/library/usage") return libraryUsage(env);
+    if (request.method === "GET" && path === "/v1/owner/library/key") return getLibraryKey(env);
+    if (request.method === "PUT" && path === "/v1/owner/library/key") return putLibraryKey(request, env);
+    if (request.method === "POST" && path === "/v1/owner/library/items") return beginItem(request, env, owner);
+
+    const itemPartMatch = path.match(/^\/v1\/owner\/library\/items\/([^/]+)\/objects\/([^/]+)\/parts\/(\d+)$/);
+    if (request.method === "PUT" && itemPartMatch?.[1] && itemPartMatch[2] && itemPartMatch[3]) {
+      const kind = itemPartMatch[2];
+      if (!isObjectKind(kind)) throw new HttpError(404, "NOT_FOUND", "Unknown object kind.");
+      return uploadItemPart(request, env, decodeURIComponent(itemPartMatch[1]), kind, Number(itemPartMatch[3]));
+    }
+
+    const itemCompleteMatch = path.match(/^\/v1\/owner\/library\/items\/([^/]+)\/objects\/([^/]+)\/complete$/);
+    if (request.method === "POST" && itemCompleteMatch?.[1] && itemCompleteMatch[2]) {
+      const kind = itemCompleteMatch[2];
+      if (!isObjectKind(kind)) throw new HttpError(404, "NOT_FOUND", "Unknown object kind.");
+      return completeItemObject(request, env, decodeURIComponent(itemCompleteMatch[1]), kind);
+    }
+
+    const itemObjectMatch = path.match(/^\/v1\/owner\/library\/items\/([^/]+)\/objects\/([^/]+)$/);
+    if ((request.method === "GET" || request.method === "HEAD") && itemObjectMatch?.[1] && itemObjectMatch[2]) {
+      const kind = itemObjectMatch[2];
+      if (!isObjectKind(kind)) throw new HttpError(404, "NOT_FOUND", "Unknown object kind.");
+      return getItemObject(request, env, decodeURIComponent(itemObjectMatch[1]), kind, parseRange);
+    }
+
+    const itemMatch = path.match(/^\/v1\/owner\/library\/items\/([^/]+)$/);
+    if (request.method === "DELETE" && itemMatch?.[1]) {
+      return deleteItem(env, decodeURIComponent(itemMatch[1]), ctx);
+    }
   }
 
   throw new HttpError(404, "NOT_FOUND", "The requested endpoint does not exist.");

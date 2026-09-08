@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 4,
+  "recordingId": "8f2c1d44-0a7b-4f19-9a2e-5c6d7e8f9a0b",
+  "recordingName": "2026-07-18 Run club.m4a",
+  "recordingSizeBytes": 41250816,
+  "recordingDurationMs": 5412000,
+  "writtenAtEpochMs": 1753900000000,
+  "transcript": [
+    {
+      "speakerId": "Speaker A",
+      "startMs": 1200,
+      "endMs": 4100,
+      "text": "Hey good to meet you at run club today."
+    },
+    {
+      "speakerId": "Speaker B",
+      "startMs": 4200,
+      "endMs": 8300,
+      "text": "Yeah the route around the seawall was solid."
+    }
+  ],
+  "words": [
+    { "speakerId": "Speaker A", "startMs": 1200, "endMs": 1500, "text": "Hey", "confidence": 0.98 },
+    { "speakerId": "Speaker A", "startMs": 1500, "endMs": 1900, "text": "good", "confidence": 0.97 },
+    { "speakerId": "Speaker B", "startMs": 4200, "endMs": 4600, "text": "Yeah", "confidence": 0.61 },
+    { "speakerId": "Speaker B", "startMs": 4600, "endMs": 5000, "text": "the", "confidence": null }
+  ],
+  "comments": [
+    {
+      "id": "c8a1b2c3-1111-2222-3333-444455556666",
+      "timestampMs": 4300,
+      "text": "Ask about the seawall route",
+      "createdAt": 1753899000000,
+      "updatedAt": 1753899500000
+    }
+  ],
+  "redactions": [
+    {
+      "id": "r1a2b3c4-5555-6666-7777-888899990000",
+      "startMs": 4200,
+      "endMs": 4600,
+      "text": "Yeah",
+      "createdAt": 1753899600000
+    }
+  ],
+  "speakerAliases": {
+    "Speaker A": "Andy",
+    "Speaker B": "Priya"
+  },
+  "originalRecordingName": null,
+  "aiSummary": "",
+  "skipAiPass": false,
+  "sets": [
+    {
+      "id": "s1a2b3c4-9999-8888-7777-666655554444",
+      "orderIndex": 0,
+      "startMs": 1200,
+      "endMs": 8300,
+      "title": "Set 1",
+      "summary": "",
+      "speakerIds": "Speaker A,Speaker B"
+    }
+  ],
+  "speakerSuggestions": []
+}
