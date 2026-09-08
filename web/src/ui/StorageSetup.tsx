@@ -116,10 +116,8 @@ export function StorageSetup({ app }: { app: AppApi }) {
       </div>
 
       <p className="muted setup__footnote">
-        Recording, AI Enhance and the other native features live in the Android app.{' '}
-        <a href={GITHUB_URL} target="_blank" rel="noreferrer">
-          Download the full app on Android to experience full features.
-        </a>
+        Browser recording is available from the Record tab. On iPhone and iPad, keep Debrief visible
+        during important captures because iOS can suspend any browser app when the screen locks.
       </p>
     </section>
   )

@@ -4,6 +4,8 @@ import type { CloudApi } from '../state/useCloud'
 import type { SharedLink } from '../state/cloud-client'
 import { GITHUB_URL } from './ComingSoon'
 
+const OFFICIAL_WORKER_URL = 'https://debrief-share.debrief-share-service.workers.dev'
+
 /**
  * Cloud library setup.
  *
@@ -14,7 +16,7 @@ import { GITHUB_URL } from './ComingSoon'
  */
 export function CloudSettings({ cloud }: { cloud: CloudApi }) {
   const { config, paired, unlocked, usage, busy } = cloud.state
-  const [baseUrl, setBaseUrl] = useState('')
+  const [baseUrl, setBaseUrl] = useState(OFFICIAL_WORKER_URL)
   const [code, setCode] = useState('')
   const [passphrase, setPassphrase] = useState('')
   const [shares, setShares] = useState<SharedLink[]>([])

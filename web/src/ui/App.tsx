@@ -60,7 +60,7 @@ export function App() {
           <SettingsScreen app={app} cloud={cloud} />
         )}
       </main>
-      <footer className="app-version">Debrief Web v1.12.0</footer>
+      <footer className="app-version">Debrief Web v1.12.1</footer>
     </div>
   )
 }
