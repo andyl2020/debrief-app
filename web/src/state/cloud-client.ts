@@ -36,6 +36,19 @@ export interface WrappedKeyRecord {
   iterations: number
 }
 
+export interface SharedLink {
+  id: string
+  status: 'ACTIVE' | 'REVOKED' | 'EXPIRED' | 'FAILED'
+  title: string
+  expiryDays: number
+  setCount: number
+  totalDurationMs: number
+  totalSizeBytes: number
+  createdAt: number
+  publishedAt: number | null
+  expiresAt: number | null
+}
+
 export type ObjectKind = 'audio' | 'metadata'
 
 export class CloudClient {
@@ -78,6 +91,22 @@ export class CloudClient {
 
   async usage(): Promise<CloudUsage> {
     return this.json<CloudUsage>('GET', '/v1/owner/library/usage')
+  }
+
+  async listShares(): Promise<SharedLink[]> {
+    return (await this.json<{ shares: SharedLink[] }>('GET', '/v1/owner/shares')).shares
+  }
+
+  async revokeShare(id: string): Promise<void> {
+    const response = await this.fetch('DELETE', `/v1/owner/shares/${encodeURIComponent(id)}`)
+    if (!response.ok) throw await errorFor(response, 'Could not revoke that share.')
+  }
+
+  async extendShare(id: string, expiryDays: 30 | 60 | 90): Promise<void> {
+    const response = await this.fetch('POST', `/v1/owner/shares/${encodeURIComponent(id)}/extend`, {
+      body: JSON.stringify({ expiryDays }), headers: { 'Content-Type': 'application/json' },
+    })
+    if (!response.ok) throw await errorFor(response, 'Could not extend that share.')
   }
 
   /** Returns null when the library has not been set up yet. */

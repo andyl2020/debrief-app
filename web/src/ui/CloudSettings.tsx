@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { formatBytes } from '../core/format'
 import type { CloudApi } from '../state/useCloud'
+import type { SharedLink } from '../state/cloud-client'
 import { GITHUB_URL } from './ComingSoon'
 
 /**
@@ -16,6 +17,12 @@ export function CloudSettings({ cloud }: { cloud: CloudApi }) {
   const [baseUrl, setBaseUrl] = useState('')
   const [code, setCode] = useState('')
   const [passphrase, setPassphrase] = useState('')
+  const [shares, setShares] = useState<SharedLink[]>([])
+  const refreshShares = async () => {
+    if (!cloud.client) return
+    try { setShares(await cloud.client.listShares()) } catch { /* preserve the last good list */ }
+  }
+  useEffect(() => { void refreshShares() }, [cloud.client])
 
   return (
     <div className="card">
@@ -125,22 +132,36 @@ export function CloudSettings({ cloud }: { cloud: CloudApi }) {
               </p>
             </>
           )}
+          <div className="cloud-links">
+            <div className="review__header">
+              <h4>Shared links</h4>
+              <button type="button" className="button button--quiet" onClick={() => void refreshShares()}>Refresh</button>
+            </div>
+            {shares.length === 0 ? <p className="muted">No published links.</p> : shares.map((share) => (
+              <div className="cloud-link" key={share.id}>
+                <span><strong>{share.title}</strong><br/><span className="muted">{share.setCount} set{share.setCount === 1 ? '' : 's'} · {formatBytes(share.totalSizeBytes)} · {share.status}{share.expiresAt ? ` · expires ${new Date(share.expiresAt).toLocaleDateString()}` : ''}</span></span>
+                {share.status === 'ACTIVE' && <span className="setup__actions">
+                  <button type="button" className="button button--quiet" onClick={() => void cloud.client?.extendShare(share.id, 30).then(refreshShares)}>+30 days</button>
+                  <button type="button" className="button button--quiet" onClick={() => { if (confirm('Revoke this link now?')) void cloud.client?.revokeShare(share.id).then(refreshShares) }}>Revoke</button>
+                </span>}
+              </div>
+            ))}
+          </div>
         </>
       )}
 
       <p className="disclosure">
         <strong>What Cloudflare can and cannot see.</strong> Audio and transcripts are encrypted in
         this browser before they are uploaded, with a key derived from your passphrase. Your provider
-        stores bytes it cannot read. Two consequences worth being clear about: <strong>if you lose
-        the passphrase the cloud copy is gone</strong> — nobody can recover it — and encryption
-        protects against reading, not against tampering, so treat your bucket as yours alone.
+        stores authenticated bytes it cannot read. <strong>If you lose the passphrase, the cloud
+        copy cannot be recovered.</strong> Modified or truncated objects are rejected before playback.
       </p>
       <p className="disclosure">
-        This is a web-app feature and is not part of the Android app, whose{' '}
+        The personal cloud library is separate from{' '}
         <a href={GITHUB_URL} target="_blank" rel="noreferrer">
           Share Sets
         </a>{' '}
-        does something different: publishing selected clips to someone else on an expiring link.
+        which publishes selected, privacy-redacted clips on an expiring link.
       </p>
     </div>
   )

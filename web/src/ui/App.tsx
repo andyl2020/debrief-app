@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useApp } from '../state/useApp'
 import { useCloud } from '../state/useCloud'
-import { COMING_SOON_SCREENS, ComingSoon } from './ComingSoon'
 import { Library } from './Library'
+import { Recorder } from './Recorder'
 import { Review } from './Review'
 import { SettingsScreen } from './Settings'
 import { StorageSetup } from './StorageSetup'
@@ -55,11 +55,12 @@ export function App() {
         ) : tab === 'library' ? (
           <Library app={app} cloud={cloud} onOpen={setReviewing} />
         ) : tab === 'record' ? (
-          <ComingSoon {...COMING_SOON_SCREENS.recorder!} />
+          <Recorder app={app} onSaved={(id) => { setReviewing(id); setTab('library') }} />
         ) : (
           <SettingsScreen app={app} cloud={cloud} />
         )}
       </main>
+      <footer className="app-version">Debrief Web v1.12.0</footer>
     </div>
   )
 }

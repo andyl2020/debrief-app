@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { userMessage } from '../core/errors'
 import { formatTimestamp } from '../core/format'
 import { exportMarkdown } from '../core/markdown'
-import type { Comment, Redaction, ReviewBundle, SearchHit } from '../core/models'
+import type { Comment, ConversationSet, Redaction, ReviewBundle, SearchHit } from '../core/models'
+import { isOpenManualSet, nextManualSetNumber } from '../core/manual-sets'
 import {
   DEFAULT_PLAYBACK_SKIP_MS,
   PLAYBACK_SPEED_OPTIONS,
@@ -27,6 +28,7 @@ import { isCloudSourceKey } from '../state/cloud'
 import { cloudAudioUrl, type PlaybackMode } from '../state/cloud-playback'
 import { Chapters } from './Chapters'
 import { QualityReportCard } from './QualityReport'
+import { ShareSets } from './ShareSets'
 
 /** How often playback position is polled. Matches the Android volume poll. */
 const POSITION_POLL_MS = 75
@@ -56,6 +58,7 @@ export function Review({
   const [chaptersOpen, setChaptersOpen] = useState(false)
   const [follow, setFollow] = useState(true)
   const [playbackMode, setPlaybackMode] = useState<PlaybackMode | null>(null)
+  const [sharing, setSharing] = useState(false)
 
   const redactionMode = app.state.settings.redactionMode
 
@@ -218,6 +221,7 @@ export function Review({
   const aliasFor = (speakerId: string) =>
     aliases.find((alias) => alias.speakerId === speakerId)?.displayName ?? speakerId
   const durationMs = recording.durationMs
+  const openSet = sets.find(isOpenManualSet)
 
   const addComment = (timestampMs: number, text: string) =>
     void mutate(async () => {
@@ -237,6 +241,42 @@ export function Review({
       () => repository!.setComments(recordingId, comments.filter((comment) => comment.id !== id)),
       'Couldn’t remove the comment.',
     )
+
+  const editComment = (comment: Comment) => {
+    const text = prompt('Edit comment', comment.text)?.trim()
+    if (!text || text === comment.text) return
+    void mutate(
+      () => repository!.setComments(recordingId, comments.map((candidate) => candidate.id === comment.id ? { ...candidate, text, updatedAt: Date.now() } : candidate)),
+      'Couldn’t update the comment.',
+    )
+  }
+
+  const startSet = () => void mutate(async () => {
+    if (openSet) throw new Error('Finish the open set before starting another.')
+    const number = nextManualSetNumber(sets)
+    const created: ConversationSet = {
+      id: crypto.randomUUID(), recordingId, startMs: positionMs, endMs: positionMs,
+      title: `Set ${number}`, summary: '', speakerIds: '', orderIndex: sets.length,
+    }
+    await repository!.setSets(recordingId, [...sets, created])
+  }, 'Couldn’t start the set.')
+
+  const endSet = () => void mutate(async () => {
+    if (!openSet) throw new Error('Start a set first.')
+    if (positionMs <= openSet.startMs) throw new Error('Move forward before ending the set.')
+    await repository!.setSets(recordingId, sets.map((set) => set.id === openSet.id ? { ...set, endMs: positionMs } : set))
+  }, 'Couldn’t end the set.')
+
+  const renameSet = (set: ConversationSet) => {
+    const title = prompt('Set name', set.title)?.trim()
+    if (!title) return
+    void mutate(() => repository!.setSets(recordingId, sets.map((candidate) => candidate.id === set.id ? { ...candidate, title } : candidate)), 'Couldn’t rename the set.')
+  }
+
+  const deleteSet = (set: ConversationSet) => {
+    if (!confirm(`Delete ${set.title}? Comments and transcript remain.`)) return
+    void mutate(() => repository!.setSets(recordingId, sets.filter((candidate) => candidate.id !== set.id)), 'Couldn’t delete the set.')
+  }
 
   const setSpeakerAlias = (speakerId: string, displayName: string) =>
     void mutate(() => {
@@ -279,6 +319,10 @@ export function Review({
           <button type="button" className="button" onClick={() => setChaptersOpen((open) => !open)}>
             Chapters
           </button>
+          <button type="button" className="button" onClick={openSet ? endSet : startSet}>
+            {openSet ? 'End set here' : 'Start set here'}
+          </button>
+          <button type="button" className="button" onClick={() => setSharing(true)}>Share sets</button>
           <button
             type="button"
             className="button"
@@ -375,6 +419,7 @@ export function Review({
           value={Math.min(positionMs, Math.max(durationMs, 1))}
           onChange={(event) => seekTo(Number(event.target.value))}
           aria-label="Playback position"
+          style={{ background: scrubberGradient(sets, redactions, durationMs, redactionMode) }}
         />
 
         <div className="player__speeds">
@@ -449,6 +494,8 @@ export function Review({
           positionMs={positionMs}
           onSeek={seekTo}
           onClose={() => setChaptersOpen(false)}
+          onRenameSet={renameSet}
+          onDeleteSet={deleteSet}
         />
       )}
 
@@ -466,7 +513,7 @@ export function Review({
         )}
 
         {leadingComments(comments, segments).map((comment) => (
-          <CommentRow key={comment.id} comment={comment} onSeek={seekTo} onRemove={removeComment} />
+          <CommentRow key={comment.id} comment={comment} onSeek={seekTo} onRemove={removeComment} onEdit={editComment} />
         ))}
 
         {segments.map((segment, index) => {
@@ -566,6 +613,7 @@ export function Review({
                   comment={comment}
                   onSeek={seekTo}
                   onRemove={removeComment}
+                  onEdit={editComment}
                 />
               ))}
             </div>
@@ -579,6 +627,7 @@ export function Review({
         long recording you have scrolled.
       */}
       <AddComment positionMs={positionMs} onAdd={addComment} />
+      {sharing && repository && <ShareSets bundle={bundle} repository={repository} cloud={cloud} onClose={() => setSharing(false)} notify={app.actions.notify} />}
     </section>
   )
 }
@@ -587,10 +636,12 @@ function CommentRow({
   comment,
   onSeek,
   onRemove,
+  onEdit,
 }: {
   comment: Comment
   onSeek: (ms: number) => void
   onRemove: (id: string) => void
+  onEdit: (comment: Comment) => void
 }) {
   return (
     <div className="comment">
@@ -598,6 +649,7 @@ function CommentRow({
         {formatTimestamp(comment.timestampMs)}
       </button>
       <p className="comment__text">{comment.text}</p>
+      <button type="button" className="button button--quiet" onClick={() => onEdit(comment)}>Edit</button>
       <button type="button" className="button button--quiet" onClick={() => onRemove(comment.id)}>
         Delete
       </button>
@@ -734,4 +786,24 @@ function download(filename: string, contents: string, type: string) {
   anchor.download = filename
   anchor.click()
   URL.revokeObjectURL(url)
+}
+
+function scrubberGradient(
+  sets: ConversationSet[],
+  redactions: Redaction[],
+  durationMs: number,
+  showRedactions: boolean,
+): string | undefined {
+  if (durationMs <= 0) return undefined
+  const stops: Array<{ start: number; end: number; color: string }> = []
+  const colors = ['#b8d8ca', '#d9cdf0', '#f0d7af', '#bdd9ef']
+  for (const set of sets.filter((item) => item.endMs > item.startMs)) {
+    stops.push({ start: set.startMs / durationMs * 100, end: set.endMs / durationMs * 100, color: colors[set.orderIndex % colors.length]! })
+  }
+  if (showRedactions) for (const redaction of redactions) {
+    stops.push({ start: redaction.startMs / durationMs * 100, end: redaction.endMs / durationMs * 100, color: '#d94b4b' })
+  }
+  if (stops.length === 0) return undefined
+  const points = stops.flatMap((stop) => [`transparent ${Math.max(0, stop.start)}%`, `${stop.color} ${Math.max(0, stop.start)}%`, `${stop.color} ${Math.min(100, stop.end)}%`, `transparent ${Math.min(100, stop.end)}%`])
+  return `linear-gradient(to right, ${points.join(', ')})`
 }

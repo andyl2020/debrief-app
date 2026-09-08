@@ -3,7 +3,7 @@
 A local-first web port of [Debrief](https://github.com/andyl2020/debrief-app), so people on iPhone and
 iPad — and anyone else the Android app cannot reach — can transcribe and review long field recordings.
 
-Ported from the Android app at tag **v1.10.2**.
+Reconciled with the Android app at tag **v1.11.3**; web release **v1.12.0**.
 
 There is **no backend**. The browser talks to the transcription provider directly with the user's own
 API key, exactly as the Android app does. It deploys as static files.
@@ -29,8 +29,8 @@ API key, exactly as the Android app does. It deploys as static files.
 
 Keep chosen recordings in your own Cloudflare account and reach them from any device — the phone
 browser reads what the desktop uploaded. Audio and transcripts are encrypted in the browser before
-upload, so Cloudflare stores bytes it cannot read, and seeking still works because AES-CTR allows a
-byte range to be decrypted on its own.
+upload. Cloudflare stores authenticated bytes it cannot read, while independently authenticated
+AES-GCM chunks preserve byte-range seeking.
 
 Opt-in per recording; nothing uploads unless you press Upload. See
 [CLOUD-SETUP.md](CLOUD-SETUP.md) for deployment and pairing.
@@ -62,9 +62,9 @@ Safari has no `showDirectoryPicker`, which is why the second column exists at al
 
 These are honest gaps, surfaced in the UI rather than hidden:
 
-- **Recording is Android-only.** A browser tab cannot hold a microphone foreground service with the
-  screen off. The Record tab is a Coming Soon screen; AI Enhance, Organize Recording, external
-  microphone routing and provider spend tracking are the same.
+- **iOS can suspend recording.** The recorder checkpoints every five seconds, requests a wake lock,
+  and can switch exposed microphone inputs without stopping its output stream. Apple still permits
+  iOS to suspend any web app after screen lock, so keep it visible for an important long capture.
 - **Safari clamps `playbackRate`.** 3× and 4× may not be honoured; the player reports the rate the
   browser actually applied rather than the one requested.
 - **iOS suspends background tabs.** A long Deepgram upload will stall if you leave the page, which is
@@ -75,9 +75,8 @@ These are honest gaps, surfaced in the UI rather than hidden:
   sidecars for anything you cannot lose.
 - **No SQLCipher.** Android encrypts its database at rest. IndexedDB is protected by the origin and
   your device, and nothing more.
-- **Cloud encryption is confidentiality, not integrity.** AES-CTR means your provider cannot read
-  your recordings, but it does not detect tampering. Losing the cloud passphrase loses the cloud
-  copy — nobody can recover it.
+- **Cloud passphrases are unrecoverable.** Authenticated AES-GCM rejects modified, reordered,
+  swapped, and truncated chunks, but losing the passphrase still loses the cloud copy.
 - **API keys are weaker here.** Android seals them with a non-exportable hardware Keystore key. This
   app encrypts them with a passphrase you choose (PBKDF2 + AES-GCM via WebCrypto) and stores only the
   ciphertext — better than plaintext, still weaker than hardware. Settings says so.
@@ -103,7 +102,7 @@ web/src/state/      repository, transcription job runner, settings, app hook
 web/src/platform/   runtime capability detection
 web/src/ui/         React screens
 web/public/sw.js    range-decrypting playback proxy for encrypted cloud audio
-web/test/           155 tests, incl. ~35 ported 1:1 from app/src/test
+web/test/           parity, integration, storage, crypto and UI tests
 ```
 
 `src/core/` deliberately has no DOM or React dependency, so it stays portable and directly
@@ -122,7 +121,7 @@ Web-specific suites cover the storage adapters (both implementations against one
 vault, sidecar v4 round-tripping against an Android-shaped fixture, search semantics, the
 transcription retry policy, capability detection, and the Coming Soon gating.
 
-The cloud suites cover AES-CTR range decryption at block boundaries, a 9 MiB push/pull round trip
+The cloud suites cover authenticated AES-GCM range decryption, a 9 MiB push/pull round trip
 across an upload part boundary, and the shipped `public/sw.js` itself — evaluated directly and
 checked against known plaintext, because duplicated crypto that drifts yields audio that plays as
 noise rather than failing.

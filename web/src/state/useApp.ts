@@ -256,6 +256,29 @@ export function useApp() {
     [notify, refreshRecordings],
   )
 
+  const renameRecording = useCallback(
+    async (id: string, displayName: string) => {
+      const repository = repositoryRef.current
+      const clean = displayName.trim()
+      if (!repository || !clean) {
+        notify('Enter a recording name.')
+        return false
+      }
+      try {
+        await repository.updateRecording(id, { displayName: clean })
+        await repository.rebuildSearch(id)
+        await repository.checkpointSidecar(id)
+        await refreshRecordings()
+        notify('Recording renamed.')
+        return true
+      } catch (error) {
+        notify(userMessage('Could not rename that recording.', error))
+        return false
+      }
+    },
+    [notify, refreshRecordings],
+  )
+
   // --- settings and keys --------------------------------------------------
 
   const updateSettings = useCallback(async (changes: Partial<AppSettings>) => {
@@ -318,6 +341,7 @@ export function useApp() {
       await refreshRecordings()
 
       for (const id of recordingIds) {
+        const source = await repository.getRecording(id)
         const result = await runTranscription(id, {
           repository,
           settings: {
@@ -336,6 +360,24 @@ export function useApp() {
           return next
         })
         if (!result.ok && result.message) notify(result.message)
+        if (result.ok && source) {
+          setSettings((current) => {
+            const previous = current.usage[settings.provider]
+            const next = {
+              ...current,
+              usage: {
+                ...current.usage,
+                [settings.provider]: {
+                  jobs: previous.jobs + 1,
+                  audioMs: previous.audioMs + source.durationMs,
+                  bytes: previous.bytes + source.sizeBytes,
+                },
+              },
+            }
+            void saveSettings(next)
+            return next
+          })
+        }
         await refreshRecordings()
       }
     },
@@ -366,6 +408,7 @@ export function useApp() {
       importFiles,
       rescan,
       deleteRecording,
+      renameRecording,
       updateSettings,
       createVault,
       unlockVault,

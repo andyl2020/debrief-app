@@ -16,6 +16,7 @@ export interface AppSettings {
   /** Warn before uploading hours of audio over a metered connection. */
   warnOnMeteredUpload: boolean
   redactionMode: boolean
+  usage: Record<ProviderId, { jobs: number; audioMs: number; bytes: number }>
 }
 
 const SETTINGS_KEY = 'app-settings'
@@ -28,7 +29,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   keyterms: '',
   transcriptionAudioQuality: 'ORIGINAL',
   warnOnMeteredUpload: true,
-  redactionMode: false,
+  redactionMode: true,
+  usage: {
+    assemblyai: { jobs: 0, audioMs: 0, bytes: 0 },
+    deepgram: { jobs: 0, audioMs: 0, bytes: 0 },
+  },
 }
 
 export async function loadSettings(): Promise<AppSettings> {
@@ -46,8 +51,24 @@ export async function loadSettings(): Promise<AppSettings> {
         : null,
     ),
     warnOnMeteredUpload: stored.warnOnMeteredUpload !== false,
-    redactionMode: stored.redactionMode === true,
+    redactionMode: stored.redactionMode !== false,
+    usage: {
+      assemblyai: validUsage(stored.usage?.assemblyai),
+      deepgram: validUsage(stored.usage?.deepgram),
+    },
   }
+}
+
+function validUsage(value: unknown): { jobs: number; audioMs: number; bytes: number } {
+  if (!value || typeof value !== 'object') return { jobs: 0, audioMs: 0, bytes: 0 }
+  const item = value as { jobs?: unknown; audioMs?: unknown; bytes?: unknown }
+  return {
+    jobs: safe(item.jobs), audioMs: safe(item.audioMs), bytes: safe(item.bytes),
+  }
+}
+
+function safe(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0
 }
 
 export async function saveSettings(settings: AppSettings): Promise<void> {

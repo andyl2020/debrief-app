@@ -14,12 +14,16 @@ export function Chapters({
   positionMs,
   onSeek,
   onClose,
+  onRenameSet,
+  onDeleteSet,
 }: {
   sets: ConversationSet[]
   comments: Comment[]
   positionMs: number
   onSeek: (ms: number) => void
   onClose: () => void
+  onRenameSet?: (set: ConversationSet) => void
+  onDeleteSet?: (set: ConversationSet) => void
 }) {
   const entries = buildChapterEntries(sets, comments)
   const activeSet = [...sets].reverse().find((set) => setContainsPosition(set, positionMs))
@@ -47,17 +51,24 @@ export function Chapters({
         <ul className="chapters__list">
           {entries.map((entry) => (
             <li key={entry.id}>
-              <button
-                type="button"
+              <div
                 className={`chapter chapter--${entry.type.toLowerCase()} ${
                   activeSet && entry.id === `set:${activeSet.id}` ? 'chapter--active' : ''
                 }`}
-                onClick={() => onSeek(entry.timestampMs)}
               >
-                <span className="chapter__time">{formatTimestamp(entry.timestampMs)}</span>
-                <span className="chapter__title">{entry.title}</span>
-                {entry.detail && <span className="chapter__detail">{entry.detail}</span>}
-              </button>
+                <button type="button" className="chapter__main" onClick={() => onSeek(entry.timestampMs)}>
+                  <span className="chapter__time">{formatTimestamp(entry.timestampMs)}</span>
+                  <span className="chapter__title">{entry.title}</span>
+                  {entry.detail && <span className="chapter__detail">{entry.detail}</span>}
+                </button>
+                {entry.type === 'SET' && (() => {
+                  const set = sets.find((candidate) => `set:${candidate.id}` === entry.id)
+                  return set ? <span className="chapter__actions">
+                    <button type="button" className="button button--quiet" onClick={() => onRenameSet?.(set)}>Rename</button>
+                    <button type="button" className="button button--quiet" onClick={() => onDeleteSet?.(set)}>Delete</button>
+                  </span> : null
+                })()}
+              </div>
             </li>
           ))}
         </ul>

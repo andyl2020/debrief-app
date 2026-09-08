@@ -799,3 +799,20 @@ label { display: block; font-size: 0.9rem; }
 }
 
 .meter__fill--warn { background: var(--issue); }
+.recorder { max-width: 42rem; margin: 0 auto; }
+.recorder__card { text-align: center; padding: 2rem; }
+.recorder__card h2 { font-size: clamp(3rem, 12vw, 6rem); font-variant-numeric: tabular-nums; margin: 1rem 0; }
+.recorder__card label { display: grid; gap: .5rem; text-align: left; }
+.recorder__controls { display: flex; justify-content: center; align-items: center; gap: .75rem; flex-wrap: wrap; margin-top: 1.5rem; }
+.recorder__eyebrow { color: var(--accent, #ad2f2f); font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.record-button { width: 5rem; height: 5rem; border-radius: 50%; border: .45rem solid white; background: #d93636; box-shadow: 0 0 0 .2rem #d93636; cursor: pointer; }
+.chapter__main { display: contents; color: inherit; font: inherit; text-align: left; border: 0; background: none; cursor: pointer; }
+.chapter__actions { display: flex; gap: .25rem; margin-left: auto; }
+.app-version { padding: 1rem; text-align: center; color: var(--muted, #777); font-size: .8rem; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 1rem; background: rgb(0 0 0 / .55); }
+.share-dialog { width: min(38rem, 100%); max-height: 90vh; overflow: auto; display: grid; gap: 1rem; }
+.share-dialog__sets { display: grid; gap: .5rem; }
+.share-result { display: flex; gap: .5rem; flex-wrap: wrap; }
+.share-result input { flex: 1 1 15rem; }
+.cloud-links { margin-top: 1rem; }
+.cloud-link { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem 0; border-top: 1px solid var(--border, #ddd); }

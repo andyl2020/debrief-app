@@ -147,6 +147,7 @@ export function Library({ app, cloud, onOpen }: { app: AppApi; cloud: CloudApi; 
                 onOpen={() => onOpen(recording.id)}
                 onTranscribe={() => void app.actions.transcribe([recording.id])}
                 onDelete={() => void app.actions.deleteRecording(recording.id)}
+                onRename={(name) => app.actions.renameRecording(recording.id, name)}
                 inCloud={cloud.state.states[recording.id] !== undefined}
                 cloudReady={cloud.state.paired && cloud.state.unlocked}
                 cloudBusy={cloud.state.progress?.id === recording.id ? cloud.state.progress : null}
@@ -177,6 +178,7 @@ function RecordingCard({
   onOpen,
   onTranscribe,
   onDelete,
+  onRename,
   inCloud,
   cloudReady,
   cloudBusy,
@@ -190,12 +192,15 @@ function RecordingCard({
   onOpen: () => void
   onTranscribe: () => void
   onDelete: () => void
+  onRename: (name: string) => Promise<boolean>
   inCloud: boolean
   cloudReady: boolean
   cloudBusy: { stage: string; fraction: number | null } | null
   onUpload: () => void
   onRemoveFromCloud: () => void
 }) {
+  const [renaming, setRenaming] = useState(false)
+  const [name, setName] = useState(recording.displayName)
   const busy = recording.status === 'QUEUED' || recording.status === 'TRANSCRIBING'
   const canTranscribe = !busy
 
@@ -258,6 +263,15 @@ function RecordingCard({
         <button type="button" className="button button--quiet" onClick={onDelete}>
           Remove
         </button>
+        {renaming ? (
+          <form onSubmit={(event) => { event.preventDefault(); void onRename(name).then((ok) => ok && setRenaming(false)) }}>
+            <input aria-label="Recording name" value={name} onChange={(event) => setName(event.target.value)} autoFocus />
+            <button className="button button--small" type="submit">Save</button>
+            <button className="button button--quiet" type="button" onClick={() => { setName(recording.displayName); setRenaming(false) }}>Cancel</button>
+          </form>
+        ) : (
+          <button type="button" className="button button--quiet" onClick={() => setRenaming(true)}>Rename</button>
+        )}
       </div>
     </article>
   )

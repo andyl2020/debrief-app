@@ -175,8 +175,9 @@ describe('App', () => {
     await userEvent.click(await screen.findByRole('button', { name: /Interview\.m4a/ }))
     await screen.findByText('Hey good to meet you.')
 
-    await userEvent.click(screen.getByLabelText(/Redaction mode/i))
-    // Redact the first line, then confirm the words are gone from the DOM.
+    // Privacy mode is on by default. Redact the first line, then confirm the
+    // words are gone from the DOM.
+    expect(screen.getByLabelText(/Redaction mode/i)).toBeChecked()
     await userEvent.click(screen.getAllByRole('button', { name: 'Redact this line' })[0]!)
 
     await waitFor(() => {
@@ -224,17 +225,16 @@ describe('App', () => {
     expect(await screen.findByRole('button', { name: 'Transcribe 1 selected' })).toBeEnabled()
   })
 
-  it('shows the recorder Coming Soon wall instead of a broken recorder', async () => {
+  it('offers the offline recorder from the Record tab', async () => {
     installOpfs()
 
     render(<App />)
     await screen.findByRole('button', { name: 'Record' })
     await userEvent.click(screen.getByRole('button', { name: 'Record' }))
 
-    expect(await screen.findByRole('heading', { name: 'Recorder' })).toBeInTheDocument()
-    expect(
-      screen.getByText('Download the full app on Android to experience full features.'),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '0:00' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start recording' })).toBeEnabled()
+    expect(screen.getByText(/Keep this app visible while recording on iPhone/i)).toBeInTheDocument()
   })
 
   it('offers no upload control until the cloud library is connected', async () => {
@@ -270,8 +270,8 @@ describe('App', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
     await screen.findByRole('heading', { name: 'Cloud library' })
 
-    expect(screen.getByText(/if you lose\s+the passphrase the cloud copy is gone/i)).toBeInTheDocument()
-    expect(screen.getByText(/stores bytes it cannot read/i)).toBeInTheDocument()
+    expect(screen.getByText(/if you lose the passphrase, the cloud\s+copy cannot be recovered/i)).toBeInTheDocument()
+    expect(screen.getByText(/stores authenticated bytes it cannot read/i)).toBeInTheDocument()
   })
 
   it('rejects a Worker URL that is not a full https address', async () => {

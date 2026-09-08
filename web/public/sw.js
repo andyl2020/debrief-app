@@ -12,16 +12,20 @@ const CRYPTO_VERSION = 2
 const GCM_TAG_BYTES = 16
 const VIRTUAL_PREFIX = '/__cloud-audio/'
 const AAD_PREFIX = 'debrief-cloud-v2'
+const APP_CACHE = 'debrief-app-v1.12.0'
 
 const items = new Map()
 let dataKey = null
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(self.skipWaiting())
+  event.waitUntil(Promise.all([self.skipWaiting(), caches.open(APP_CACHE).then((cache) => cache.addAll(['/', '/manifest.webmanifest', '/icon.svg']))]))
 })
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim())
+  event.waitUntil(Promise.all([
+    self.clients.claim(),
+    caches.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith('debrief-app-') && key !== APP_CACHE).map((key) => caches.delete(key)))),
+  ]))
 })
 
 self.addEventListener('message', (event) => {
@@ -55,11 +59,25 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url)
   if (url.origin !== self.location.origin) return
   const index = url.pathname.indexOf(VIRTUAL_PREFIX)
-  if (index < 0) return
+  if (index < 0) {
+    if (event.request.method === 'GET') event.respondWith(appAsset(event.request))
+    return
+  }
 
   const id = decodeURIComponent(url.pathname.slice(index + VIRTUAL_PREFIX.length))
   event.respondWith(handle(event.request, id))
 })
+
+async function appAsset(request) {
+  const cache = await caches.open(APP_CACHE)
+  try {
+    const response = await fetch(request)
+    if (response.ok && new URL(request.url).origin === self.location.origin) await cache.put(request, response.clone())
+    return response
+  } catch {
+    return (await cache.match(request)) ?? (request.mode === 'navigate' ? await cache.match('/') : undefined) ?? new Response('Offline', { status: 503 })
+  }
+}
 
 async function handle(request, id) {
   const item = items.get(id)

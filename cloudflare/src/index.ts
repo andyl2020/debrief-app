@@ -450,8 +450,8 @@ async function publishShare(
   const now = Date.now();
   const expiresAt = now + share.expiry_days * DAY_MS;
   const result = await env.DB.prepare(
-    "UPDATE shares SET status = 'ACTIVE', bearer_hash = ?, total_size_bytes = ?, published_at = ?, expires_at = ?, updated_at = ? WHERE id = ? AND owner_device_id = ? AND status = 'DRAFT'",
-  ).bind(tokenHash, totalSize, now, expiresAt, now, draftId, owner.id).run();
+    "UPDATE shares SET status = 'ACTIVE', bearer_hash = ?, total_size_bytes = ?, published_at = ?, expires_at = ?, updated_at = ? WHERE id = ? AND status = 'DRAFT'",
+  ).bind(tokenHash, totalSize, now, expiresAt, now, draftId).run();
   if (!result.meta.changes) throw new HttpError(409, "PUBLISH_CONFLICT", "The share changed while it was being published. Retry safely.");
   return json(publicationPayload(request, env, { ...share, status: "ACTIVE", bearer_hash: tokenHash, total_size_bytes: totalSize, published_at: now, expires_at: expiresAt, updated_at: now }, publicToken), 201);
 }
@@ -523,9 +523,9 @@ async function listShares(env: Env, owner: OwnerDevice): Promise<Response> {
             COALESCE((SELECT json_group_array(json_object('id', ss.id, 'title', ss.title, 'durationMs', ss.duration_ms))
                       FROM share_sets ss WHERE ss.share_id = s.id ORDER BY ss.position), '[]') AS sets_json
        FROM shares s
-      WHERE s.owner_device_id = ? AND s.status <> 'DRAFT'
+      WHERE s.status <> 'DRAFT'
       ORDER BY CASE WHEN s.status = 'ACTIVE' THEN 0 ELSE 1 END, s.expires_at ASC, s.created_at DESC`,
-  ).bind(owner.id).all<Record<string, unknown>>();
+  ).all<Record<string, unknown>>();
   return json({ shares: results.map((row) => ({
     id: row.id,
     status: row.status,
@@ -653,17 +653,21 @@ async function resolvePublicShare(env: Env, token: string): Promise<ShareRow | n
 }
 
 async function ownedShare(env: Env, ownerId: string, shareId: string): Promise<ShareRow> {
-  const share = await env.DB.prepare("SELECT * FROM shares WHERE id = ? AND owner_device_id = ? LIMIT 1")
-    .bind(shareId, ownerId).first<ShareRow>();
+  // A deployment is one personal account. Every paired device can manage the
+  // same links, just as every paired device can access the same library.
+  void ownerId;
+  const share = await env.DB.prepare("SELECT * FROM shares WHERE id = ? LIMIT 1")
+    .bind(shareId).first<ShareRow>();
   if (!share) throw new HttpError(404, "SHARE_NOT_FOUND", "That share was not found.");
   return share;
 }
 
 async function ownedDraftObject(env: Env, ownerId: string, draftId: string, objectId: string): Promise<ShareObjectRow> {
+  void ownerId;
   const object = await env.DB.prepare(
     `SELECT o.* FROM share_objects o JOIN shares s ON s.id = o.share_id
-      WHERE o.id = ? AND o.share_id = ? AND s.owner_device_id = ? AND s.status = 'DRAFT' LIMIT 1`,
-  ).bind(objectId, draftId, ownerId).first<ShareObjectRow>();
+      WHERE o.id = ? AND o.share_id = ? AND s.status = 'DRAFT' LIMIT 1`,
+  ).bind(objectId, draftId).first<ShareObjectRow>();
   if (!object) throw new HttpError(404, "UPLOAD_NOT_FOUND", "That private upload was not found.");
   return object;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AUDIO_QUALITY, AUDIO_QUALITY_ORDER } from '../core/audio-quality'
-import { formatBytes } from '../core/format'
+import { formatBytes, formatTimestamp } from '../core/format'
 import type { ProviderId } from '../core/transcription/provider'
 import { confirmAacEncoder } from '../platform/capabilities'
 import { destroyVault } from '../storage/keys'
@@ -70,6 +70,15 @@ export function SettingsScreen({ app, cloud }: { app: AppApi; cloud: CloudApi })
           is meaningfully weaker: anyone who can run script on this page while the vault is unlocked
           could read a key. Use a key scoped to transcription, and lock the vault when you are done.
         </p>
+      </div>
+
+      <div className="card">
+        <h3>Provider usage on this device</h3>
+        <p className="muted">Measured locally for this browser and API key workflow. Provider dashboards remain the source of truth for billing and account-wide quota.</p>
+        {PROVIDERS.map((provider) => {
+          const usage = settings.usage[provider.id]
+          return <p key={provider.id}><strong>{provider.label}</strong>: {usage.jobs} job{usage.jobs === 1 ? '' : 's'} · {formatTimestamp(usage.audioMs)} audio · {formatBytes(usage.bytes)} uploaded</p>
+        })}
       </div>
 
       <div className="card">
@@ -179,13 +188,13 @@ export function SettingsScreen({ app, cloud }: { app: AppApi; cloud: CloudApi })
       <Diagnostics app={app} />
 
       <div className="card">
-        <h3>Android-only features</h3>
+        <h3>Optional advanced tools</h3>
         <p className="muted">
-          These need capabilities a browser does not have. Download the full app on Android to
-          experience full features.
+          AssemblyAI with Original upload is the recommended quality path. These optional experimental
+          tools are not required for recording, transcription, review, redaction, chapters, sharing, or sync.
         </p>
         <ul className="settings__links">
-          {Object.entries(COMING_SOON_SCREENS).map(([key, screen]) => (
+          {Object.entries(COMING_SOON_SCREENS).filter(([key]) => key === 'enhance' || key === 'organize').map(([key, screen]) => (
             <li key={key}>
               <button type="button" className="button button--quiet" onClick={() => setSection(key)}>
                 {screen.title} →

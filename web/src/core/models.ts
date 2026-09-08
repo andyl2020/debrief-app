@@ -1,6 +1,6 @@
 /**
  * Mirrors `app/src/main/java/com/andyluu/debrief/data/Models.kt` from the
- * Android app at tag v1.10.2.
+ * Android app at tag v1.11.3.
  *
  * Field names and semantics are kept identical so the JSON sidecars written by
  * either platform stay interchangeable. Where Android uses `Long` milliseconds

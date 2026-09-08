@@ -41,7 +41,7 @@ export function validateDraft(body: CreateDraftBody): CreateDraftBody {
       throw new HttpError(400, "INVALID_SET_DURATION", "Every selected set must have a valid end marker.");
     }
     totalDuration += set.durationMs;
-    if (!/^audio\/(mp4|m4a|aac|mpeg|ogg|webm)$/i.test(set.audioMimeType)) {
+    if (!/^audio\/(mp4|m4a|aac|mpeg|ogg|webm|wav)$/i.test(set.audioMimeType)) {
       throw new HttpError(400, "INVALID_AUDIO_TYPE", "A selected set uses an unsupported audio type.");
     }
     validateExpectedBytes(set.expectedAudioBytes, MAX_OBJECT_BYTES, "audio");
