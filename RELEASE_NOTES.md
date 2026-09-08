@@ -2,6 +2,13 @@
 
 This is the cumulative guide to what the current APK includes, how to use it, and what to expect. Every release keeps this file up to date.
 
+### v1.12.1 - Web onboarding polish (2026-09-07)
+
+- Corrected first-run copy that mistakenly described the implemented web recorder as Android-only.
+- Prefilled the official cloud service URL so iPhone and desktop users only need their pairing code and passphrase.
+- Fixed intermittent invalid pairing codes caused by stripping URL-safe Base64 characters after generation.
+- Version-aligned the Android companion build; native behavior is unchanged from v1.12.0.
+
 ### v1.12.0 - Cross-platform web/PWA (2026-09-07)
 
 - Debrief now has an installable web app for iPhone, iPad, macOS, Windows, Linux, and modern Android browsers, including import/record, transcription, review, redaction, manual sets, comments, sharing, and encrypted cloud sync.

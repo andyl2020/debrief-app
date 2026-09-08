@@ -279,7 +279,9 @@ describe('App', () => {
 
     render(<App />)
     await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
-    await userEvent.type(await screen.findByLabelText(/Worker URL/i), 'my-worker.dev')
+    const workerUrl = await screen.findByLabelText(/Worker URL/i)
+    await userEvent.clear(workerUrl)
+    await userEvent.type(workerUrl, 'my-worker.dev')
     await userEvent.type(screen.getByLabelText(/Pairing code/i), '123456')
     await userEvent.click(screen.getByRole('button', { name: 'Pair this device' }))
 

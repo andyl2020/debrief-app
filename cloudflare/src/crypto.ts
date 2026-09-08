@@ -11,8 +11,14 @@ export function randomId(prefix: string): string {
 }
 
 export function randomPairingCode(): string {
-  const raw = randomToken(12).toUpperCase().replace(/[-_]/g, "");
-  return raw.slice(0, 16).match(/.{1,4}/g)?.join("-") ?? raw.slice(0, 16);
+  // Exactly 32 unambiguous symbols means `byte & 31` is unbiased and every
+  // generated code is the same validator-safe length. Removing '-'/'_' from
+  // Base64URL occasionally produced only 14 or 15 characters.
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  const raw = Array.from(bytes, (byte) => alphabet[byte & 31]).join("");
+  return raw.match(/.{4}/g)!.join("-");
 }
 
 export async function keyedHash(secret: string, pepper: string): Promise<string> {

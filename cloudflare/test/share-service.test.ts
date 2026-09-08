@@ -1,9 +1,16 @@
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { randomPairingCode } from "../src/crypto";
 
 const ORIGIN = "https://share.example.test";
 
 describe("Debrief share service", () => {
+  it("always generates validator-safe pairing codes", () => {
+    for (let index = 0; index < 1_000; index += 1) {
+      expect(randomPairingCode()).toMatch(/^[A-HJ-NP-Z2-9]{4}(?:-[A-HJ-NP-Z2-9]{4}){3}$/);
+    }
+  });
+
   it("exposes a small health endpoint with defensive headers", async () => {
     const response = await SELF.fetch(`${ORIGIN}/health`);
     expect(response.status).toBe(200);
