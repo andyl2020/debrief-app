@@ -12,7 +12,7 @@
     // Origins allowed to call the owner API from a browser, comma separated.
     // Needed by the web app; the Android client does not use CORS. Set this to
     // wherever the web app is served from before deploying.
-    "ALLOWED_ORIGINS": "https://debrief-app.pages.dev,https://feat-web-cross-platform.debrief-app.pages.dev,http://localhost:5173"
+    "ALLOWED_ORIGINS": "https://debrief-app.pages.dev,https://feat-web-cross-platform.debrief-app.pages.dev,https://andyl2020.github.io,http://localhost:5173"
   },
   "secrets": {
     "required": ["BOOTSTRAP_SECRET", "TOKEN_PEPPER", "PIN_PEPPER"]

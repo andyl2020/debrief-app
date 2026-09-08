@@ -18,7 +18,7 @@ const items = new Map()
 let dataKey = null
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(Promise.all([self.skipWaiting(), caches.open(APP_CACHE).then((cache) => cache.addAll(['/', '/manifest.webmanifest', '/icon.svg']))]))
+  event.waitUntil(Promise.all([self.skipWaiting(), caches.open(APP_CACHE).then((cache) => cache.addAll(['./', './manifest.webmanifest', './icon.svg']))]))
 })
 
 self.addEventListener('activate', (event) => {
@@ -75,7 +75,7 @@ async function appAsset(request) {
     if (response.ok && new URL(request.url).origin === self.location.origin) await cache.put(request, response.clone())
     return response
   } catch {
-    return (await cache.match(request)) ?? (request.mode === 'navigate' ? await cache.match('/') : undefined) ?? new Response('Offline', { status: 503 })
+    return (await cache.match(request)) ?? (request.mode === 'navigate' ? await cache.match('./') : undefined) ?? new Response('Offline', { status: 503 })
   }
 }
 
