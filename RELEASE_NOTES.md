@@ -2,6 +2,14 @@
 
 This is the cumulative guide to what the current APK includes, how to use it, and what to expect. Every release keeps this file up to date.
 
+### v1.12.0 - Cross-platform web/PWA (2026-09-07)
+
+- Debrief now has an installable web app for iPhone, iPad, macOS, Windows, Linux, and modern Android browsers, including import/record, transcription, review, redaction, manual sets, comments, sharing, and encrypted cloud sync.
+- The web cloud-library format uses authenticated, independently seekable AES-GCM chunks. Tampering, truncation, reordering, wrong keys, and cross-recording object substitution fail closed.
+- GitHub Pages publishes automatically from `main`; Cloudflare Pages provides a second free deployment. Web and Worker type checks, unit/integration tests, builds, audits, and deployment validation now run in CI.
+- The Android APK is version-aligned to 1.12.0 as the companion native build; Android behavior is unchanged from 1.11.3 in this release.
+- Full web usage instructions, privacy behavior, browser constraints, and edge cases are documented in `docs/releases/v1.12.0.md`.
+
 ## Current feature guide
 
 ### Recordings and transcription

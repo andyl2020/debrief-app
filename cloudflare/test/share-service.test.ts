@@ -171,6 +171,23 @@ describe("Debrief share service", () => {
     expect((await SELF.fetch(`${ORIGIN}/v1/public/${token}`)).status).toBe(404);
     expect((await ownerFetch(owner, `/v1/owner/shares/${fixture.draftId}`, { method: "DELETE" })).status).toBe(202);
   });
+
+  it("lets another paired device manage account-wide shared links", async () => {
+    const creator = await pairOwner("Creator device");
+    const manager = await pairOwner("Manager device");
+    const fixture = await createUploadedDraft(creator, {
+      title: "Cross-device link",
+      setTitle: "Set one",
+      metadata: validMetadata("Set one"),
+    });
+    await ownerFetch(creator, `/v1/owner/share-drafts/${fixture.draftId}/publish`, {
+      method: "POST",
+      body: JSON.stringify({ publicToken: "E".repeat(43) }),
+    });
+    const list = await (await ownerFetch(manager, "/v1/owner/shares")).json<any>();
+    expect(list.shares.some((share: any) => share.id === fixture.draftId)).toBe(true);
+    expect((await ownerFetch(manager, `/v1/owner/shares/${fixture.draftId}`, { method: "DELETE" })).status).toBe(202);
+  });
 });
 
 async function pairOwner(label: string): Promise<string> {
