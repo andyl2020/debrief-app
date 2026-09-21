@@ -3,7 +3,11 @@
 package com.andyluu.debrief.ui
 
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.net.Uri
+import android.os.PersistableBundle
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -35,6 +39,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.AddComment
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Flag
@@ -1181,6 +1186,53 @@ fun ReviewScreen(
                     enhanceRunning = enhanceRunning,
                     suspectCount = unresolvedSuspects,
                     onReload = { follow = true; viewModel.reloadTranscript() },
+                    onCopyTranscript = {
+                        val transcript = formatTranscriptForClipboard(
+                            state.segments.map { segment ->
+                                val baseText = if (cleanedView) {
+                                    cleanedText(segment, state.repairs.overlappingRepairs(segment.startMs, segment.endMs))
+                                } else {
+                                    segment.text
+                                }
+                                val displayedText = if (redactionsEnabled) {
+                                    redactedTranscriptText(
+                                        baseText,
+                                        wordsForSegment(state.words, segment.startMs, segment.endMs),
+                                        state.redactions,
+                                        segment.startMs,
+                                        segment.endMs,
+                                    )
+                                } else {
+                                    baseText
+                                }
+                                ClipboardTranscriptLine(
+                                    timestampMs = segment.startMs,
+                                    speaker = state.aliases[segment.speakerId] ?: segment.speakerId,
+                                    text = displayedText,
+                                )
+                            },
+                        )
+                        if (transcript.isBlank()) {
+                            scope.launch { snackbar.showSnackbar("No transcript is available to copy.") }
+                        } else {
+                            runCatching {
+                                val clip = ClipData.newPlainText(
+                                    "${recording?.displayName ?: "Debrief"} transcript",
+                                    transcript,
+                                ).apply {
+                                    description.extras = PersistableBundle().apply {
+                                        putBoolean("android.content.extra.IS_SENSITIVE", true)
+                                    }
+                                }
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                clipboard.setPrimaryClip(clip)
+                            }.onSuccess {
+                                scope.launch { snackbar.showSnackbar("Copied the full transcript (${state.segments.size} lines).") }
+                            }.onFailure {
+                                scope.launch { snackbar.showSnackbar("Couldn't copy the transcript. Use Export Markdown instead.") }
+                            }
+                        }
+                    },
                     onRunEnhance = viewModel::runAiEnhance,
                     redactionsEnabled = redactionsEnabled,
                     redactionCount = state.redactions.size,
@@ -1540,6 +1592,7 @@ internal fun ReviewToolbarActions(
     enhanceRunning: Boolean,
     suspectCount: Int,
     onReload: () -> Unit,
+    onCopyTranscript: () -> Unit = {},
     onRunEnhance: () -> Unit,
     redactionsEnabled: Boolean,
     redactionCount: Int,
@@ -1550,6 +1603,7 @@ internal fun ReviewToolbarActions(
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onReload) { Icon(Icons.Default.Refresh, "Reload transcript") }
+        IconButton(onClick = onCopyTranscript) { Icon(Icons.Default.ContentCopy, "Copy full transcript") }
         if (showEnhance) {
             IconButton(
                 onClick = onRunEnhance,

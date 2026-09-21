@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { copyTextToClipboard, formatTranscriptForClipboard } from '../core/clipboard'
 import { userMessage } from '../core/errors'
 import { formatTimestamp } from '../core/format'
 import { exportMarkdown } from '../core/markdown'
@@ -316,6 +317,41 @@ export function Review({
         </button>
         <h2>{recording.displayName}</h2>
         <div className="review__header-actions">
+          <button
+            type="button"
+            className="button button--primary"
+            disabled={segments.length === 0}
+            onClick={() => {
+              const transcript = formatTranscriptForClipboard({
+                segments,
+                aliases,
+                textForSegment: (segment) => {
+                  if (!redactionMode) return segment.text
+                  const segmentWords = wordsForSegment(words, segment.startMs, segment.endMs)
+                  return redactedTranscriptText(
+                    segment.text,
+                    segmentWords,
+                    redactions,
+                    segment.startMs,
+                    segment.endMs,
+                  )
+                },
+              })
+              if (!transcript) {
+                app.actions.notify('No transcript is available to copy.')
+                return
+              }
+              void copyTextToClipboard(transcript)
+                .then(() => app.actions.notify(`Copied the full transcript (${segments.length} lines).`))
+                .catch(() =>
+                  app.actions.notify(
+                    'Couldn’t access the clipboard. Use Export Markdown for this transcript instead.',
+                  ),
+                )
+            }}
+          >
+            Copy transcript
+          </button>
           <button type="button" className="button" onClick={() => setChaptersOpen((open) => !open)}>
             Chapters
           </button>

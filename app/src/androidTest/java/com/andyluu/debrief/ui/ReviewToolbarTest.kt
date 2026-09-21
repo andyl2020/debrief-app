@@ -22,6 +22,7 @@ class ReviewToolbarTest {
     @Test
     fun enhanceActionIsBetweenReloadAndCommentAndInvokesCallback() {
         var enhanceClicks = 0
+        var copyClicks = 0
         compose.setContent {
             DebriefTheme {
                 ReviewToolbarActions(
@@ -29,6 +30,7 @@ class ReviewToolbarTest {
                     enhanceRunning = false,
                     suspectCount = 3,
                     onReload = {},
+                    onCopyTranscript = { copyClicks++ },
                     onRunEnhance = { enhanceClicks++ },
                     redactionsEnabled = false,
                     redactionCount = 2,
@@ -41,18 +43,25 @@ class ReviewToolbarTest {
         }
 
         val reloadX = compose.onNodeWithContentDescription("Reload transcript").fetchSemanticsNode().boundsInRoot.left
+        val copyNode = compose.onNodeWithContentDescription("Copy full transcript").assertIsEnabled()
+        val copyX = copyNode.fetchSemanticsNode().boundsInRoot.left
         val aiNode = compose.onNodeWithContentDescription("Run AI Enhance").assertIsEnabled()
         val aiX = aiNode.fetchSemanticsNode().boundsInRoot.left
         val shieldX = compose.onNodeWithContentDescription("Turn redactions on").fetchSemanticsNode().boundsInRoot.left
         val commentX = compose.onNodeWithContentDescription("Add comment").fetchSemanticsNode().boundsInRoot.left
         val chaptersX = compose.onNodeWithContentDescription("Open chapters").fetchSemanticsNode().boundsInRoot.left
 
-        assertTrue(reloadX < aiX)
+        assertTrue(reloadX < copyX)
+        assertTrue(copyX < aiX)
         assertTrue(aiX < shieldX)
         assertTrue(shieldX < commentX)
         assertTrue(commentX < chaptersX)
+        copyNode.performClick()
         aiNode.performClick()
-        compose.runOnIdle { assertEquals(1, enhanceClicks) }
+        compose.runOnIdle {
+            assertEquals(1, copyClicks)
+            assertEquals(1, enhanceClicks)
+        }
     }
 
     @Test

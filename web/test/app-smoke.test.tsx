@@ -122,6 +122,27 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '0:01' })).toBeInTheDocument()
   })
 
+  it('copies the entire transcript with timestamps and speaker labels', async () => {
+    installOpfs()
+    await seedRecording(new FakeDirectoryHandle(), { withTranscript: true })
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    })
+
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: /Interview\.m4a/ }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Copy transcript' }))
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce())
+    expect(writeText).toHaveBeenCalledWith(
+      '[0:01] Speaker A: Hey good to meet you.\n\n' +
+        '[0:06] Speaker B: The seawall route was solid.',
+    )
+    expect(await screen.findByText(/Copied the full transcript \(2 lines\)/i)).toBeInTheDocument()
+  })
+
   it('keeps the comment composer reachable below the transcript', async () => {
     // Regression: the composer used to sit above the transcript, so on a long
     // recording you had to scroll all the way back up to add a comment.
