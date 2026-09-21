@@ -2,6 +2,14 @@
 
 This is the cumulative guide to what the current APK includes, how to use it, and what to expect. Every release keeps this file up to date.
 
+### v1.12.2 - Copy complete transcript (2026-09-21)
+
+- Added **Copy transcript** to Android Review and the web/desktop/iPhone PWA.
+- One tap copies every transcript segment in chronological order as plain text, including timestamps and resolved speaker labels such as `[0:01] Andy: Hey…`.
+- Copy follows the current privacy view: with redactions enabled, protected text remains `[redacted]`; deliberately turning redactions off copies the visible original text. Android Cleaned view also copies the visible repaired text.
+- Browsers use the secure Async Clipboard API with an older-browser selection fallback. If a device or destination rejects an unusually large clipboard payload, Debrief leaves the clipboard unchanged and directs the user to **Export Markdown**.
+- Clipboard frameworks expose one current clip, so Debrief does not pretend to copy multiple automatic “parts” that would overwrite one another.
+
 ### v1.12.1 - Web onboarding polish (2026-09-07)
 
 - Corrected first-run copy that mistakenly described the implemented web recorder as Android-only.
@@ -87,6 +95,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 
 - Tap Add Comment at the current playback position. Comments remain visible beside transcript context and also become jump targets in Chapters.
 - Comments can be edited or deleted inline. Comments before the first segment, in transcript gaps, and after the last segment remain visible.
+- Tap **Copy transcript** in Review to copy the complete chronological transcript as plain text with timestamps and speaker labels. The copied text follows the visible redaction/Cleaned state.
 - Export creates Markdown through Android's share sheet with timestamped transcript text and comments.
 
 ### Share Sets

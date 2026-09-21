@@ -1,10 +1,20 @@
 # Debrief implementation checkpoint
 
-Last updated: 2026-09-07
+Last updated: 2026-09-21
 
 ## Objective
 
-Release Debrief v1.11.3 with reliable physical recording rename behavior while preserving the v1.11.2 Android, privacy, and cloud-sharing contracts.
+Release Debrief v1.12.2 with complete-transcript clipboard copy on Android and the cross-platform PWA while preserving existing privacy behavior.
+
+## v1.12.2 checkpoint
+
+- Added a first-class Copy transcript action in both Android Review and the web/PWA Review header.
+- The shared output contract is plain text, one chronological segment per paragraph: timestamp, resolved speaker label, then transcript text.
+- Copy follows what the user is viewing. Enabled redactions remain `[redacted]`; Android Cleaned view copies applied repair text. Comments are excluded because this action copies the transcript rather than the annotated Markdown export.
+- Browser copy uses `navigator.clipboard.writeText()` on the production HTTPS origins and falls back to a temporary selected text control for older embedded/desktop browsers. A failed write is non-destructive and points to Export Markdown.
+- Android uses one sensitive plain-text `ClipData` entry, suppressing private transcript previews in supported system clipboard UI.
+- Verification so far: 158 web tests including actual Review-button clipboard integration, web typecheck/production build/audit with zero vulnerabilities, Android JVM tests, Android-test compilation, and debug APK assembly pass.
+- Release candidate: Android version code 34/name 1.12.2 and web version 1.12.2. Public tag/APK verification is pending.
 
 ## v1.11.3 checkpoint
 
