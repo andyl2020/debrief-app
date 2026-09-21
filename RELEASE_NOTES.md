@@ -10,6 +10,7 @@ This is the cumulative guide to what the current APK includes, how to use it, an
 - Browsers use the secure Async Clipboard API with an older-browser selection fallback. If a device or destination rejects an unusually large clipboard payload, Debrief leaves the clipboard unchanged and directs the user to **Export Markdown**.
 - Clipboard frameworks expose one current clip, so Debrief does not pretend to copy multiple automatic “parts” that would overwrite one another.
 - Refreshed GitHub build actions and patched Cloudflare Worker development dependencies after runner/toolchain changes and newly disclosed Vitest/Sharp advisories; production Worker behavior is unchanged.
+- Public release: `https://github.com/andyl2020/debrief-app/releases/tag/v1.12.2`; APK size 9,451,653 bytes; SHA-256 `9C7CD5D27E81DE921C5BF169B16F3DE6E86E1A1C55362CF5873A9DE73B84184A`.
 
 ### v1.12.1 - Web onboarding polish (2026-09-07)
 

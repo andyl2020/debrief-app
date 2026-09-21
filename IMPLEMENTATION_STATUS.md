@@ -15,7 +15,11 @@ Release Debrief v1.12.2 with complete-transcript clipboard copy on Android and t
 - Android uses one sensitive plain-text `ClipData` entry, suppressing private transcript previews in supported system clipboard UI.
 - Verification so far: 158 web tests including actual Review-button clipboard integration, web typecheck/production build/audit with zero vulnerabilities, Android JVM tests, Android-test compilation, and debug APK assembly pass.
 - PR CI exposed unrelated toolchain drift: deprecated Android package installation in setup-android v3 and newly disclosed Worker development-dependency advisories. Workflows now use current official action majors; Cloudflare test/Wrangler/Miniflare/Sharp dependencies are aligned, clean `npm ci` and audit report zero vulnerabilities, all 24 Worker tests pass, and Wrangler dry-run succeeds.
-- Release candidate: Android version code 34/name 1.12.2 and web version 1.12.2. Public tag/APK verification is pending.
+- Release complete: PR #4 merged at `39e3bf7`; annotated tag `v1.12.2` points to that release source. Android, web/Pages, Worker, and signed-release workflows passed on the current official action toolchain.
+- Both `https://debrief-app.pages.dev/` and `https://andyl2020.github.io/debrief-app/` serve the v1.12.2 bundle with Copy transcript. The production Worker health check returns 200.
+- Public release: `https://github.com/andyl2020/debrief-app/releases/tag/v1.12.2`. The unauthenticated APK download is 9,451,653 bytes with SHA-256 `9C7CD5D27E81DE921C5BF169B16F3DE6E86E1A1C55362CF5873A9DE73B84184A`.
+- Public-artifact verification passed: the downloaded bytes match GitHub's asset digest, APK Signature Scheme v3 verifies, and the production certificate SHA-256 remains `32BB05383EBD2FE29B70306D607842F1AAED8066C193C720A35EA5B8B8F60FE0`.
+- No implementation or release work remains for v1.12.2.
 
 ## v1.11.3 checkpoint
 
