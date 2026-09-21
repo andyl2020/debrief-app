@@ -14,6 +14,7 @@ Release Debrief v1.12.2 with complete-transcript clipboard copy on Android and t
 - Browser copy uses `navigator.clipboard.writeText()` on the production HTTPS origins and falls back to a temporary selected text control for older embedded/desktop browsers. A failed write is non-destructive and points to Export Markdown.
 - Android uses one sensitive plain-text `ClipData` entry, suppressing private transcript previews in supported system clipboard UI.
 - Verification so far: 158 web tests including actual Review-button clipboard integration, web typecheck/production build/audit with zero vulnerabilities, Android JVM tests, Android-test compilation, and debug APK assembly pass.
+- PR CI exposed unrelated toolchain drift: deprecated Android package installation in setup-android v3 and newly disclosed Worker development-dependency advisories. Workflows now use current official action majors; Cloudflare test/Wrangler/Miniflare/Sharp dependencies are aligned, clean `npm ci` and audit report zero vulnerabilities, all 24 Worker tests pass, and Wrangler dry-run succeeds.
 - Release candidate: Android version code 34/name 1.12.2 and web version 1.12.2. Public tag/APK verification is pending.
 
 ## v1.11.3 checkpoint

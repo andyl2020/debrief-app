@@ -16,18 +16,20 @@
     "types": "wrangler types"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "0.20.1",
-    "@cloudflare/workers-types": "5.20260804.1",
+    "@cloudflare/vitest-pool-workers": "0.22.0",
+    "@cloudflare/workers-types": "5.20260921.1",
     "@types/node": "^26.1.2",
     "playwright": "1.62.1",
     "typescript": "7.0.2",
-    "vitest": "4.1.10",
-    "wrangler": "4.118.0"
+    "vitest": "4.1.11",
+    "wrangler": "4.136.1"
   },
   "engines": {
     "node": ">=22"
   },
   "overrides": {
+    "miniflare": "5.20260921.0-alpha",
+    "sharp": "0.35.4",
     "undici": "7.29.0"
   }
 }

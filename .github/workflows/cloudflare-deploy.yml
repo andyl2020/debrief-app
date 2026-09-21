@@ -25,9 +25,9 @@ jobs:
       PIN_PEPPER: ${{ secrets.DEBRIEF_SHARE_PIN_PEPPER }}
       DEBRIEF_SHARE_BASE_URL: https://debrief-share.debrief-share-service.workers.dev
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
